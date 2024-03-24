@@ -119,8 +119,8 @@ def collator(data):
 
 ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
 ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
-ppo_model.to(device)
-ref_model.to(device)
+# ppo_model.to(device)
+# ref_model.to(device)
 
 tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
@@ -196,8 +196,9 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         generation_kwargs["max_new_tokens"] = max_new_tokens
 
         # Ensure the query tensor is on the correct device before generation
-        query = query.squeeze(0).to(device)
+        # query = query.squeeze(0).to(device)
         # query = query.to(device)
+        query = query.squeeze(0)
 
         print(f"Query tensor shape after transformation: {query.shape=}")
         response = ppo_trainer.generate(query, **generation_kwargs)
