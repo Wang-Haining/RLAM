@@ -189,7 +189,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         generation_kwargs["max_new_tokens"] = max_new_tokens
 
         # Ensure the query tensor is on the correct device before generation
-        query = query.to(device)
+        query = query.unsqueeze(0).to(device)
         response = ppo_trainer.generate(query, **generation_kwargs)
 
         # Compute the reward using ARI
