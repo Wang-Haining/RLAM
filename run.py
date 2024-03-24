@@ -52,14 +52,8 @@ def build_dataset(
         DataLoader: The DataLoader for the dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-
-    # Load dataset
     ds = load_dataset(dataset_name, split="train")
-
-    # Assuming the column with abstracts is named 'abstract'
-    ds = ds.rename_columns({"abstract": "text"})
-
-    # Filter out too short samples first
+    ds = ds.rename_columns({"abstract": "query"})
     ds = ds.filter(lambda x: len(x["text"]) > 20, batched=False)
 
     # Then select the first num_samples
@@ -67,7 +61,7 @@ def build_dataset(
 
     def tokenize(sample):
         # # Prepend the task-specific prefix
-        input_text = task_prefix + sample["text"]
+        input_text = task_prefix + sample["query"]
         # Tokenize without returning tensors
         input_ids = tokenizer.encode(
             input_text,
@@ -77,7 +71,7 @@ def build_dataset(
         )
         # Convert list of input_ids to a 1D tensor
         sample["input_ids"] = torch.tensor(input_ids)
-        sample["query"] = tokenizer.decode(sample["input_ids"])
+
         return sample
 
     ds = ds.map(tokenize, batched=False)
