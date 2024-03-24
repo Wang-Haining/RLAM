@@ -1,18 +1,13 @@
-import torch
-from tqdm import tqdm
-import numpy as np
-
-from nltk.tokenize import word_tokenize, sent_tokenize
-
-from transformers import pipeline, AutoTokenizer
-from datasets import load_dataset
-
-from trl import PPOTrainer, PPOConfig, AutoModelForSeq2SeqLMWithValueHead
-from trl.core import LengthSampler
-import wandb
-
-
 import os
+
+import numpy as np
+import torch
+import wandb
+from datasets import load_dataset
+from nltk.tokenize import sent_tokenize, word_tokenize
+from tqdm import tqdm
+from transformers import AutoTokenizer, pipeline
+from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -34,10 +29,13 @@ config = PPOConfig(
     log_with="wandb",
 )
 
-def build_dataset(config,
-                  dataset_name="gfissore/arxiv-abstracts-2021",
-                  task_prefix="summarize, simplify, and contextualize: ",
-                  num_samples=10000):
+
+def build_dataset(
+    config,
+    dataset_name="gfissore/arxiv-abstracts-2021",
+    task_prefix="summarize, simplify, and contextualize: ",
+    num_samples=10000,
+):
     """
     Build dataset for training with FLAN-T5. This function filters out too short samples
     and then extracts a specific number of samples for training.
@@ -71,9 +69,12 @@ def build_dataset(config,
         # # Prepend the task-specific prefix
         input_text = task_prefix + sample["text"]
         # Tokenize without returning tensors
-        input_ids = tokenizer.encode(input_text, truncation=True,
-                                     padding='max_length',
-                                     max_length=tokenizer.model_max_length)
+        input_ids = tokenizer.encode(
+            input_text,
+            truncation=True,
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+        )
         # Convert list of input_ids to a 1D tensor
         sample["input_ids"] = torch.tensor(input_ids)
         sample["query"] = tokenizer.decode(sample["input_ids"])
@@ -89,21 +90,21 @@ def build_dataset(config,
     return ds_splits
 
 
-def normalize_rewards_and_convert_to_tensors(responses, compute_ari_function):
+def normalize_rewards_and_convert_to_tensors(responses, compute_ari_func):
     """
     Normalize rewards calculated from the responses using the Automated Readability Index (ARI)
     and convert them into tensors.
 
     Args:
         responses (list of str): The responses to compute the rewards for.
-        compute_ari_function (callable): Function used to compute the ARI score for a response.
+        compute_ari_func (callable): Function used to compute the ARI score for a response.
 
     Returns:
         list of torch.Tensor: The list of normalized reward tensors.
     """
     # Calculate raw rewards using ARI function and invert them (since we're assuming
     # that lower ARI is better, hence * -1.0)
-    raw_rewards = [compute_ari_function(r) * (-1.0) for r in responses]
+    raw_rewards = [compute_ari_func(r) * (-1.0) for r in responses]
 
     # Normalize the raw rewards
     mean_reward = np.mean(raw_rewards)
@@ -116,39 +117,23 @@ def normalize_rewards_and_convert_to_tensors(responses, compute_ari_function):
     return reward_tensors
 
 
-dataset = build_dataset(config)
-
-
 def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
-
-
-ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
-ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
-tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-
-
-
-ppo_trainer = PPOTrainer(config=config,
-                         model=ppo_model,
-                         ref_model=ref_model,
-                         tokenizer=tokenizer,
-                         dataset=dataset["train"],
-                         data_collator=collator)
 
 
 def compute_ari(text):
     """
     Compute the Automated Readability Index (ARI) for a given text.
     The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
-    Incomplete sentences (likely not ending in a period, exclamation, or question mark) are not considered.
+    Incomplete sentences (likely not ending in a period, exclamation, or question mark)
+    are not considered.
     """
     # Tokenize the text into sentences and words
     sentences = sent_tokenize(text)
     words = word_tokenize(text)
 
     # Check if the last sentence is complete
-    if sentences and not sentences[-1].endswith(('.', '?', '!')):
+    if sentences and not sentences[-1].endswith((".", "?", "!")):
         # Remove the last sentence if it is incomplete
         sentences = sentences[:-1]
 
@@ -163,45 +148,66 @@ def compute_ari(text):
         return 0
 
     # Apply the ARI formula
-    ari_score = 4.71 * (characters / words_count) + 0.5 * (
-                words_count / sentences_count) - 21.43
+    ari_score = (
+        4.71 * (characters / words_count)
+        + 0.5 * (words_count / sentences_count)
+        - 21.43
+    )
     return ari_score
 
 
-# todo: investigate
-output_min_length = 20
-output_max_length = 512
-output_length_sampler = LengthSampler(output_min_length, output_max_length)
+if __name__ == "__main__":
 
-generation_kwargs = {
-    "min_length": -1,
-    "top_k": 0.0,
-    "top_p": 1.0,
-    "do_sample": True,
-    "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 512,
-}
+    ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
+    ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
-for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-    query_tensors = batch["input_ids"]
-
-    response_tensors, ref_response_tensors = ppo_trainer.generate(
-        query_tensors, return_prompt=False, generate_ref_response=True, **generation_kwargs
+    dataset = build_dataset(config)
+    ppo_trainer = PPOTrainer(
+        config=config,
+        model=ppo_model,
+        ref_model=ref_model,
+        tokenizer=tokenizer,
+        dataset=dataset["train"],
+        data_collator=collator,
     )
-    batch["response"] = tokenizer.batch_decode(response_tensors)
-    batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
 
+    generation_kwargs = {
+        "min_length": -1,
+        "top_k": 0.0,
+        "top_p": 1.0,
+        "do_sample": True,
+        "pad_token_id": tokenizer.eos_token_id,
+        "max_new_tokens": 512,
+    }
 
-    # normalize the rewards and ensure the reward tensors are on the correct device
-    raw_rewards = [compute_ari(r) * (-1.0) for r in batch["response"]]
-    reward_tensors = normalize_rewards_and_convert_to_tensors(raw_rewards)
-    # ref rewards
-    ref_raw_rewards = [compute_ari(r) * (-1.0) for r in batch["ref_response"]]
-    ref_reward_tensors = normalize_rewards_and_convert_to_tensors(ref_raw_rewards)
-    batch["ref_rewards"] = ref_reward_tensors
+    for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
+        query_tensors = batch["input_ids"]
 
-    # execute a PPO step
-    stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
-    ppo_trainer.log_stats(stats, batch, reward_tensors,
-                          columns_to_log=["query", "response", "ref_response", "ref_rewards"])
+        response_tensors, ref_response_tensors = ppo_trainer.generate(
+            query_tensors,
+            return_prompt=False,
+            generate_ref_response=True,
+            **generation_kwargs
+        )
+        batch["response"] = tokenizer.batch_decode(response_tensors)
+        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
 
+        # normalize the rewards and ensure the reward tensors are on the correct device
+        reward = normalize_rewards_and_convert_to_tensors(
+            batch["response"], compute_ari
+        )
+        # ref rewards
+        ref_reward = normalize_rewards_and_convert_to_tensors(
+            batch["ref_response"], compute_ari
+        )
+        batch["ref_rewards"] = ref_reward
+
+        # execute a PPO step
+        stats = ppo_trainer.step(query_tensors, response_tensors, reward)
+        ppo_trainer.log_stats(
+            stats,
+            batch,
+            reward,
+            columns_to_log=["query", "response", "ref_response", "ref_rewards"],
+        )
