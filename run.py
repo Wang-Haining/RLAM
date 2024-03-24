@@ -67,18 +67,15 @@ def build_dataset(config,
     ds = ds.select(range(min(num_samples, len(ds))))
 
     def tokenize(sample):
-        #                 prompt = f"""
-        # summarize, simplify, and contextualize: {sample["dialogue"]}
-        # Summary:
-        # """
-        # Prepend the task-specific prefix
+        # # Prepend the task-specific prefix
         input_text = task_prefix + sample["text"]
-        # Tokenize, ensuring the result is within the model's context window
-        input_ids = tokenizer(input_text, return_tensors='pt', truncation=True,
-                              padding='max_length',
-                              max_length=tokenizer.model_max_length).input_ids
-        sample["input_ids"] = input_ids
-        sample["query"] = tokenizer.decode(input_ids.squeeze())
+        # Tokenize without returning tensors
+        input_ids = tokenizer.encode(input_text, truncation=True,
+                                     padding='max_length',
+                                     max_length=tokenizer.model_max_length)
+        # Convert list of input_ids to a 1D tensor
+        sample["input_ids"] = torch.tensor(input_ids)
+        sample["query"] = tokenizer.decode(sample["input_ids"])
         return sample
 
     ds = ds.map(tokenize, batched=False)
@@ -193,7 +190,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     batch["ref_rewards"] = ref_reward_tensors
 
     # Execute a PPO step
-    query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
+    # query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
     # stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     # ppo_trainer.log_stats(stats, batch, reward_tensors)
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
