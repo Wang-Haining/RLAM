@@ -184,8 +184,11 @@ if __name__ == "__main__":
             generate_ref_response=True,
             **generation_kwargs
         )
-        batch["response"] = tokenizer.batch_decode(response_tensors)
-        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
+        # fixme: skip_special_tokens=True?
+        batch["response"] = tokenizer.batch_decode(response_tensors,
+                                                   skip_special_tokens=True)
+        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
+                                                       skip_special_tokens=True)
 
         # normalize the rewards and ensure the reward tensors are on the correct device
         reward = normalize_rewards_and_convert_to_tensors(
