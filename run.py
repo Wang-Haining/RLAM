@@ -35,20 +35,6 @@ config = PPOConfig(
     batch_size=batch_size,
     log_with="wandb",
 )
-print(f'{config=}')
-
-#
-# config = PPOConfig(
-#     # model_name="lvwerra/gpt2-imdb",
-#     model_name="haining/sas_baseline",
-#     # model_name="google-t5/t5-small",
-#     learning_rate=1.41e-5,
-#     log_with="wandb",
-#     ppo_epochs=1,
-#     mini_batch_size=4,
-#     batch_size=8,
-# )
-
 
 def build_dataset(config,
                   dataset_name="gfissore/arxiv-abstracts-2021",
@@ -110,8 +96,7 @@ def build_dataset(config,
 
 dataset = build_dataset(config)
 
-print(dataset)
-print(dataset.column_names)
+
 def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
@@ -203,6 +188,14 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     # Execute a PPO step
     # query_tensors (mini_batch_size * batch_size), ?
     # response_tensors (mini_batch_size * batch_size), gen_len
+    print(f'*'*20)
+    print(f'{query_tensors=}')
+    print(f'{len(query_tensors)=}')
+    print(f'{response_tensors=}')
+    print(f'{len(response_tensors)=}')
+    print(f'{reward_tensors=}')
+    print(f'{len(reward_tensors)=}')
+    print(f'*'*20)
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors)
 
