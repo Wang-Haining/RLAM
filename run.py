@@ -115,6 +115,24 @@ def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
+def normalize_rewards_and_clip(responses, compute_ari_func):
+    # Calculate raw rewards using ARI function and invert them
+    raw_rewards = [compute_ari_func(r) * (-1.0) for r in responses]
+
+    # Normalize the raw rewards
+    mean_reward = np.mean(raw_rewards)
+    std_reward = np.std(raw_rewards)
+    normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
+
+    # Clipping normalized rewards to be between -1 and 1 for stability
+    clipped_rewards = [max(min(r, 1.0), -1.0) for r in normalized_rewards]
+
+    # Convert the clipped rewards to tensors
+    reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in clipped_rewards]
+
+    return reward_tensors
+
+
 def compute_ari(text):
     """
     Compute the Automated Readability Index (ARI) for a given text.
@@ -147,6 +165,10 @@ def compute_ari(text):
         + 0.5 * (words_count / sentences_count)
         - 21.43
     )
+
+    # Clipping for stability (assuming a reasonable ARI range, adjust as needed)
+    ari_score = max(min(ari_score, 30.0), 2.0)
+
     return ari_score
 
 
@@ -191,11 +213,18 @@ if __name__ == "__main__":
                                                        skip_special_tokens=True)
 
         # normalize the rewards and ensure the reward tensors are on the correct device
-        rewards = normalize_rewards_and_convert_to_tensors(
+        # rewards = normalize_rewards_and_convert_to_tensors(
+        #     batch["response"], compute_ari
+        # )
+        # # ref rewards
+        # ref_rewards = normalize_rewards_and_convert_to_tensors(
+        #     batch["ref_response"], compute_ari
+        # )
+        rewards = normalize_rewards_and_clip(
             batch["response"], compute_ari
         )
         # ref rewards
-        ref_rewards = normalize_rewards_and_convert_to_tensors(
+        ref_rewards = normalize_rewards_and_clip(
             batch["ref_response"], compute_ari
         )
         batch["ref_rewards"] = ref_rewards
