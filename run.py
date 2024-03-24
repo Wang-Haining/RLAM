@@ -14,8 +14,9 @@ import wandb
 
 import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # Set the device to GPU 1
-device = torch.device("cuda:1")
+device = torch.device("cuda:0")
 
 wandb.init()
 
