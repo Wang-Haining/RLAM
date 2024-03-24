@@ -195,8 +195,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
 
         # Ensure the query tensor is on the correct device before generation
         # query = query.squeeze(0).to(device)
-        query = query.to(device).unsqueeze(
-            0)  # Ensure the query tensor retains a 2D shape
+        query = query.to(device)
 
         print(f"Query tensor shape after transformation: {query.shape}")
         response = ppo_trainer.generate(query, **generation_kwargs)
