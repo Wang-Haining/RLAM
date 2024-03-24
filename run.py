@@ -115,6 +115,9 @@ def collator(data):
 
 ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
 ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
+ppo_model.to(device)
+ref_model.to(device)
+
 tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
 # tokenizer.pad_token = tokenizer.eos_token
