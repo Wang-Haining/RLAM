@@ -109,7 +109,8 @@ def build_dataset(config,
 
 dataset = build_dataset(config)
 
-
+print(dataset)
+print(dataset.column_names)
 def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
