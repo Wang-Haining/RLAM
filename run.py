@@ -183,26 +183,22 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     #     break
     query_tensors = batch["input_ids"]
     response_tensors = []
-    raw_rewards = []
     print(f'{len(query_tensors)=}')
     for query in query_tensors:  # batch_size (1, 512)
         max_new_tokens = output_length_sampler()
         generation_kwargs["max_new_tokens"] = max_new_tokens
         response = ppo_trainer.generate(query.squeeze(0), **generation_kwargs) # 1, max_new_tokens
         response_tensors.append(response.squeeze()[-max_new_tokens:])  # batch_size (max_new_tokens,)
-    batch["response"] = [tokenizer.decode(r) for r in response_tensors]
+    batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]  # #batch_size of str
     print(f'{batch["response"]}=')
 
     # Normalize the rewards and ensure the reward tensors are on the correct device
-    decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
-    ari_reward = compute_ari(decoded_response) * (-1.0)
-    raw_rewards.append(ari_reward)
+    raw_rewards = [compute_ari(r) * (-1.0) for r in batch["response"]]
 
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
     normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-    reward_tensors = [torch.tensor([reward], dtype=torch.float32, device=device) for
-                      reward in normalized_rewards]
+    reward_tensors = [torch.tensor([r], dtype=torch.float32) for r in normalized_rewards]
 
     # Execute a PPO step
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
