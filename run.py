@@ -70,7 +70,6 @@ def build_dataset(config,
         DataLoader: The DataLoader for the dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    tokenizer.pad_token = tokenizer.eos_token
 
     # Load dataset
     ds = load_dataset(dataset_name, split="train")
@@ -119,12 +118,9 @@ def collator(data):
 
 ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
 ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
-# ppo_model.to(device)
-# ref_model.to(device)
-
 tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
-# tokenizer.pad_token = tokenizer.eos_token
+
 
 ppo_trainer = PPOTrainer(config=config,
                          model=ppo_model,
@@ -180,48 +176,28 @@ generation_kwargs = {
 }
 
 
-max_ppo_steps = 500
+# max_ppo_steps = 500
 
 for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-    if step >= max_ppo_steps:
-        break
-
+    # if step >= max_ppo_steps:
+    #     break
     query_tensors = batch["input_ids"]
     response_tensors = []
     raw_rewards = []
     print(f'{len(query_tensors)=}')
-    for query in query_tensors:
-        print(f"Query tensor shape before generate: {query.shape=}")
+    for query in query_tensors:  # batch_size (1, 512)
         max_new_tokens = output_length_sampler()
         generation_kwargs["max_new_tokens"] = max_new_tokens
-
-        # Ensure the query tensor is on the correct device before generation
-        # query = query.squeeze(0).to(device)
-        # query = query.to(device)
-        query = query.squeeze(0)
-
-        print(f"Query tensor shape after transformation: {query.shape=}")
-        response = ppo_trainer.generate(query, **generation_kwargs)
-        response = response.squeeze()
-        print(f"{response.shape=}")
-        # # Compute the reward using ARI
-        decoded_response = tokenizer.decode(response, skip_special_tokens=True)
-        print(f'{decoded_response=}')
-        # print(f"{type(decoded_response)=}")
-        print(f"{decoded_response=}")
-        ari_reward = compute_ari(decoded_response) * (-1.0)
-        raw_rewards.append(ari_reward)
-        print(f'{ari_reward=}')
-        print(f'!!!{response.shape=}')
-        response_tensors.append(response[-max_new_tokens:])
-
-    print(f"{len(response_tensors)=}")
-    print(f"{response_tensors=}")
-    # Update response in batch with the proper decoding and on the correct device
-    # batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+        response = ppo_trainer.generate(query.squeeze(0), **generation_kwargs) # 1, max_new_tokens
+        response_tensors.append(response.squeeze()[-max_new_tokens:])  # batch_size (max_new_tokens,)
     batch["response"] = [tokenizer.decode(r) for r in response_tensors]
+    print(f'{batch["response"]}=')
 
     # Normalize the rewards and ensure the reward tensors are on the correct device
+    decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
+    ari_reward = compute_ari(decoded_response) * (-1.0)
+    raw_rewards.append(ari_reward)
+
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
     normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
