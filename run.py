@@ -178,18 +178,19 @@ max_ppo_steps = 500
 for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     if step >= max_ppo_steps:
         break
+
     query_tensors = batch["input_ids"]
     response_tensors = []
     raw_rewards = []
+
     for query in query_tensors:
-        print(query.shape)
+        print(f"Query tensor shape before generate: {query.shape}")
         max_new_tokens = output_length_sampler()
         generation_kwargs["max_new_tokens"] = max_new_tokens
-    # break
 
-        # Ensure query is a tensor with batch dimension and on the correct device
-        # query = query.unsqueeze(0).to(device)
-        response = ppo_trainer.generate(query.unsqueeze(0), **generation_kwargs)
+        # Ensure the query tensor is on the correct device before generation
+        query = query.to(device)
+        response = ppo_trainer.generate(query, **generation_kwargs)
 
         # Compute the reward using ARI
         decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
@@ -198,12 +199,16 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
 
         response_tensors.append(response.squeeze()[-max_new_tokens:])
 
-    batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+    # Update response in batch with the proper decoding and on the correct device
+    batch["response"] = [tokenizer.decode(r.to(device).squeeze()) for r in response_tensors]
 
+    # Normalize the rewards and ensure the reward tensors are on the correct device
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
     normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-    reward_tensors = torch.tensor(normalized_rewards, dtype=torch.float32, device=device)
+    reward_tensors = torch.tensor(normalized_rewards, dtype=torch.float32).to(device)
 
+    # Execute a PPO step
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors)
+
