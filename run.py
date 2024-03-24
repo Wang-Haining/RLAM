@@ -189,7 +189,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     query_tensors = batch["input_ids"]
     response_tensors = []
     raw_rewards = []
-
+    print(f'{query_tensors.shape=}')
     for query in query_tensors:
         print(f"Query tensor shape before generate: {query.shape=}")
         max_new_tokens = output_length_sampler()
