@@ -173,8 +173,7 @@ generation_kwargs = {
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": -1,
-    # "batch_size": 1
+    "max_new_tokens": 512,
 }
 
 
@@ -210,7 +209,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         response_tensors.append(response[-max_new_tokens:])
 
     # Update response in batch with the proper decoding and on the correct device
-    batch["response"] = [tokenizer.decode(r.to(device).squeeze()) for r in response_tensors]
+    batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
 
     # Normalize the rewards and ensure the reward tensors are on the correct device
     mean_reward = np.mean(raw_rewards)
