@@ -15,6 +15,20 @@ from trl.core import LengthSampler
 import wandb
 
 
+import os
+
+# Set the device to GPU 1
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+# Check if CUDA is available and then set the device
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")  # This will now point to GPU 1 due to the environment variable
+    print(f"Using GPU: {torch.cuda.get_device_name(device)}")
+else:
+    device = torch.device("cpu")
+    print("CUDA is not available. Using CPU.")
+
+
 wandb.init()
 
 learning_rate = 1.41e-5
