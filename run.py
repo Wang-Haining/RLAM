@@ -1,9 +1,6 @@
 import torch
 from tqdm import tqdm
 import numpy as np
-import pandas as pd
-
-tqdm.pandas()
 
 from nltk.tokenize import word_tokenize, sent_tokenize
 
@@ -181,15 +178,14 @@ max_ppo_steps = 500
 for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     if step >= max_ppo_steps:
         break
-
     query_tensors = batch["input_ids"]
-
     response_tensors = []
     raw_rewards = []
-
     for query in query_tensors:
+        print(query.shape)
         max_new_tokens = output_length_sampler()
         generation_kwargs["max_new_tokens"] = max_new_tokens
+    # break
 
         # Ensure query is a tensor with batch dimension and on the correct device
         # query = query.unsqueeze(0).to(device)
