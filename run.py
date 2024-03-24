@@ -202,11 +202,10 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         max_new_tokens = output_length_sampler()
 
         generation_kwargs["max_new_tokens"] = max_new_tokens
-        response = ppo_trainer.generate(query, **generation_kwargs)
+        response = ppo_trainer.generate([query], **generation_kwargs)
         raw_rewards.append(compute_ari(response)*(-1.0))
 
         response_tensors.append(response.squeeze()[-max_new_tokens:])
-
 
     # This needs to be called "response".
     batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
@@ -214,7 +213,6 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     # Compute reward outputs.
     query_response_pairs = [q + r for q, r in zip(batch["query"], batch["response"])]
 
-    # You use the `nothate` item because this is the score for the positive `nothate` class.
     # fixme: not sure if the is a good normalization
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
