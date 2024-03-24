@@ -15,6 +15,7 @@ import wandb
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
 
