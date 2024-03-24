@@ -21,9 +21,10 @@ wandb.init()
 
 learning_rate = 1.41e-5
 max_ppo_epochs = 1
-mini_batch_size = 1
-batch_size = 2
-model_name = "haining/sas_baseline"
+mini_batch_size = 2
+batch_size = 8
+# model_name = "haining/sas_baseline"
+model_name = "google/flan-t5-small"
 
 config = PPOConfig(
     model_name=model_name,
