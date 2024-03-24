@@ -35,6 +35,8 @@ config = PPOConfig(
     batch_size=batch_size,
     log_with="wandb",
 )
+print(f'{config=}')
+
 #
 # config = PPOConfig(
 #     # model_name="lvwerra/gpt2-imdb",
