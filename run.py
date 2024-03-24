@@ -89,6 +89,33 @@ def build_dataset(config,
     return ds_splits
 
 
+def normalize_rewards_and_convert_to_tensors(responses, compute_ari_function):
+    """
+    Normalize rewards calculated from the responses using the Automated Readability Index (ARI)
+    and convert them into tensors.
+
+    Args:
+        responses (list of str): The responses to compute the rewards for.
+        compute_ari_function (callable): Function used to compute the ARI score for a response.
+
+    Returns:
+        list of torch.Tensor: The list of normalized reward tensors.
+    """
+    # Calculate raw rewards using ARI function and invert them (since we're assuming
+    # that lower ARI is better, hence * -1.0)
+    raw_rewards = [compute_ari_function(r) * (-1.0) for r in responses]
+
+    # Normalize the raw rewards
+    mean_reward = np.mean(raw_rewards)
+    std_reward = np.std(raw_rewards)
+    normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
+
+    # Convert the normalized rewards to tensors
+    reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in normalized_rewards]
+
+    return reward_tensors
+
+
 dataset = build_dataset(config)
 
 
@@ -155,20 +182,9 @@ generation_kwargs = {
     "max_new_tokens": 512,
 }
 
-
-# max_ppo_steps = 500
-
 for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-    # if step >= max_ppo_steps:
-    #     break
     query_tensors = batch["input_ids"]
-    # response_tensors = []
-    # for query in query_tensors:  # batch_size (1, 512)
-    #     gen_len = output_length_sampler()
-    #     # generation_kwargs["max_new_tokens"] = gen_len
-    #     response = ppo_trainer.generate(query.squeeze(0), **generation_kwargs) # 1, max_new_tokens
-    #     response_tensors.append(response.squeeze()[-gen_len:])  # batch_size (max_new_tokens,)
-    # batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]  # #batch_size of str
+
     response_tensors, ref_response_tensors = ppo_trainer.generate(
         query_tensors, return_prompt=False, generate_ref_response=True, **generation_kwargs
     )
@@ -176,24 +192,15 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
 
 
-    # Normalize the rewards and ensure the reward tensors are on the correct device
+    # normalize the rewards and ensure the reward tensors are on the correct device
     raw_rewards = [compute_ari(r) * (-1.0) for r in batch["response"]]
-    reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in raw_rewards]
-    # mean_reward = np.mean(raw_rewards)
-    # std_reward = np.std(raw_rewards)
-    # normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-    # reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in normalized_rewards]
-
-
+    reward_tensors = normalize_rewards_and_convert_to_tensors(raw_rewards)
     # ref rewards
-    raw_rewards = [compute_ari(r) * (-1.0) for r in batch["ref_response"]]
-    ref_reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in raw_rewards]
+    ref_raw_rewards = [compute_ari(r) * (-1.0) for r in batch["ref_response"]]
+    ref_reward_tensors = normalize_rewards_and_convert_to_tensors(ref_raw_rewards)
     batch["ref_rewards"] = ref_reward_tensors
 
-    # Execute a PPO step
-    # query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
-    # stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
-    # ppo_trainer.log_stats(stats, batch, reward_tensors)
+    # execute a PPO step
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors,
                           columns_to_log=["query", "response", "ref_response", "ref_rewards"])
