@@ -207,7 +207,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         ari_reward = compute_ari(decoded_response) * (-1.0)
         raw_rewards.append(ari_reward)
 
-        response_tensors.append(response.squeeze()[-max_new_tokens:])
+        response_tensors.append(response[-max_new_tokens:])
 
     # Update response in batch with the proper decoding and on the correct device
     batch["response"] = [tokenizer.decode(r.to(device).squeeze()) for r in response_tensors]
