@@ -21,7 +21,7 @@ wandb.init()
 
 learning_rate = 1.41e-5
 max_ppo_epochs = 1
-mini_batch_size = 4
+mini_batch_size = 8
 batch_size = 32
 model_name = "haining/sas_baseline"
 
