@@ -234,6 +234,6 @@ if __name__ == "__main__":
         ppo_trainer.log_stats(
             stats,
             batch,
-            reward,
+            rewards,
             columns_to_log=["query", "response", "ref_response", "ref_rewards"],
         )
