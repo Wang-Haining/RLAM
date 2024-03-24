@@ -201,12 +201,13 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
 
         print(f"Query tensor shape after transformation: {query.shape=}")
         response = ppo_trainer.generate(query, **generation_kwargs)
+        response = response.squeeze()
         print(f"{response.shape=}")
         # # Compute the reward using ARI
-        decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
+        decoded_response = tokenizer.decode(response, skip_special_tokens=True)
         print(f'{decoded_response=}')
         # print(f"{type(decoded_response)=}")
-        # print(f"{decoded_response=}")
+        print(f"{decoded_response=}")
         ari_reward = compute_ari(decoded_response) * (-1.0)
         raw_rewards.append(ari_reward)
         print(f'{ari_reward=}')
@@ -216,7 +217,8 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     print(f"{len(response_tensors)=}")
     print(f"{response_tensors=}")
     # Update response in batch with the proper decoding and on the correct device
-    batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+    # batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+    batch["response"] = [tokenizer.decode(r) for r in response_tensors]
 
     # Normalize the rewards and ensure the reward tensors are on the correct device
     mean_reward = np.mean(raw_rewards)
