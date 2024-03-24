@@ -200,11 +200,11 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         print(f"Query tensor shape after transformation: {query.shape=}")
         response = ppo_trainer.generate(query, **generation_kwargs)
         print(f"{response.shape=}")
-        # Compute the reward using ARI
-        decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
-        print(f"{type(decoded_response)=}")
-        print(f"{decoded_response=}")
-        ari_reward = compute_ari(decoded_response) * (-1.0)
+        # # Compute the reward using ARI
+        # decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
+        # print(f"{type(decoded_response)=}")
+        # print(f"{decoded_response=}")
+        ari_reward = compute_ari(response) * (-1.0)
         raw_rewards.append(ari_reward)
 
         response_tensors.append(response.squeeze()[-max_new_tokens:])
