@@ -168,7 +168,6 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     #     break
     query_tensors = batch["input_ids"]
     response_tensors = []
-    print(f'{len(query_tensors)=}')
     for query in query_tensors:  # batch_size (1, 512)
         gen_len = output_length_sampler()
         # generation_kwargs["max_new_tokens"] = gen_len
@@ -188,14 +187,15 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     # Execute a PPO step
     # query_tensors (mini_batch_size * batch_size), ?
     # response_tensors (mini_batch_size * batch_size), gen_len
-    print(f'*'*20)
-    print(f'{query_tensors=}')
-    print(f'{len(query_tensors)=}')
-    print(f'{response_tensors=}')
-    print(f'{len(response_tensors)=}')
-    print(f'{reward_tensors=}')
-    print(f'{len(reward_tensors)=}')
-    print(f'*'*20)
+    # print(f'*'*20)
+    # print(f'{query_tensors=}')
+    # print(f'{len(query_tensors)=}')
+    # # print(f'{response_tensors=}')
+    # # print(f'{len(response_tensors)=}')
+    # # print(f'{reward_tensors=}')
+    # # print(f'{len(reward_tensors)=}')
+    # print(f'*'*20)
+    query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors)
 
