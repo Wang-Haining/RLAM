@@ -182,7 +182,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     if step >= max_ppo_steps:
         break
 
-    query_tensors = batch["input_ids"].to(device)  # Ensure query_tensors are on the correct device
+    query_tensors = batch["input_ids"]
 
     response_tensors = []
     raw_rewards = []
@@ -192,8 +192,8 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         generation_kwargs["max_new_tokens"] = max_new_tokens
 
         # Ensure query is a tensor with batch dimension and on the correct device
-        query = query.unsqueeze(0).to(device)
-        response = ppo_trainer.generate(query, **generation_kwargs)
+        # query = query.unsqueeze(0).to(device)
+        response = ppo_trainer.generate(query.unsqueeze(0), **generation_kwargs)
 
         # Compute the reward using ARI
         decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
