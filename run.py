@@ -54,7 +54,7 @@ def build_dataset(
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     ds = load_dataset(dataset_name, split="train")
     ds = ds.rename_columns({"abstract": "query"})
-    ds = ds.filter(lambda x: len(x["text"]) > 20, batched=False)
+    ds = ds.filter(lambda x: len(x["query"]) > 20, batched=False)
 
     # Then select the first num_samples
     ds = ds.select(range(min(num_samples, len(ds))))
