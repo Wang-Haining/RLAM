@@ -20,10 +20,9 @@ wandb.init()
 
 learning_rate = 1.41e-5
 max_ppo_epochs = 1
-mini_batch_size = 2
-batch_size = 4
+mini_batch_size = 4
+batch_size = 16
 model_name = "haining/sas_baseline"
-# model_name = "google/flan-t5-small"
 
 config = PPOConfig(
     model_name=model_name,
@@ -172,7 +171,6 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         response = ppo_trainer.generate(query.squeeze(0), **generation_kwargs) # 1, max_new_tokens
         response_tensors.append(response.squeeze()[-gen_len:])  # batch_size (max_new_tokens,)
     batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]  # #batch_size of str
-    print(f'{batch["response"]=}')
 
     # Normalize the rewards and ensure the reward tensors are on the correct device
     raw_rewards = [compute_ari(r) * (-1.0) for r in batch["response"]]
