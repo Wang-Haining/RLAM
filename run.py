@@ -19,15 +19,7 @@ import os
 
 # Set the device to GPU 1
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
-# Check if CUDA is available and then set the device
-if torch.cuda.is_available():
-    device = torch.device("cuda:0")  # This will now point to GPU 1 due to the environment variable
-    print(f"Using GPU: {torch.cuda.get_device_name(device)}")
-else:
-    device = torch.device("cpu")
-    print("CUDA is not available. Using CPU.")
-
+device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu")
 
 wandb.init()
 
@@ -184,46 +176,38 @@ generation_kwargs = {
 }
 
 
-max_ppo_steps = 100
+max_ppo_steps = 500
 
 for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-    # Break when you reach max_steps.
     if step >= max_ppo_steps:
         break
 
-    query_tensors = batch["input_ids"]
+    query_tensors = batch["input_ids"].to(device)  # Ensure query_tensors are on the correct device
 
-    # Get response from FLAN-T5/PEFT LLM.
     response_tensors = []
-    # get ari for the responses
     raw_rewards = []
 
     for query in query_tensors:
         max_new_tokens = output_length_sampler()
-
         generation_kwargs["max_new_tokens"] = max_new_tokens
-        response = ppo_trainer.generate([query], **generation_kwargs)
-        raw_rewards.append(compute_ari(response)*(-1.0))
+
+        # Ensure query is a tensor with batch dimension and on the correct device
+        query = query.unsqueeze(0).to(device)
+        response = ppo_trainer.generate(query, **generation_kwargs)
+
+        # Compute the reward using ARI
+        decoded_response = tokenizer.decode(response.squeeze(), skip_special_tokens=True)
+        ari_reward = compute_ari(decoded_response) * (-1.0)
+        raw_rewards.append(ari_reward)
 
         response_tensors.append(response.squeeze()[-max_new_tokens:])
 
-    # This needs to be called "response".
     batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
 
-    # Compute reward outputs.
-    query_response_pairs = [q + r for q, r in zip(batch["query"], batch["response"])]
-
-    # fixme: not sure if the is a good normalization
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
-    rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]  # Add a small epsilon to avoid division by zero
-    reward_tensors = [torch.tensor(reward, dtype=torch.float32) for reward in rewards]
+    normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
+    reward_tensors = torch.tensor(normalized_rewards, dtype=torch.float32, device=device)
 
-    # Run PPO step.
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors)
-
-    # print(f'objective/kl: {stats["objective/kl"]}')
-    # print(f'ppo/returns/mean: {stats["ppo/returns/mean"]}')
-    # print(f'ppo/policy/advantages_mean: {stats["ppo/policy/advantages_mean"]}')
-    # print('-'.join('' for x in range(100)))
