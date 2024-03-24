@@ -171,7 +171,7 @@ output_max_length = 512
 output_length_sampler = LengthSampler(output_min_length, output_max_length)
 
 generation_kwargs = {
-    "min_length": 5,
+    "min_length": 20,
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
@@ -210,7 +210,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         ari_reward = compute_ari(decoded_response) * (-1.0)
         raw_rewards.append(ari_reward)
         print(f'{ari_reward=}')
-
+        print(f'!!!{response.shape=}')
         response_tensors.append(response[-max_new_tokens:])
 
     print(f"{len(response_tensors)=}")
