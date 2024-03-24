@@ -22,10 +22,10 @@ wandb.init()
 
 learning_rate = 1.41e-5
 max_ppo_epochs = 1
-mini_batch_size = 2
-batch_size = 8
-# model_name = "haining/sas_baseline"
-model_name = "google/flan-t5-small"
+mini_batch_size = 1
+batch_size = 2
+model_name = "haining/sas_baseline"
+# model_name = "google/flan-t5-small"
 
 config = PPOConfig(
     model_name=model_name,
@@ -185,16 +185,6 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in normalized_rewards]
 
     # Execute a PPO step
-    # query_tensors (mini_batch_size * batch_size), ?
-    # response_tensors (mini_batch_size * batch_size), gen_len
-    # print(f'*'*20)
-    # print(f'{query_tensors=}')
-    # print(f'{len(query_tensors)=}')
-    # # print(f'{response_tensors=}')
-    # # print(f'{len(response_tensors)=}')
-    # # print(f'{reward_tensors=}')
-    # # print(f'{len(reward_tensors)=}')
-    # print(f'*'*20)
     query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     ppo_trainer.log_stats(stats, batch, reward_tensors)
