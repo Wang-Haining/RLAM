@@ -34,7 +34,7 @@ def build_dataset(
     config,
     dataset_name="gfissore/arxiv-abstracts-2021",
     task_prefix="summarize, simplify, and contextualize: ",
-    num_samples=10000,
+    num_samples=200000,
 ):
     """
     Build dataset for training with FLAN-T5. This function filters out too short samples
