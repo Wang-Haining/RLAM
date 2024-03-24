@@ -164,12 +164,13 @@ output_max_length = 512
 output_length_sampler = LengthSampler(output_min_length, output_max_length)
 
 generation_kwargs = {
-    "min_length": -1,
+    "min_length": 5,
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
     "max_new_tokens": -1,
+    # "batch_size": 1
 }
 
 
@@ -190,6 +191,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
 
         # Ensure the query tensor is on the correct device before generation
         query = query.unsqueeze(0).to(device)
+        print(f"Query tensor shape after transformation: {query.shape}")
         response = ppo_trainer.generate(query, **generation_kwargs)
 
         # Compute the reward using ARI
