@@ -34,7 +34,7 @@ def build_dataset(
     config,
     dataset_name="gfissore/arxiv-abstracts-2021",
     task_prefix="summarize, simplify, and contextualize: ",
-    num_samples=200000,
+    num_samples=10000,
 ):
     """
     Build dataset for training with FLAN-T5. This function filters out too short samples
@@ -65,7 +65,7 @@ def build_dataset(
         # Tokenize without returning tensors
         input_ids = tokenizer.encode(
             input_text,
-            # truncation=True,
+            truncation=True,
             # padding=False,
             # max_length=tokenizer.model_max_length,
         )
