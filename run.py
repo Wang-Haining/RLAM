@@ -193,7 +193,7 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     batch["ref_rewards"] = ref_reward_tensors
 
     # Execute a PPO step
-    # query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
+    query_tensors = [tensor.squeeze(0) for tensor in query_tensors]
     # stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
     # ppo_trainer.log_stats(stats, batch, reward_tensors)
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
