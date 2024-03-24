@@ -212,7 +212,8 @@ for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
     mean_reward = np.mean(raw_rewards)
     std_reward = np.std(raw_rewards)
     normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-    reward_tensors = torch.tensor(normalized_rewards, dtype=torch.float32).to(device)
+    reward_tensors = [torch.tensor([reward], dtype=torch.float32, device=device) for
+                      reward in normalized_rewards]
 
     # Execute a PPO step
     stats = ppo_trainer.step(query_tensors, response_tensors, reward_tensors)
