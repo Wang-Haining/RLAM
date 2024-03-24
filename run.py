@@ -191,17 +191,17 @@ if __name__ == "__main__":
                                                        skip_special_tokens=True)
 
         # normalize the rewards and ensure the reward tensors are on the correct device
-        reward = normalize_rewards_and_convert_to_tensors(
+        rewards = normalize_rewards_and_convert_to_tensors(
             batch["response"], compute_ari
         )
         # ref rewards
-        ref_reward = normalize_rewards_and_convert_to_tensors(
+        ref_rewards = normalize_rewards_and_convert_to_tensors(
             batch["ref_response"], compute_ari
         )
-        batch["ref_rewards"] = ref_reward
+        batch["ref_rewards"] = ref_rewards
 
         # execute a PPO step
-        stats = ppo_trainer.step(query_tensors, response_tensors, reward)
+        stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
         ppo_trainer.log_stats(
             stats,
             batch,
