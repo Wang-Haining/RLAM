@@ -97,10 +97,10 @@ def build_dataset(config,
     ds.set_format(type="torch")
 
     # Split the dataset into train and test parts.
-    dataset_splits = dataset.train_test_split(test_size=0.05, shuffle=False, seed=42)
+    ds_splits = ds.train_test_split(test_size=0.05, shuffle=False, seed=42)
 
     # return dataset_splits
-    return dataset_splits
+    return ds_splits
 
 
 dataset = build_dataset(config)
