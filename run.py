@@ -71,9 +71,9 @@ def build_dataset(
         # Tokenize without returning tensors
         input_ids = tokenizer.encode(
             input_text,
-            truncation=True,
-            padding="max_length",
-            max_length=tokenizer.model_max_length,
+            # truncation=True,
+            # padding=False,
+            # max_length=tokenizer.model_max_length,
         )
         # Convert list of input_ids to a 1D tensor
         sample["input_ids"] = torch.tensor(input_ids)
