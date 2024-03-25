@@ -14,9 +14,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
 
-learning_rate = 1.41e-5
-max_ppo_epochs = 1
-mini_batch_size = 4
+learning_rate = 3e-5
+max_ppo_epochs = 3
+mini_batch_size = 8
 batch_size = 16
 model_name = "haining/sas_baseline"
 
