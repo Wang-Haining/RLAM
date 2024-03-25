@@ -16,7 +16,8 @@ wandb.init()
 
 learning_rate = 3e-5
 max_ppo_epochs = 3
-mini_batch_size = 8
+mini_batch_size = 4
+gradient_accumulation_steps = 2
 batch_size = 16
 model_name = "haining/sas_baseline"
 
@@ -25,6 +26,7 @@ config = PPOConfig(
     learning_rate=learning_rate,
     ppo_epochs=max_ppo_epochs,
     mini_batch_size=mini_batch_size,
+    gradient_accumulation_steps=gradient_accumulation_steps,
     batch_size=batch_size,
     log_with="wandb",
 )
