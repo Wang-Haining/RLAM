@@ -69,7 +69,7 @@ def build_dataset(
             input_text,
             truncation=True,
             # padding=False,
-            # max_length=tokenizer.model_max_length,
+            max_length=tokenizer.model_max_length,
         )
         # Convert list of input_ids to a 1D tensor
         sample["input_ids"] = torch.tensor(input_ids)
@@ -195,6 +195,7 @@ if __name__ == "__main__":
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
+        # "eos_token_id": 1,
         "pad_token_id": tokenizer.pad_token_id,
         "max_new_tokens": 512,
     }
