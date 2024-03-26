@@ -189,8 +189,7 @@ if __name__ == "__main__":
     config_kwargs = vars(args)
     config = PPOConfig(
         log_with="wandb",
-        query_dataset="arxiv",
-        reward_dataset=None,
+        # query_dataset="arxiv",
         **config_kwargs)
 
     # monitor with wandb
