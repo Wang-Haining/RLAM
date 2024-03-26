@@ -154,8 +154,6 @@ if __name__ == "__main__":
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=1e-5,
                         help="Learning rate for optimizer")
-    parser.add_argument("--ppo_epochs", type=int, default=3,
-                        help="Number of epochs for PPO")
     parser.add_argument("--mini_batch_size", type=int, default=4,
                         help="Mini batch size for PPO updates")
     parser.add_argument("--ppo_epochs", type=int, default=4,
