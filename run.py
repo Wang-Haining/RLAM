@@ -195,8 +195,7 @@ if __name__ == "__main__":
     # monitor with wandb
     wandb.init(project=config.task_name, config=config)
     # build dataset
-    dataset = build_dataset(config.model_name,
-                            config.dataset_name)
+    dataset = build_dataset(config.model_name)
     # init SFT'ed models
     policy_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
