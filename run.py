@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
 
-learning_rate = 3e-5
+learning_rate = 5e-5
 max_ppo_epochs = 3
 mini_batch_size = 4
 gradient_accumulation_steps = 4
@@ -30,6 +30,18 @@ config = PPOConfig(
     batch_size=batch_size,
     log_with="wandb",
 )
+
+
+def set_seed(seed=42):
+    """Set seed for reproducibility."""
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    torch.cuda.manual_seed_all(seed_value)  # if using CUDA
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+# Call this function at the beginning of your main block
+set_seed(42)
 
 
 def build_dataset(
@@ -170,6 +182,7 @@ def compute_ari(text):
 
 
 if __name__ == "__main__":
+    set_seed(42)
 
     ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
