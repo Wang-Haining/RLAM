@@ -150,7 +150,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Rewriting complex scholarly abstracts to laymen.")
     parser.add_argument("--task_name", type=str,
-                        default="ppo_flan_t5_experiment",
+                        default="Scholarly Abstract Simplification",
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=1e-5,
                         help="Learning rate for optimizer")
@@ -188,14 +188,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config_kwargs = vars(args)
     config = PPOConfig(
-        task_name="Scholarly Abstract Simplification",
         log_with="wandb",
         query_dataset="arxiv",
         reward_dataset=None,
         **config_kwargs)
 
     # monitor with wandb
-    wandb.init(project=args.task_name, config=config)
+    wandb.init(project=config.task_name, config=config)
     # build dataset
     dataset = build_dataset(config.model_name,
                             config.dataset_name)
