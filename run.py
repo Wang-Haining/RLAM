@@ -182,8 +182,8 @@ if __name__ == "__main__":
     # parser.add_argument("--model_save_path", type=str,
     #                     default="policy_model",
     #                     help="Path where the trained model will be saved")
-    parser.add_argument("--push_to_hub", action="store_true",
-                        help="Whether to push the model to the hub after saving")
+    # parser.add_argument("--push_to_hub_if_best_kwargs", action="store_true",
+    #                     help="Whether to push the model to the hub after saving")
 
     args = parser.parse_args()
     config_kwargs = vars(args)
@@ -255,4 +255,4 @@ if __name__ == "__main__":
                             "advantage"],
         )
 
-    policy_model.save_pretrained("policy_model", push_to_hub=config.push_to_hub)
+    policy_model.save_pretrained("policy_model")
