@@ -9,7 +9,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, pipeline
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
