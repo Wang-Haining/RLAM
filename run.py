@@ -34,9 +34,9 @@ config = PPOConfig(
 
 def set_seed(seed=42):
     """Set seed for reproducibility."""
-    np.random.seed(seed_value)
-    torch.manual_seed(seed_value)
-    torch.cuda.manual_seed_all(seed_value)  # if using CUDA
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if using CUDA
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -249,3 +249,5 @@ if __name__ == "__main__":
             rewards,
             columns_to_log=["query", "response", "ref_response", "ref_rewards", "advantage"],
         )
+
+    ppo_model.save_pretrained("policy_model", push_to_hub=True)
