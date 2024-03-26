@@ -226,6 +226,7 @@ if __name__ == "__main__":
             batch["ref_response"], compute_ari
         )
         batch["ref_rewards"] = ref_rewards
+        batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
         # execute a PPO step
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
@@ -233,5 +234,5 @@ if __name__ == "__main__":
             stats,
             batch,
             rewards,
-            columns_to_log=["query", "response", "ref_response", "ref_rewards"],
+            columns_to_log=["query", "response", "ref_response", "ref_rewards", "advantage"],
         )
