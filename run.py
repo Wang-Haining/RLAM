@@ -14,10 +14,10 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
 
-learning_rate = 3e-5
+learning_rate = 3e-4
 max_ppo_epochs = 3
 mini_batch_size = 4
-gradient_accumulation_steps = 2
+gradient_accumulation_steps = 4
 batch_size = 16
 model_name = "haining/sas_baseline"
 
@@ -169,7 +169,7 @@ def compute_ari(text):
     )
 
     # Clipping for stability (assuming a reasonable ARI range, adjust as needed)
-    ari_score = max(min(ari_score, 30.0), 2.0)
+    ari_score = max(min(ari_score, 35.0), 2.0)
 
     return ari_score
 
@@ -191,13 +191,13 @@ if __name__ == "__main__":
     )
 
     generation_kwargs = {
-        "min_length": -1,
+        "min_length": 10,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
         # "eos_token_id": 1,
         "pad_token_id": tokenizer.pad_token_id,
-        "max_new_tokens": 512,
+        "max_new_tokens": 500,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
