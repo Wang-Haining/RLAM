@@ -1,129 +1,91 @@
 import os
-
+import argparse
 import numpy as np
 import torch
 import wandb
+from sacremoses import MosesTokenizer
 from datasets import load_dataset
 from nltk.tokenize import sent_tokenize, word_tokenize
 from tqdm import tqdm
-from transformers import AutoTokenizer, pipeline
+from transformers import AutoTokenizer
+from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-wandb.init()
-
-learning_rate = 5e-5
-max_ppo_epochs = 3
-mini_batch_size = 4
-gradient_accumulation_steps = 4
-batch_size = 16
-model_name = "haining/sas_baseline"
-
-config = PPOConfig(
-    model_name=model_name,
-    learning_rate=learning_rate,
-    ppo_epochs=max_ppo_epochs,
-    mini_batch_size=mini_batch_size,
-    gradient_accumulation_steps=gradient_accumulation_steps,
-    batch_size=batch_size,
-    log_with="wandb",
-)
-
-
-def set_seed(seed=42):
-    """Set seed for reproducibility."""
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if using CUDA
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
 def build_dataset(
-    config,
-    dataset_name="gfissore/arxiv-abstracts-2021",
-    task_prefix="summarize, simplify, and contextualize: ",
-    num_samples=10000,
+        model_name: str = "haining/sas_baseline",
+        dataset_name: str = "gfissore/arxiv-abstracts-2021",
+        task_prefix: str = "summarize, simplify, and contextualize: ",
+        num_samples: int = 20000,
 ):
     """
     Build dataset for training with FLAN-T5. This function filters out too short samples
     and then extracts a specific number of samples for training.
 
     Args:
-        config: Configuration object containing the model name and other parameters.
-        dataset_name (str, optional): The name of the dataset to be loaded.
-        task_prefix (str, optional): The prefix to prepend to each abstract for task
+        model_name: SFT'ed model name.
+        dataset_name: The name of the dataset to be loaded.
+        task_prefix: The prefix to prepend to each abstract for task
         instruction.
-        num_samples (int, optional): The number of samples to be extracted from the
+        num_samples: The number of samples to be extracted from the
         dataset for training.
 
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     ds = load_dataset(dataset_name, split="train")
     ds = ds.rename_columns({"abstract": "query"})
-    ds = ds.filter(lambda x: len(x["query"]) > 50, batched=False)
+    ds = ds.filter(lambda x: len(x["query"]) > 100, batched=False)
     ds = ds.select(range(min(num_samples, len(ds))))
 
     def tokenize(sample):
-        # # Prepend the task-specific prefix
+        # prepend the task-specific prefix
         input_text = task_prefix + sample["query"]
         input_ids = tokenizer.encode(
             input_text,
             truncation=True,
             max_length=tokenizer.model_max_length,
         )
-        # Convert list of input_ids to a 1D tensor
         sample["input_ids"] = torch.tensor(input_ids)
+        sample["query"] = tokenizer.decode(sample["input_ids"],
+                                           skip_special_tokens=True,
+                                           clean_up_tokenization_spaces=True)
 
         return sample
 
     ds = ds.map(tokenize, batched=False)
     ds.set_format(type="torch")
 
-    # Split the dataset into train and test parts.
+    # split the dataset into train and test parts.
     ds_splits = ds.train_test_split(test_size=0.05, shuffle=False, seed=42)
-
-    # return dataset_splits
     return ds_splits
-
-
-def normalize_rewards_and_convert_to_tensors(responses, compute_ari_func):
-    """
-    Normalize rewards calculated from the responses using the Automated Readability Index (ARI)
-    and convert them into tensors.
-
-    Args:
-        responses (list of str): The responses to compute the rewards for.
-        compute_ari_func (callable): Function used to compute the ARI score for a response.
-
-    Returns:
-        list of torch.Tensor: The list of normalized reward tensors.
-    """
-    # Calculate raw rewards using ARI function and invert them (since we're assuming
-    # that lower ARI is better, hence * -1.0)
-    raw_rewards = [compute_ari_func(r) * (-1.0) for r in responses]
-
-    # Normalize the raw rewards
-    mean_reward = np.mean(raw_rewards)
-    std_reward = np.std(raw_rewards)
-    normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-
-    # Convert the normalized rewards to tensors
-    reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in normalized_rewards]
-
-    return reward_tensors
 
 
 def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
-def normalize_rewards_and_clip(responses, compute_ari_func, normalize=False):
-    # Calculate raw rewards using ARI function and invert them
+def reward2tensor(responses: List[str],
+                  compute_ari_func: Callable[[str], float],
+                  normalize: bool = False) -> List[torch.Tensor]:
+    """
+    Process responses through the Automated Readability Index function to compute
+    rewards, optionally normalize, clip, and convert them to tensors.
+
+    Args:
+        responses: A list of strings for which to compute the rewards.
+        compute_ari_func: A function that computes the ARI score from a string.
+        normalize: If True, normalize the rewards to have a mean of 0 and a standard
+        deviation of 1. After normalization, rewards are clipped to be between -1 and 1
+            for stability. Defaults to False.
+
+    Returns:
+        A list of tensors containing the processed rewards.
+    """
+    # calculate raw rewards using ARI function and invert them
     rewards = [compute_ari_func(r) * (-1.0) for r in responses]
 
     if normalize:
@@ -133,62 +95,120 @@ def normalize_rewards_and_clip(responses, compute_ari_func, normalize=False):
         # clip normalized rewards to be between -1 and 1 for stability
         rewards = [max(min(r, 1.0), -1.0) for r in rewards]
 
-    # Convert the clipped rewards to tensors
+    # convert the clipped rewards to tensors
     reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in rewards]
 
     return reward_tensors
 
 
-def compute_ari(text):
+def compute_ari(text: str):
     """
     Compute the Automated Readability Index (ARI) for a given text.
     The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
     Incomplete sentences (likely not ending in a period, exclamation, or question mark)
     are not considered.
-    """
-    # Tokenize the text into sentences and words
-    sentences = sent_tokenize(text)
-    words = word_tokenize(text)
 
-    # Check if the last sentence is complete
+    Args:
+    text: A string of text to compute ARI.
+
+    Returns:
+        A list of tensors containing the processed rewards.
+    """
+    mt = MosesTokenizer(lang='en')
+    sentences = sent_tokenize(text)
+    words = mt.tokenize(text, return_str=True)
+
+    # check if the last sentence is complete
     if sentences and not sentences[-1].endswith((".", "?", "!")):
         # Remove the last sentence if it is incomplete
         sentences = sentences[:-1]
 
-    characters = sum(len(word) for word in words)
-
-    # Calculate the number of sentences and words
+    character_count = sum(len(word) for word in words)
     sentences_count = len(sentences)
     words_count = len(words)
 
-    # Avoid division by zero
+    # avoid division by zero
     if sentences_count == 0 or words_count == 0:
         return 0
 
     # Apply the ARI formula
     ari_score = (
-        4.71 * (characters / words_count)
-        + 0.5 * (words_count / sentences_count)
-        - 21.43
+            4.71 * (character_count / words_count)
+            + 0.5 * (words_count / sentences_count)
+            - 21.43
     )
 
-    # Clipping for stability (assuming a reasonable ARI range, adjust as needed)
+    # clip for stability (assuming a reasonable ARI range)
     ari_score = max(min(ari_score, 35.0), 2.0)
 
     return ari_score
 
 
 if __name__ == "__main__":
-    set_seed(42)
+    torch.manual_seed(SEED)
 
-    ppo_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
+    parser = argparse.ArgumentParser(
+        description="Rewriting complex scholarly abstracts to laymen.")
+    parser.add_argument("--task_name", type=str,
+                        default="ppo_flan_t5_experiment",
+                        help="Experiment name for tracking")
+    parser.add_argument("--learning_rate", type=float, default=1e-5,
+                        help="Learning rate for optimizer")
+    parser.add_argument("--ppo_epochs", type=int, default=3,
+                        help="Number of epochs for PPO")
+    parser.add_argument("--mini_batch_size", type=int, default=4,
+                        help="Mini batch size for PPO updates")
+    parser.add_argument("--ppo_epochs", type=int, default=4,
+                        help="Number of optimization rollouts per batch of samples "
+                             "during PPO training")
+    parser.add_argument("--gradient_accumulation_steps", type=int,
+                        default=4,
+                        help="Number of gradient accumulation steps")
+    parser.add_argument("--batch_size", type=int, default=16,
+                        help="Batch size for training")
+    parser.add_argument("--model_name", type=str,
+                        default="haining/sas_baseline",
+                        help="Model name or path")
+    parser.add_argument("--early_stopping", action="store_true",
+                        help="Enable early stopping if KL divergence is too high")
+    parser.add_argument("--target_kl", type=float, default=1.0,
+                        help="Target KL divergence for early stopping")
+    parser.add_argument("--use_score_scaling", action="store_true",
+                        help="Enable score scaling")
+    parser.add_argument("--use_score_norm", action="store_true",
+                        help="Enable score normalization")
+    parser.add_argument("--score_clip", type=float, default=None,
+                        help="Value to clip the scores, use 'None' to disable")
+    parser.add_argument("--save_model", action="store_true",
+                        help="Whether to save the model after training")
+    parser.add_argument("--model_save_path", type=str,
+                        default="policy_model",
+                        help="Path where the trained model will be saved")
+    parser.add_argument("--push_to_hub", action="store_true",
+                        help="Whether to push the model to the hub after saving")
+
+    args = parser.parse_args()
+    config_kwargs = vars(args)
+    config = PPOConfig(
+        task_name="Scholarly Abstract Simplification",
+        log_with="wandb",
+        query_dataset="arxiv",
+        reward_dataset=None,
+        **config_kwargs)
+
+    # monitor with wandb
+    wandb.init(project=args.task_name, config=config)
+    # build dataset
+    dataset = build_dataset(config.model_name,
+                            config.dataset_name)
+    # init SFT'ed models
+    policy_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
-    dataset = build_dataset(config)
     ppo_trainer = PPOTrainer(
         config=config,
-        model=ppo_model,
+        model=policy_model,
         ref_model=ref_model,
         tokenizer=tokenizer,
         dataset=dataset["train"],
@@ -200,7 +220,6 @@ if __name__ == "__main__":
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
-        # "eos_token_id": 1,
         "pad_token_id": tokenizer.pad_token_id,
         "max_new_tokens": 500,
     }
@@ -214,25 +233,17 @@ if __name__ == "__main__":
             generate_ref_response=True,
             **generation_kwargs
         )
-        # fixme: skip_special_tokens=True?
+
         batch["response"] = tokenizer.batch_decode(response_tensors,
                                                    skip_special_tokens=True)
         batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
                                                        skip_special_tokens=True)
 
-        # normalize the rewards and ensure the reward tensors are on the correct device
-        # rewards = normalize_rewards_and_convert_to_tensors(
-        #     batch["response"], compute_ari
-        # )
-        # # ref rewards
-        # ref_rewards = normalize_rewards_and_convert_to_tensors(
-        #     batch["ref_response"], compute_ari
-        # )
-        rewards = normalize_rewards_and_clip(
+        rewards = reward2tensor(
             batch["response"], compute_ari
         )
         # ref rewards
-        ref_rewards = normalize_rewards_and_clip(
+        ref_rewards = reward2tensor(
             batch["ref_response"], compute_ari
         )
         batch["ref_rewards"] = ref_rewards
@@ -244,7 +255,8 @@ if __name__ == "__main__":
             stats,
             batch,
             rewards,
-            columns_to_log=["query", "response", "ref_response", "ref_rewards", "advantage"],
+            columns_to_log=["query", "response", "ref_response", "ref_rewards",
+                            "advantage"],
         )
 
-    ppo_model.save_pretrained("policy_model", push_to_hub=True)
+    policy_model.save_pretrained("policy_model", push_to_hub=True)
