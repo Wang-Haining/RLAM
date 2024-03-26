@@ -113,17 +113,16 @@ def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
-def normalize_rewards_and_clip(responses, compute_ari_func):
+def normalize_rewards_and_clip(responses, compute_ari_func, normalize=False):
     # Calculate raw rewards using ARI function and invert them
     raw_rewards = [compute_ari_func(r) * (-1.0) for r in responses]
 
-    # Normalize the raw rewards
-    mean_reward = np.mean(raw_rewards)
-    std_reward = np.std(raw_rewards)
-    normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
-
-    # Clipping normalized rewards to be between -1 and 1 for stability
-    clipped_rewards = [max(min(r, 1.0), -1.0) for r in normalized_rewards]
+    if normalize:
+        mean_reward = np.mean(raw_rewards)
+        std_reward = np.std(raw_rewards)
+        normalized_rewards = [(r - mean_reward) / (std_reward + 1e-9) for r in raw_rewards]
+        # clip normalized rewards to be between -1 and 1 for stability
+        clipped_rewards = [max(min(r, 1.0), -1.0) for r in normalized_rewards]
 
     # Convert the clipped rewards to tensors
     reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in clipped_rewards]
