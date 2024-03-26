@@ -116,7 +116,7 @@ def compute_ari(text: str):
     """
     mt = MosesTokenizer(lang='en')
     sentences = sent_tokenize(text)
-    words = mt.tokenize(text, return_str=True)
+    words = mt.tokenize(text)
 
     # check if the last sentence is complete
     if sentences and not sentences[-1].endswith((".", "?", "!")):
