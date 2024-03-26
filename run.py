@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 wandb.init()
 
-learning_rate = 3e-4
+learning_rate = 3e-5
 max_ppo_epochs = 3
 mini_batch_size = 4
 gradient_accumulation_steps = 4
@@ -56,19 +56,15 @@ def build_dataset(
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     ds = load_dataset(dataset_name, split="train")
     ds = ds.rename_columns({"abstract": "query"})
-    ds = ds.filter(lambda x: len(x["query"]) > 20, batched=False)
-
-    # Then select the first num_samples
+    ds = ds.filter(lambda x: len(x["query"]) > 50, batched=False)
     ds = ds.select(range(min(num_samples, len(ds))))
 
     def tokenize(sample):
         # # Prepend the task-specific prefix
         input_text = task_prefix + sample["query"]
-        # Tokenize without returning tensors
         input_ids = tokenizer.encode(
             input_text,
             truncation=True,
-            # padding=False,
             max_length=tokenizer.model_max_length,
         )
         # Convert list of input_ids to a 1D tensor
