@@ -40,9 +40,6 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-# Call this function at the beginning of your main block
-set_seed(42)
-
 
 def build_dataset(
     config,
