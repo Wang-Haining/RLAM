@@ -7,12 +7,71 @@ from sacremoses import MosesTokenizer
 from datasets import load_dataset, load_from_disk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from tqdm import tqdm
+from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoTokenizer
 from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
 SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
+def evaluate_model(model, dataset, tokenizer, compute_ari_func):
+    """
+  This function evaluates the model's performance (ARI) on a given dataset.
+
+  Args:
+      model: The policy model to be evaluated.
+      dataset: The validation dataset to use for evaluation.
+      tokenizer: The tokenizer used for the model.
+      compute_ari_func: A function that computes the ARI score from a string.
+
+  Returns:
+      A float representing the average ARI score of the model on the dataset.
+  """
+    model.eval()  # Set the model to evaluation mode
+
+    all_rewards = []
+    with torch.no_grad():
+        for batch in tqdm(dataset):
+            query_tensors = batch["input_ids"]
+            response_tensors = model.generate(
+                query_tensors,
+                return_prompt=False,
+                **generation_kwargs
+            )
+            batch["response"] = tokenizer.batch_decode(response_tensors,
+                                                       skip_special_tokens=True)
+            rewards = reward2tensor(
+                batch["response"], compute_ari_func
+            )
+            all_rewards.extend(rewards.tolist())
+
+    return {'val_mean_reward': np.mean(all_rewards),
+            'val_std_reward': np.std(all_rewards)}
+
+
+def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
+    """
+    Create a schedule with a learning rate that decreases linearly from the initial lr
+    set in the optimizer to end_lr.
+
+    Args:
+        optimizer: The optimizer for which to schedule the learning rate.
+        start_lr: The initial learning rate.
+        end_lr: The final learning rate.
+        num_training_steps: The number of steps over which to linearly decrease the
+            learning rate.
+    """
+
+    def lr_lambda(current_step: int):
+        # Compute the current scale factor
+        scale = max(0, (num_training_steps - current_step) / num_training_steps)
+        # Compute the scaled learning rate
+        lr = end_lr + (start_lr - end_lr) * scale
+        return lr
+
+    return LambdaLR(optimizer, lr_lambda)
 
 
 def build_dataset(
@@ -46,7 +105,7 @@ def build_dataset(
         ds = ds.select(range(min(20000, len(ds))))
     elif dataset_name == "sas":
         ds = load_from_disk("resources/scientific_abstract_simplification_corpus")
-        ds = ds['train']
+        # ds = ds['train']
         ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
@@ -201,6 +260,13 @@ if __name__ == "__main__":
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
+    # optimizer and lr scheduler
+    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=args.learning_rate)
+    lr_scheduler = linear_schedule(optimizer,
+                                   start_lr=args.learning_rate,
+                                   end_lr=1e-6,
+                                   num_training_steps=50)
+
     ppo_trainer = PPOTrainer(
         config=config,
         model=policy_model,
@@ -208,6 +274,8 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
         dataset=dataset["train"],
         data_collator=collator,
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
     )
 
     generation_kwargs = {
@@ -216,7 +284,7 @@ if __name__ == "__main__":
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
-        "max_new_tokens": 500,
+        "max_new_tokens": 400,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
@@ -253,5 +321,15 @@ if __name__ == "__main__":
             columns_to_log=["query", "response", "ref_response", "ref_rewards",
                             "advantage"],
         )
+        # evaluate on validation set after every N steps
+        # fixme: add arg to argparse
+        # if step % config.n_steps_per_eval == 0:
+        if step % 2 == 0:
+            ari_score = evaluate_model(policy_model,
+                                       ppo_trainer.dataset["validation"],
+                                       tokenizer,
+                                       compute_ari)
+            wandb.log(ari_score)
+            print(f"Step: {step}, Validation ARI: {ari_score['val_mean_reward']:.3f}")
 
     policy_model.save_pretrained("policy_model")
