@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import wandb
 from sacremoses import MosesTokenizer
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -14,11 +14,11 @@ from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+
 def build_dataset(
+        dataset_name: str,
         model_name: str = "haining/sas_baseline",
-        dataset_name: str = "gfissore/arxiv-abstracts-2021",
         task_prefix: str = "summarize, simplify, and contextualize: ",
-        num_samples: int = 20000,
 ):
     """
     Build dataset for training with FLAN-T5. This function filters out too short samples
@@ -26,7 +26,9 @@ def build_dataset(
 
     Args:
         model_name: SFT'ed model name.
-        dataset_name: The name of the dataset to be loaded.
+        dataset_name: The name of the dataset to be loaded. SAS dataset will be loaded
+            from local files and the arxiv is a specific version of it
+            "gfissore/arxiv-abstracts-2021."
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
         num_samples: The number of samples to be extracted from the
@@ -36,10 +38,16 @@ def build_dataset(
         DataLoader: The DataLoader for the dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    ds = load_dataset(dataset_name, split="train")
-    ds = ds.rename_columns({"abstract": "query"})
-    ds = ds.filter(lambda x: len(x["query"]) > 100, batched=False)
-    ds = ds.select(range(min(num_samples, len(ds))))
+    # fixme: arxiv option can be removed
+    if dataset_name == "arxiv":
+        ds = load_dataset("gfissore/arxiv-abstracts-2021", split="train")
+        ds = ds.rename_columns({"abstract": "query"})
+        ds = ds.filter(lambda x: len(x["query"]) > 200, batched=False)
+        ds = ds.select(range(min(20000, len(ds))))
+    elif dataset_name == "sas":
+        ds = load_from_disk("resources/scientific_abstract_simplification_corpus",
+                            split="train")
+        ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
         # prepend the task-specific prefix
@@ -177,13 +185,6 @@ if __name__ == "__main__":
                         help="Enable score normalization")
     parser.add_argument("--score_clip", type=float, default=None,
                         help="Value to clip the scores, use 'None' to disable")
-    # parser.add_argument("--save_model", action="store_true",
-    #                     help="Whether to save the model after training")
-    # parser.add_argument("--model_save_path", type=str,
-    #                     default="policy_model",
-    #                     help="Path where the trained model will be saved")
-    # parser.add_argument("--push_to_hub_if_best_kwargs", action="store_true",
-    #                     help="Whether to push the model to the hub after saving")
 
     args = parser.parse_args()
     config_kwargs = vars(args)
