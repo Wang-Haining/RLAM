@@ -168,7 +168,7 @@ if __name__ == "__main__":
                         help="Number of optimization rollouts per batch of samples "
                              "during PPO training")
     parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=4,
+                        default=1,
                         help="Number of gradient accumulation steps")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size for training")
