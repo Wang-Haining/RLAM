@@ -367,8 +367,8 @@ if __name__ == "__main__":
                 num_samples=32
             )
             wandb.log(eval_score)
-            print(f"Step: {step}, Validation ARI: {eval_score['val_mean_reward']:.2f}")
-            print(f"Step: {step}, Validation sacreBLEU: {eval_score['val_mean_reward']:.2f}")
+            print(f"Step: {step}, Validation ARI: {np.mean(eval_score['ari']):.2f}")
+            print(f"Step: {step}, Validation sacreBLEU: {np.mean(eval_score['sacrebleu']):.2f}")
 
             # save checkpoint if condition is met: ari<=16 and sacreBLEU >=30
             save_checkpoint(
