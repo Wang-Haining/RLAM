@@ -45,8 +45,8 @@ def build_dataset(
         ds = ds.filter(lambda x: len(x["query"]) > 200, batched=False)
         ds = ds.select(range(min(20000, len(ds))))
     elif dataset_name == "sas":
-        ds = load_from_disk("resources/scientific_abstract_simplification_corpus",
-                            split="train")
+        ds = load_from_disk("resources/scientific_abstract_simplification_corpus")
+        ds = ds['train']
         ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
