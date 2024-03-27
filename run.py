@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import torch
 import wandb
+from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from datasets import load_dataset, load_from_disk
 from nltk.tokenize import sent_tokenize, word_tokenize
@@ -18,29 +19,57 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def evaluate_model(model, dataset, tokenizer, compute_ari_func):
+def save_checkpoint(model,
+                    step, eval_score, save_dir="ckpts"):
     """
-    This function evaluates the model's performance (ARI) on a given dataset.
+    Save model checkpoint if ARI mean is lower than 16.
+
+    Args:
+        model: The policy model to be saved.
+        step: Current step number in the training loop.
+        eval_score: Eval scores of thehe current evaluation.
+        save_dir: Base directory for saving checkpoints.
+    """
+    # check if ARI mean condition is met
+    if eval_score['ari'] <= 16 and eval_score['sacrebleu'] <= 30:
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, f"model_step_{step}_ari_{eval_score['ari']:.2f}_scarebleu_{eval_score['sacrebleu']:.2f}")
+        print(f"Checkpointing model at step {step} with \n"
+              f"ARI mean {eval_score['ari']:.2f}\n"
+              f"Sacrebleu mean {eval_score['sacrebleu']:.2f}.")
+        model.save_pretrained(save_path)
+
+
+def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
+    """
+    This function evaluates the model's performance (ARI and SacreBLEU) on a subset of
+    the given dataset.
 
     Args:
         model: The policy model to be evaluated.
         dataset: The validation dataset to use for evaluation.
         tokenizer: The tokenizer used for the model.
         compute_ari_func: A function that computes the ARI score from a string.
+        num_samples: Number of samples to evaluate on. Defaults to 32.
 
     Returns:
-        A float representing the average ARI score of the model on the dataset.
+        A dictionary containing the average ARI score, its standard deviation, and the
+        average SacreBLEU score of the model on the dataset.
     """
-    # Move model to the correct device
-    device = next(model.parameters()).device  # Get the device of the first parameter
     model.eval()
+    device = next(model.parameters()).device
+    model.to(device)
+    bleu = BLEU()
 
-    all_rewards = []
+    # use first num_samples from the dataset
+    sampled_dataset = [dataset[i] for i in range(num_samples)]
+
+    ari_scores = []
+    bleu_scores = []
     with torch.no_grad():
-        for batch in tqdm(dataset):
+        for batch in tqdm(sampled_dataset):
             query_tensors = batch["input_ids"].to(device)
 
-            # Make sure query_tensors have a batch dimension
             if query_tensors.dim() == 1:
                 query_tensors = query_tensors.unsqueeze(0)
 
@@ -50,14 +79,20 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
                 max_new_tokens=512,
                 do_sample=True
             )
-            response = tokenizer.batch_decode(response_tensors.cpu(),
-                                              clean_up_tokenization_spaces=True,
-                                              skip_special_tokens=True)
-            rewards = [compute_ari_func(t) for t in response]
-            all_rewards.extend(rewards)
+            responses = tokenizer.batch_decode(response_tensors.cpu(),
+                                               clean_up_tokenization_spaces=True,
+                                               skip_special_tokens=True)
+            # Assuming 'targets' is a list of reference texts for BLEU calculation
+            targets = [batch["target"]]  # You may need to adjust how you access targets
 
-    return {'val_mean_reward': np.mean(all_rewards),
-            'val_std_reward': np.std(all_rewards)}
+            for response, target in zip(responses, targets):
+                ari_scores.append(compute_ari_func(response))
+                bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
+
+    return {
+        'ari': ari_scores,
+        'sacrebleu': bleu_scores,
+    }
 
 
 def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
@@ -219,10 +254,10 @@ if __name__ == "__main__":
                         default="Scholarly Abstract Simplification",
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=1e-5,
-                        help="Learning rate for optimizer")
+                        help="Initial learning rate for optimizer")
     parser.add_argument("--mini_batch_size", type=int, default=4,
                         help="Mini batch size for PPO updates")
-    parser.add_argument("--ppo_epochs", type=int, default=4,
+    parser.add_argument("--ppo_epochs", type=int, default=1,
                         help="Number of optimization rollouts per batch of samples "
                              "during PPO training")
     parser.add_argument("--gradient_accumulation_steps", type=int,
@@ -232,7 +267,7 @@ if __name__ == "__main__":
                         help="Batch size for training")
     parser.add_argument("--model_name", type=str,
                         default="haining/sas_baseline",
-                        help="Model name or path")
+                        help="Model name on huggingface")
     parser.add_argument("--early_stopping", action="store_true",
                         help="Enable early stopping if KL divergence is too high")
     parser.add_argument("--target_kl", type=float, default=1.0,
@@ -323,12 +358,21 @@ if __name__ == "__main__":
         # evaluate on validation set after every N steps
         # fixme: add arg to argparse
         # if step % config.n_steps_per_eval == 0:
-        if step % 2 == 0:
-            ari_score = evaluate_model(policy_model,
-                                       dataset["validation"],
-                                       tokenizer,
-                                       compute_ari)
-            wandb.log(ari_score)
-            print(f"Step: {step}, Validation ARI: {ari_score['val_mean_reward']:.3f}")
+        if step % 5 == 0:
+            eval_score = evaluate_model(
+                model=policy_model,
+                dataset=dataset["validation"],
+                tokenizer=tokenizer,
+                compute_ari_func=compute_ari,
+                num_samples=32
+            )
+            wandb.log(eval_score)
+            print(f"Step: {step}, Validation ARI: {eval_score['val_mean_reward']:.2f}")
+            print(f"Step: {step}, Validation sacreBLEU: {eval_score['val_mean_reward']:.2f}")
 
-    policy_model.save_pretrained("policy_model")
+            # save checkpoint if condition is met: ari<=16 and sacreBLEU >=30
+            save_checkpoint(
+                model=policy_model,
+                step=step,
+                eval_score=eval_score
+            )
