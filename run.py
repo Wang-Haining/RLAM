@@ -316,7 +316,7 @@ if __name__ == "__main__":
         # if step % config.n_steps_per_eval == 0:
         if step % 2 == 0:
             ari_score = evaluate_model(policy_model,
-                                       ppo_trainer.dataset["validation"],
+                                       dataset["validation"],
                                        tokenizer,
                                        compute_ari)
             wandb.log(ari_score)
