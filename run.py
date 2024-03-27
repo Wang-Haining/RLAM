@@ -30,17 +30,19 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
         A float representing the average ARI score of the model on the dataset.
     """
     model.eval()
+    device = model.device  # Assuming your model object has the 'device' attribute
 
     all_rewards = []
     with torch.no_grad():
         for batch in tqdm(dataset):
-            query_tensors = batch["input_ids"]
+            # Ensure input tensors are on the same device as the model
+            query_tensors = batch["input_ids"].to(device)
             response_tensors = model.generate(
                 query_tensors,
                 top_p=0.9,
                 do_sample=True
             )
-            response = tokenizer.batch_decode(response_tensors,
+            response = tokenizer.batch_decode(response_tensors.cpu(),
                                               clean_up_tokenization_spaces=True,
                                               skip_special_tokens=True)
             rewards = [compute_ari(t) for t in response]
