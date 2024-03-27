@@ -31,13 +31,13 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
     Returns:
         A float representing the average ARI score of the model on the dataset.
     """
+    # Move model to the correct device
+    device = next(model.parameters()).device  # Get the device of the first parameter
     model.eval()
-    device = model.device  # Assuming your model object has the 'device' attribute
 
     all_rewards = []
     with torch.no_grad():
         for batch in tqdm(dataset):
-            # Ensure input tensors are on the same device as the model
             query_tensors = batch["input_ids"].to(device)
             response_tensors = model.generate(
                 query_tensors,
@@ -45,6 +45,7 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
                 do_sample=True
             )
             response = tokenizer.batch_decode(response_tensors.cpu(),
+                                              # Move tensors back to CPU for decoding
                                               clean_up_tokenization_spaces=True,
                                               skip_special_tokens=True)
             rewards = [compute_ari(t) for t in response]
@@ -52,7 +53,6 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
 
     return {'val_mean_reward': np.mean(all_rewards),
             'val_std_reward': np.std(all_rewards)}
-
 
 def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
     """
