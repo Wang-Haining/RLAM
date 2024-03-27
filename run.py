@@ -18,18 +18,18 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def evaluate_model(model, dataset, tokenizer, compute_ari_func):
     """
-  This function evaluates the model's performance (ARI) on a given dataset.
+    This function evaluates the model's performance (ARI) on a given dataset.
 
-  Args:
-      model: The policy model to be evaluated.
-      dataset: The validation dataset to use for evaluation.
-      tokenizer: The tokenizer used for the model.
-      compute_ari_func: A function that computes the ARI score from a string.
+    Args:
+        model: The policy model to be evaluated.
+        dataset: The validation dataset to use for evaluation.
+        tokenizer: The tokenizer used for the model.
+        compute_ari_func: A function that computes the ARI score from a string.
 
-  Returns:
-      A float representing the average ARI score of the model on the dataset.
-  """
-    model.eval()  # Set the model to evaluation mode
+    Returns:
+        A float representing the average ARI score of the model on the dataset.
+    """
+    model.eval()
 
     all_rewards = []
     with torch.no_grad():
@@ -37,15 +37,16 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
             query_tensors = batch["input_ids"]
             response_tensors = model.generate(
                 query_tensors,
-                return_prompt=False,
-                **generation_kwargs
+                top_p=0.9,
+                do_sample=True
             )
             batch["response"] = tokenizer.batch_decode(response_tensors,
+                                                       clean_up_tokenization_spaces=True,
                                                        skip_special_tokens=True)
             rewards = reward2tensor(
                 batch["response"], compute_ari_func
             )
-            all_rewards.extend(rewards.tolist())
+            all_rewards.extend([reward.tolist() for reward in rewards])
 
     return {'val_mean_reward': np.mean(all_rewards),
             'val_std_reward': np.std(all_rewards)}
