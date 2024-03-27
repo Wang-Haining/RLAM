@@ -190,13 +190,12 @@ if __name__ == "__main__":
     config_kwargs = vars(args)
     config = PPOConfig(
         log_with="wandb",
-        # query_dataset="arxiv",
         **config_kwargs)
 
     # monitor with wandb
     wandb.init(project=config.task_name, config=config)
     # build dataset
-    dataset = build_dataset(config.model_name)
+    dataset = build_dataset('sas', config.model_name)
     # init SFT'ed models
     policy_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
