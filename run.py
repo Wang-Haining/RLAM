@@ -97,16 +97,8 @@ def build_dataset(
         DataLoader: The DataLoader for the dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    # fixme: arxiv option can be removed
-    if dataset_name == "arxiv":
-        ds = load_dataset("gfissore/arxiv-abstracts-2021", split="train")
-        ds = ds.rename_columns({"abstract": "query"})
-        ds = ds.filter(lambda x: len(x["query"]) > 200, batched=False)
-        ds = ds.select(range(min(20000, len(ds))))
-    elif dataset_name == "sas":
-        ds = load_from_disk("resources/scientific_abstract_simplification_corpus")
-        # ds = ds['train']
-        ds = ds.rename_columns({"source": "query"})
+    ds = load_from_disk("resources/scientific_abstract_simplification_corpus")
+    ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
         # prepend the task-specific prefix
@@ -126,9 +118,7 @@ def build_dataset(
     ds = ds.map(tokenize, batched=False)
     ds.set_format(type="torch")
 
-    # split the dataset into train and test parts.
-    ds_splits = ds.train_test_split(test_size=0.05, shuffle=False, seed=42)
-    return ds_splits
+    return ds
 
 
 def collator(data):
