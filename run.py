@@ -38,7 +38,7 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
     all_rewards = []
     with torch.no_grad():
         for batch in tqdm(dataset):
-            query_tensors = batch["input_ids"].to(device)  # Ensure tensors are on the same device as model
+            query_tensors = batch["input_ids"].to(device)
 
             # Make sure query_tensors have a batch dimension
             if query_tensors.dim() == 1:
@@ -47,9 +47,10 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
             response_tensors = model.generate(
                 query_tensors,
                 top_p=0.9,
+                max_new_tokens=512,
                 do_sample=True
             )
-            response = tokenizer.batch_decode(response_tensors.cpu(),  # Move tensors back to CPU for decoding
+            response = tokenizer.batch_decode(response_tensors.cpu(),
                                               clean_up_tokenization_spaces=True,
                                               skip_special_tokens=True)
             rewards = [compute_ari_func(t) for t in response]
