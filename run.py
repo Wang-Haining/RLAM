@@ -38,21 +38,26 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
     all_rewards = []
     with torch.no_grad():
         for batch in tqdm(dataset):
-            query_tensors = batch["input_ids"].to(device)
+            query_tensors = batch["input_ids"].to(device)  # Ensure tensors are on the same device as model
+
+            # Make sure query_tensors have a batch dimension
+            if query_tensors.dim() == 1:
+                query_tensors = query_tensors.unsqueeze(0)
+
             response_tensors = model.generate(
                 query_tensors,
                 top_p=0.9,
                 do_sample=True
             )
-            response = tokenizer.batch_decode(response_tensors.cpu(),
-                                              # Move tensors back to CPU for decoding
+            response = tokenizer.batch_decode(response_tensors.cpu(),  # Move tensors back to CPU for decoding
                                               clean_up_tokenization_spaces=True,
                                               skip_special_tokens=True)
-            rewards = [compute_ari(t) for t in response]
+            rewards = [compute_ari_func(t) for t in response]
             all_rewards.extend(rewards)
 
     return {'val_mean_reward': np.mean(all_rewards),
             'val_std_reward': np.std(all_rewards)}
+
 
 def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
     """
