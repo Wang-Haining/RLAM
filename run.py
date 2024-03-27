@@ -33,10 +33,11 @@ def save_checkpoint(model,
     # check if ARI mean condition is met
     if eval_score['ari'] <= 16 and eval_score['sacrebleu'] <= 30:
         os.makedirs(save_dir, exist_ok=True)
-        save_path = os.path.join(save_dir, f"model_step_{step}_ari_{eval_score['ari']:.2f}_scarebleu_{eval_score['sacrebleu']:.2f}")
+        save_path = os.path.join(save_dir,
+                                 f"model_step_{step}_ari_{eval_score['ari']:.2f}_scarebleu_{eval_score['sacrebleu']:.2f}")
         print(f"Checkpointing model at step {step} with \n"
-              f"ARI mean {eval_score['ari']:.2f}\n"
-              f"Sacrebleu mean {eval_score['sacrebleu']:.2f}.")
+              f"ARI mean {np.mean(eval_score['ari']):.2f}\n"
+              f"Sacrebleu mean {np.mean(eval_score['sacrebleu']):.2f}.")
         model.save_pretrained(save_path)
 
 
