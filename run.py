@@ -14,6 +14,8 @@ from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
 SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 
 def evaluate_model(model, dataset, tokenizer, compute_ari_func):
