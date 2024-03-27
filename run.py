@@ -40,13 +40,11 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func):
                 top_p=0.9,
                 do_sample=True
             )
-            batch["response"] = tokenizer.batch_decode(response_tensors,
-                                                       clean_up_tokenization_spaces=True,
-                                                       skip_special_tokens=True)
-            rewards = reward2tensor(
-                batch["response"], compute_ari_func
-            )
-            all_rewards.extend([reward.tolist() for reward in rewards])
+            response = tokenizer.batch_decode(response_tensors,
+                                              clean_up_tokenization_spaces=True,
+                                              skip_special_tokens=True)
+            rewards = [compute_ari(t) for t in response]
+            all_rewards.extend(rewards)
 
     return {'val_mean_reward': np.mean(all_rewards),
             'val_std_reward': np.std(all_rewards)}
