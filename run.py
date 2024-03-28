@@ -20,7 +20,9 @@ print(f"Using device: {device}")
 
 
 def save_checkpoint(model,
-                    step, eval_score, save_dir="ckpts"):
+                    step,
+                    eval_score,
+                    save_dir="ckpts"):
     """
     Save model checkpoint if ARI mean is lower than 16.
 
@@ -254,7 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_name", type=str,
                         default="Scholarly Abstract Simplification",
                         help="Experiment name for tracking")
-    parser.add_argument("--learning_rate", type=float, default=1e-5,
+    parser.add_argument("--learning_rate", type=float, default=3e-5,
                         help="Initial learning rate for optimizer")
     parser.add_argument("--mini_batch_size", type=int, default=4,
                         help="Mini batch size for PPO updates")
