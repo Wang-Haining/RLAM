@@ -302,7 +302,7 @@ if __name__ == "__main__":
     lr_scheduler = linear_schedule(optimizer,
                                    start_lr=args.learning_rate,
                                    end_lr=1e-6,
-                                   num_training_steps=50)
+                                   num_training_steps=200)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -321,7 +321,7 @@ if __name__ == "__main__":
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
-        "max_new_tokens": 400,
+        "max_new_tokens": 300,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
@@ -358,10 +358,11 @@ if __name__ == "__main__":
             columns_to_log=["query", "response", "ref_response", "ref_rewards",
                             "advantage"],
         )
+        lr_scheduler.step()
         # evaluate on validation set after every N steps
         # fixme: add arg to argparse
         # if step % config.n_steps_per_eval == 0:
-        if step % 5 == 0:
+        if step % 10 == 0:
             eval_score = evaluate_model(
                 model=policy_model,
                 dataset=dataset["validation"],
