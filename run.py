@@ -256,7 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_name", type=str,
                         default="Scholarly Abstract Simplification",
                         help="Experiment name for tracking")
-    parser.add_argument("--learning_rate", type=float, default=1e-4,
+    parser.add_argument("--learning_rate", type=float, default=3e-5,
                         help="Initial learning rate for optimizer")
     parser.add_argument("--mini_batch_size", type=int, default=4,
                         help="Mini batch size for PPO updates")
@@ -264,7 +264,7 @@ if __name__ == "__main__":
                         help="Number of optimization rollouts per batch of samples "
                              "during PPO training")
     parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=1,
+                        default=4,
                         help="Number of gradient accumulation steps")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size for training")
