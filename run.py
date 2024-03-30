@@ -281,14 +281,16 @@ if __name__ == "__main__":
     parser.add_argument("--num_eval_samples", type=int, default=32,
                         help="Num of samples for evaluation")
 
-
     args = parser.parse_args()
     # monitor with wandb
     wandb.init(project=args.task_name, config=vars(args))
 
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
-    project_name = config_kwargs.pop('project_name', None)  # fixme
+    keys_to_pop = ['eval_interval', 'num_eval_samples']
+    for key in keys_to_pop:
+        config_kwargs.pop(key, None)
+    # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
 
 
