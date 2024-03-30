@@ -1,4 +1,5 @@
 import os
+import re
 import argparse
 import numpy as np
 import torch
@@ -19,28 +20,58 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def save_checkpoint(model,
-                    step,
-                    eval_score,
-                    save_dir="ckpts"):
+def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
     """
-    Save model checkpoint if ARI mean is lower than 16.
+    Save model checkpoint if it's among the three with the lowest ARI scores and always
+    save the last model.
 
     Args:
         model: The policy model to be saved.
         step: Current step number in the training loop.
-        eval_score: Eval scores of thehe current evaluation.
+        eval_score: Eval scores of the current evaluation.
         save_dir: Base directory for saving checkpoints.
     """
-    # check if ARI mean condition is met
-    if np.mean(eval_score['ari']) <= 16 and np.mean(eval_score['sacrebleu']) >= 20:
-        os.makedirs(save_dir, exist_ok=True)
+    # Ensure the save directory exists
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Define the path for storing metadata about saved models and the last model
+    metadata_path = os.path.join(save_dir, "metadata.npz")
+    last_model_path = os.path.join(save_dir, "last_model.pt")  # Path for the most recent model
+
+    if os.path.exists(metadata_path):
+        metadata = np.load(metadata_path, allow_pickle=True)
+        saved_models = list(metadata['saved_models'])
+    else:
+        saved_models = []
+
+    # current model's ARI mean
+    current_ari_mean = np.mean(eval_score['ari'])
+
+    # Save the most recent model
+    model.save_pretrained(last_model_path)
+    print(f"Saved the most recent model at step {step}.")
+
+    # check if this model should be saved among the top 3 for low ARI score
+    if len(saved_models) < 3 or current_ari_mean < max(saved_models, key=lambda x: x['ari_mean'])['ari_mean']:
         save_path = os.path.join(save_dir,
-                                 f"model_step_{step}_ari_{eval_score['ari']:.2f}_scarebleu_{eval_score['sacrebleu']:.2f}")
-        print(f"Checkpointing model at step {step} with \n"
-              f"ARI mean {np.mean(eval_score['ari']):.2f}\n"
-              f"Sacrebleu mean {np.mean(eval_score['sacrebleu']):.2f}.")
+                                 f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_{np.mean(eval_score['sacrebleu']):.2f}.pt")
+        print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
+
+        # add this model to saved models list
+        saved_models.append({'path': save_path, 'ari_mean': current_ari_mean})
+
+        # if more than 3 models are saved, remove the one with the highest ARI
+        if len(saved_models) > 3:
+            worst_model = max(saved_models, key=lambda x: x['ari_mean'])
+            saved_models.remove(worst_model)
+            os.remove(worst_model['path'])
+            print(f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to maintain top 3 models.")
+
+        # save updated metadata
+        np.savez(metadata_path, saved_models=saved_models)
+    else:
+        print(f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the top 3 lowest ARI scores. Not saved as a top model but the latest model is updated.")
 
 
 def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
@@ -199,6 +230,12 @@ def reward2tensor(responses: List[str],
     return reward_tensors
 
 
+# adopted from https://github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
+def is_punctuation(token):
+    match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
+    return match is not None
+
+
 def compute_ari(text: str):
     """
     Compute the Automated Readability Index (ARI) for a given text.
@@ -215,10 +252,12 @@ def compute_ari(text: str):
     mt = MosesTokenizer(lang='en')
     sentences = sent_tokenize(text)
     words = mt.tokenize(text)
+    # remove punctuation marks
+    words = [w for w in words if not is_punctuation(w)]
 
     # check if the last sentence is complete
     if sentences and not sentences[-1].endswith((".", "?", "!")):
-        # Remove the last sentence if it is incomplete
+        # remove the last sentence if it is incomplete
         sentences = sentences[:-1]
 
     character_count = sum(len(word) for word in words)
@@ -229,7 +268,7 @@ def compute_ari(text: str):
     if sentences_count == 0 or words_count == 0:
         return 0
 
-    # Apply the ARI formula
+    # apply the ARI formula
     ari_score = (
             4.71 * (character_count / words_count)
             + 0.5 * (words_count / sentences_count)
@@ -258,7 +297,7 @@ if __name__ == "__main__":
                         help="Number of optimization rollouts per batch of samples "
                              "during PPO training")
     parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=8,
+                        default=1,
                         help="Number of gradient accumulation steps")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size for training")
@@ -296,7 +335,7 @@ if __name__ == "__main__":
     lr_scheduler = linear_schedule(optimizer,
                                    start_lr=args.learning_rate,
                                    end_lr=1e-6,
-                                   num_training_steps=200)
+                                   num_training_steps=1000)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -356,7 +395,7 @@ if __name__ == "__main__":
         # evaluate on validation set after every N steps
         # fixme: add arg to argparse
         # if step % config.n_steps_per_eval == 0:
-        if step % 20 == 0:
+        if step % 10 == 0:
             eval_score = evaluate_model(
                 model=policy_model,
                 dataset=dataset["validation"],
@@ -368,7 +407,7 @@ if __name__ == "__main__":
             print(f"Step: {step}, Validation ARI: {np.mean(eval_score['ari']):.2f}")
             print(f"Step: {step}, Validation sacreBLEU: {np.mean(eval_score['sacrebleu']):.2f}")
 
-            # save checkpoint if condition is met: ari<=16 and sacreBLEU >=30
+            # save checkpoint if condition is met: ari<=16 and sacreBLEU >=20
             save_checkpoint(
                 model=policy_model,
                 step=step,
