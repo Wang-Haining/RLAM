@@ -248,7 +248,7 @@ if __name__ == "__main__":
         description="Rewriting complex scholarly abstracts to laymen.")
     # ppo relevant
     parser.add_argument("--task_name", type=str,
-                        default="Scientific Abstract Simplification",
+                        default="Scientific_Abstract_Simplification",
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=3e-5,
                         help="Initial learning rate for optimizer")
