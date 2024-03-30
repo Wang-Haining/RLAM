@@ -122,7 +122,6 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
 
 
 def build_dataset(
-        dataset_name: str,
         model_name: str = "haining/sas_baseline",
         task_prefix: str = "summarize, simplify, and contextualize: ",
 ):
@@ -132,13 +131,8 @@ def build_dataset(
 
     Args:
         model_name: SFT'ed model name.
-        dataset_name: The name of the dataset to be loaded. SAS dataset will be loaded
-            from local files and the arxiv is a specific version of it
-            "gfissore/arxiv-abstracts-2021."
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
-        num_samples: The number of samples to be extracted from the
-        dataset for training.
 
     Returns:
         DataLoader: The DataLoader for the dataset.
@@ -264,7 +258,7 @@ if __name__ == "__main__":
                         help="Number of optimization rollouts per batch of samples "
                              "during PPO training")
     parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=1,
+                        default=8,
                         help="Number of gradient accumulation steps")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size for training")
@@ -362,7 +356,7 @@ if __name__ == "__main__":
         # evaluate on validation set after every N steps
         # fixme: add arg to argparse
         # if step % config.n_steps_per_eval == 0:
-        if step % 10 == 0:
+        if step % 20 == 0:
             eval_score = evaluate_model(
                 model=policy_model,
                 dataset=dataset["validation"],
