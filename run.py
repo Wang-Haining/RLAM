@@ -1,18 +1,17 @@
 import os
-import re
 import argparse
 import numpy as np
 import torch
 import wandb
 from sacrebleu.metrics import BLEU
-from sacremoses import MosesTokenizer
 from datasets import load_dataset, load_from_disk
-from nltk.tokenize import sent_tokenize, word_tokenize
 from tqdm import tqdm
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoTokenizer
 from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
+
+from utils import compute_ari
 
 SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -52,7 +51,8 @@ def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
     print(f"Saved the most recent model at step {step}.")
 
     save_path = os.path.join(save_dir,
-                             f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_{np.mean(eval_score['sacrebleu']):.2f}.pt")
+                             f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_"
+                             f"{np.mean(eval_score['sacrebleu']):.2f}.pt")
     # The logic to check and save among the top 3 models remains the same
 
     if len(saved_models) < 3 or current_ari_mean < \
@@ -68,15 +68,19 @@ def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
             try:
                 os.remove(worst_model['path'])
                 print(
-                    f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to maintain top 3 models.")
+                    f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to"
+                    f" maintain top 3 models.")
             except IsADirectoryError:
                 print(
-                    f"Error: Attempted to remove a directory instead of a file: {worst_model['path']}")
+                    f"Error: Attempted to remove a directory instead of a file: "
+                    f"{worst_model['path']}")
             except FileNotFoundError:
                 print(f"Error: File not found for removal: {worst_model['path']}")
     else:
         print(
-            f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the top 3 lowest ARI scores. Not saved as a top model but the latest model is updated.")
+            f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the "
+            f"top 3 lowest ARI scores. Not saved as a top model but the latest model "
+            f"is updated.")
 
     np.savez(metadata_path, saved_models=saved_models)
 
@@ -237,64 +241,14 @@ def reward2tensor(responses: List[str],
     return reward_tensors
 
 
-# adopted from https://github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
-def is_punctuation(token):
-    match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
-    return match is not None
-
-
-def compute_ari(text: str):
-    """
-    Compute the Automated Readability Index (ARI) for a given text.
-    The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
-    Incomplete sentences (likely not ending in a period, exclamation, or question mark)
-    are not considered.
-
-    Args:
-    text: A string of text to compute ARI.
-
-    Returns:
-        A list of tensors containing the processed rewards.
-    """
-    mt = MosesTokenizer(lang='en')
-    sentences = sent_tokenize(text)
-    words = mt.tokenize(text)
-    # remove punctuation marks
-    words = [w for w in words if not is_punctuation(w)]
-
-    # check if the last sentence is complete
-    if sentences and not sentences[-1].endswith((".", "?", "!")):
-        # remove the last sentence if it is incomplete
-        sentences = sentences[:-1]
-
-    character_count = sum(len(word) for word in words)
-    sentences_count = len(sentences)
-    words_count = len(words)
-
-    # avoid division by zero
-    if sentences_count == 0 or words_count == 0:
-        return 0
-
-    # apply the ARI formula
-    ari_score = (
-            4.71 * (character_count / words_count)
-            + 0.5 * (words_count / sentences_count)
-            - 21.43
-    )
-
-    # clip for stability (assuming a reasonable ARI range)
-    ari_score = max(min(ari_score, 35.0), 2.0)
-
-    return ari_score
-
-
 if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     parser = argparse.ArgumentParser(
         description="Rewriting complex scholarly abstracts to laymen.")
+    # ppo relevant
     parser.add_argument("--task_name", type=str,
-                        default="Scholarly Abstract Simplification",
+                        default="Scientific Abstract Simplification",
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=3e-5,
                         help="Initial learning rate for optimizer")
@@ -321,17 +275,25 @@ if __name__ == "__main__":
                         help="Enable score normalization")
     parser.add_argument("--score_clip", type=float, default=None,
                         help="Value to clip the scores, use 'None' to disable")
+    # misc
+    parser.add_argument("--eval_interval", type=int, default=20,
+                        help="Interval between evaluations")
+    parser.add_argument("--num_eval_samples", type=int, default=32,
+                        help="Num of samples for evaluation")
+
 
     args = parser.parse_args()
-    config_kwargs = vars(args)
-    config = PPOConfig(
-        log_with="wandb",
-        **config_kwargs)
-
     # monitor with wandb
-    wandb.init(project=config.task_name, config=config)
+    wandb.init(project=args.task_name, config=vars(args))
+
+    # ignore the extra args that are not for ppo
+    config_kwargs = vars(args).copy()
+    project_name = config_kwargs.pop('project_name', None)  # fixme
+    config = PPOConfig(log_with="wandb", **config_kwargs)
+
+
     # build dataset
-    dataset = build_dataset(model_name="haining/sas_baseline",
+    dataset = build_dataset(model_name=config.model_name,
                             task_prefix="summarize, simplify, and contextualize: ")
     # init SFT'ed models
     policy_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
@@ -375,18 +337,14 @@ if __name__ == "__main__":
             **generation_kwargs
         )
 
-        batch["response"] = tokenizer.batch_decode(response_tensors,
-                                                   skip_special_tokens=True)
-        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
-                                                       skip_special_tokens=True)
+        batch["response"] = tokenizer.batch_decode(response_tensors)
+                                                   # skip_special_tokens=True)
+        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
+                                                       # skip_special_tokens=True)
 
-        rewards = reward2tensor(
-            batch["response"], compute_ari
-        )
+        rewards = reward2tensor(batch["response"], compute_ari)
         # ref rewards
-        ref_rewards = reward2tensor(
-            batch["ref_response"], compute_ari
-        )
+        ref_rewards = reward2tensor(batch["ref_response"], compute_ari)
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -400,22 +358,21 @@ if __name__ == "__main__":
                             "advantage"],
         )
         lr_scheduler.step()
+
         # evaluate on validation set after every N steps
-        # fixme: add arg to argparse
-        # if step % config.n_steps_per_eval == 0:
-        if step % 10 == 0:
+        if step % args.eval_interval == 0:
             eval_score = evaluate_model(
                 model=policy_model,
                 dataset=dataset["validation"],
                 tokenizer=tokenizer,
                 compute_ari_func=compute_ari,
-                num_samples=32
+                num_samples=args.num_eval_samples,
             )
             wandb.log(eval_score)
-            print(f"Step: {step}, Validation ARI: {np.mean(eval_score['ari']):.2f}")
-            print(f"Step: {step}, Validation sacreBLEU: {np.mean(eval_score['sacrebleu']):.2f}")
+            print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
+            print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
 
-            # save checkpoint if condition is met: ari<=16 and sacreBLEU >=20
+            # save top-3 checkpoints and the last one
             save_checkpoint(
                 model=policy_model,
                 step=step,
