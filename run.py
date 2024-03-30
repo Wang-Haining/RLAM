@@ -276,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument("--score_clip", type=float, default=None,
                         help="Value to clip the scores, use 'None' to disable")
     # misc
-    parser.add_argument("--eval_interval", type=int, default=20,
+    parser.add_argument("--eval_interval", type=int, default=50,
                         help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32,
                         help="Num of samples for evaluation")
