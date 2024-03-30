@@ -36,7 +36,8 @@ def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
 
     # Define the path for storing metadata about saved models and the last model
     metadata_path = os.path.join(save_dir, "metadata.npz")
-    last_model_path = os.path.join(save_dir, "last_model.pt")  # Path for the most recent model
+    last_model_path = os.path.join(save_dir,
+                                   "last_model.pt")  # Path for the most recent model
 
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
@@ -44,34 +45,40 @@ def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
     else:
         saved_models = []
 
-    # current model's ARI mean
     current_ari_mean = np.mean(eval_score['ari'])
 
     # Save the most recent model
     model.save_pretrained(last_model_path)
     print(f"Saved the most recent model at step {step}.")
 
-    # check if this model should be saved among the top 3 for low ARI score
-    if len(saved_models) < 3 or current_ari_mean < max(saved_models, key=lambda x: x['ari_mean'])['ari_mean']:
-        save_path = os.path.join(save_dir,
-                                 f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_{np.mean(eval_score['sacrebleu']):.2f}.pt")
+    save_path = os.path.join(save_dir,
+                             f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_{np.mean(eval_score['sacrebleu']):.2f}.pt")
+    # The logic to check and save among the top 3 models remains the same
+
+    if len(saved_models) < 3 or current_ari_mean < \
+            max(saved_models, key=lambda x: x['ari_mean'])['ari_mean']:
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
-
-        # add this model to saved models list
         saved_models.append({'path': save_path, 'ari_mean': current_ari_mean})
 
-        # if more than 3 models are saved, remove the one with the highest ARI
+        # Update the saved models list and remove the worst model if necessary
         if len(saved_models) > 3:
             worst_model = max(saved_models, key=lambda x: x['ari_mean'])
             saved_models.remove(worst_model)
-            os.remove(worst_model['path'])
-            print(f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to maintain top 3 models.")
-
-        # save updated metadata
-        np.savez(metadata_path, saved_models=saved_models)
+            try:
+                os.remove(worst_model['path'])
+                print(
+                    f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to maintain top 3 models.")
+            except IsADirectoryError:
+                print(
+                    f"Error: Attempted to remove a directory instead of a file: {worst_model['path']}")
+            except FileNotFoundError:
+                print(f"Error: File not found for removal: {worst_model['path']}")
     else:
-        print(f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the top 3 lowest ARI scores. Not saved as a top model but the latest model is updated.")
+        print(
+            f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the top 3 lowest ARI scores. Not saved as a top model but the latest model is updated.")
+
+    np.savez(metadata_path, saved_models=saved_models)
 
 
 def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
