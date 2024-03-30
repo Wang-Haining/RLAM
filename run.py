@@ -19,7 +19,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
+def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
     """
     Save model checkpoint if it's among the three with the lowest ARI scores and always
     save the last model.
@@ -28,9 +28,10 @@ def save_checkpoint(model, step, eval_score, save_dir="ckpts/ari_baseline"):
         model: The policy model to be saved.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
-        save_dir: Base directory for saving checkpoints.
+        save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
     # Ensure the save directory exists
+    save_dir = os.path.join("ckpts", save_folder)
     os.makedirs(save_dir, exist_ok=True)
 
     # Define the path for storing metadata about saved models and the last model
@@ -248,7 +249,7 @@ if __name__ == "__main__":
         description="Rewriting complex scholarly abstracts to laymen.")
     # ppo relevant
     parser.add_argument("--task_name", type=str,
-                        default="Scientific_Abstract_Simplification",
+                        default="Scientific_Abstract_Simplification_ari",
                         help="Experiment name for tracking")
     parser.add_argument("--learning_rate", type=float, default=3e-5,
                         help="Initial learning rate for optimizer")
@@ -280,6 +281,10 @@ if __name__ == "__main__":
                         help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32,
                         help="Num of samples for evaluation")
+    parser.add_argument("--save_folder", type=str,
+                        default="ari_baseline",
+                        help="Experiment name for checkpointing, under the directory"
+                             "of ckpts")
 
     args = parser.parse_args()
     # monitor with wandb
@@ -292,7 +297,6 @@ if __name__ == "__main__":
         config_kwargs.pop(key, None)
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
-
 
     # build dataset
     dataset = build_dataset(model_name=config.model_name,
@@ -378,5 +382,6 @@ if __name__ == "__main__":
             save_checkpoint(
                 model=policy_model,
                 step=step,
-                eval_score=eval_score
+                eval_score=eval_score,
+                save_folder=args.save_folder
             )
