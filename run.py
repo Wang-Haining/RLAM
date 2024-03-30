@@ -287,9 +287,6 @@ if __name__ == "__main__":
                              "of ckpts")
 
     args = parser.parse_args()
-    # monitor with wandb
-    wandb.init(project=args.task_name, config=vars(args))
-
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
     keys_to_pop = ['eval_interval', 'num_eval_samples', 'save_folder']
@@ -297,6 +294,8 @@ if __name__ == "__main__":
         config_kwargs.pop(key, None)
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
+    # monitor with wandb
+    wandb.init(project=args.task_name, config=config)
 
     # build dataset
     dataset = build_dataset(model_name=config.model_name,
