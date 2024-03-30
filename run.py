@@ -307,10 +307,10 @@ if __name__ == "__main__":
 
     # optimizer and lr scheduler
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=args.learning_rate)
-    lr_scheduler = linear_schedule(optimizer,
-                                   start_lr=args.learning_rate,
-                                   end_lr=1e-6,
-                                   num_training_steps=1000)
+    # lr_scheduler = linear_schedule(optimizer,
+    #                                start_lr=args.learning_rate,
+    #                                end_lr=1e-6,
+    #                                num_training_steps=1000)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -320,7 +320,7 @@ if __name__ == "__main__":
         dataset=dataset["train"],
         data_collator=collator,
         optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
+        # lr_scheduler=lr_scheduler,
     )
 
     generation_kwargs = {
@@ -362,7 +362,7 @@ if __name__ == "__main__":
             columns_to_log=["query", "response", "ref_response", "ref_rewards",
                             "advantage"],
         )
-        lr_scheduler.step()
+        # lr_scheduler.step()
 
         # evaluate on validation set after every N steps
         if step % args.eval_interval == 0:
