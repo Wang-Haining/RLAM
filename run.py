@@ -292,7 +292,7 @@ if __name__ == "__main__":
 
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ['eval_interval', 'num_eval_samples']
+    keys_to_pop = ['eval_interval', 'num_eval_samples', 'save_folder']
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # config ppo
