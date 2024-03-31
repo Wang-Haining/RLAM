@@ -290,7 +290,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ['eval_interval', 'num_eval_samples', 'save_folder']
+    keys_to_pop = ['eval_interval', 'num_eval_samples',
+                   'save_folder', 'normalize_reward']
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # config ppo
