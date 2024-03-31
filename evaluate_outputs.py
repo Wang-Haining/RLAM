@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # get data
     dataset = build_dataset(
-        model_name=args.model_name,
+        model_name=BASELINE_MODEL,
         task_prefix="summarize, simplify, and contextualize: ",
     )
     # fixme
