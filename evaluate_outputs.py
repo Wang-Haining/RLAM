@@ -104,19 +104,20 @@ if __name__ == "__main__":
                 outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
             )
             print(output)
-            # result = calculate_metrics(
-            #     generated_text=output,
-            #     target_text=example["target"],
-            #     source_text=example["source"],
-            # )
-            # result.update(
-            #     {
-            #         "source": example["source"],
-            #         "target": example["target"],
-            #         "output": output.strip(),
-            #     }
-            # )
-            # results.append(result)
+            print(example)
+            result = calculate_metrics(
+                generated_text=output,
+                target_text=example["target"],
+                source_text=example["source"],
+            )
+            result.update(
+                {
+                    "source": example["source"],
+                    "target": example["target"],
+                    "output": output.strip(),
+                }
+            )
+            results.append(result)
 
     # dump results to the CSV file
     if args.output_file:
