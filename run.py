@@ -284,7 +284,7 @@ if __name__ == "__main__":
                         default="ari_baseline",
                         help="Experiment name for checkpointing, under the directory"
                              "of ckpts")
-    parser.add_argument("--normalize_reward", action="store_false",
+    parser.add_argument("--normalize_reward", type=bool, default=False,
                         help="Normalize rewards in z score")
 
     args = parser.parse_args()
