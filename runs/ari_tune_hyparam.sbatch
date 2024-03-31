@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_sas_hyparam_tuning
+#SBATCH --job-name=ppo_sas_hyparam
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
