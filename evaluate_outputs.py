@@ -12,6 +12,7 @@ from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from utils import BASELINE_MODEL, SEED, TOP_P, build_dataset, compute_ari
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
@@ -99,11 +100,12 @@ if __name__ == "__main__":
             outputs = model.generate(
                 input_ids, top_p=TOP_P, max_length=512, do_sample=True
             )
-            prediction = tokenizer.decode(
+            output = tokenizer.decode(
                 outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
             )
+            print(output)
             result = calculate_metrics(
-                generated_text=prediction,
+                generated_text=output,
                 target_text=example["target"],
                 source_text=example["source"],
             )
@@ -111,7 +113,7 @@ if __name__ == "__main__":
                 {
                     "source": example["source"],
                     "target": example["target"],
-                    "output": prediction.strip(),
+                    "output": output.strip(),
                 }
             )
             results.append(result)
