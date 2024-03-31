@@ -1,16 +1,17 @@
-import os
 import argparse
+import os
+from typing import Callable, List
+
 import numpy as np
 import torch
 import wandb
 from sacrebleu.metrics import BLEU
-from tqdm import tqdm
 from torch.optim.lr_scheduler import LambdaLR
+from tqdm import tqdm
 from transformers import AutoTokenizer
-from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
-from utils import compute_ari, SEED, TOP_P, build_dataset, collator
+from utils import SEED, TOP_P, build_dataset, collator, compute_ari
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,52 +35,60 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
 
     # Define the path for storing metadata about saved models and the last model
     metadata_path = os.path.join(save_dir, "metadata.npz")
-    last_model_path = os.path.join(save_dir,
-                                   "last_model.pt")  # Path for the most recent model
+    last_model_path = os.path.join(
+        save_dir, "last_model.pt"
+    )  # Path for the most recent model
 
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
-        saved_models = list(metadata['saved_models'])
+        saved_models = list(metadata["saved_models"])
     else:
         saved_models = []
 
-    current_ari_mean = np.mean(eval_score['ari'])
+    current_ari_mean = np.mean(eval_score["ari"])
 
     # Save the most recent model
     model.save_pretrained(last_model_path)
     print(f"Saved the most recent model at step {step}.")
 
-    save_path = os.path.join(save_dir,
-                             f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_"
-                             f"{np.mean(eval_score['sacrebleu']):.2f}.pt")
+    save_path = os.path.join(
+        save_dir,
+        f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_"
+        f"{np.mean(eval_score['sacrebleu']):.2f}.pt",
+    )
     # The logic to check and save among the top 3 models remains the same
 
-    if len(saved_models) < 3 or current_ari_mean < \
-            max(saved_models, key=lambda x: x['ari_mean'])['ari_mean']:
+    if (
+        len(saved_models) < 3
+        or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]
+    ):
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
-        saved_models.append({'path': save_path, 'ari_mean': current_ari_mean})
+        saved_models.append({"path": save_path, "ari_mean": current_ari_mean})
 
         # Update the saved models list and remove the worst model if necessary
         if len(saved_models) > 3:
-            worst_model = max(saved_models, key=lambda x: x['ari_mean'])
+            worst_model = max(saved_models, key=lambda x: x["ari_mean"])
             saved_models.remove(worst_model)
             try:
-                os.remove(worst_model['path'])
+                os.remove(worst_model["path"])
                 print(
                     f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to"
-                    f" maintain top 3 models.")
+                    f" maintain top 3 models."
+                )
             except IsADirectoryError:
                 print(
                     f"Error: Attempted to remove a directory instead of a file: "
-                    f"{worst_model['path']}")
+                    f"{worst_model['path']}"
+                )
             except FileNotFoundError:
                 print(f"Error: File not found for removal: {worst_model['path']}")
     else:
         print(
             f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the "
             f"top 3 lowest ARI scores. Not saved as a top model but the latest model "
-            f"is updated.")
+            f"is updated."
+        )
 
     np.savez(metadata_path, saved_models=saved_models)
 
@@ -118,14 +127,13 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
                 query_tensors = query_tensors.unsqueeze(0)
 
             response_tensors = model.generate(
-                query_tensors,
-                top_p=TOP_P,
-                max_new_tokens=512,
-                do_sample=True
+                query_tensors, top_p=TOP_P, max_new_tokens=512, do_sample=True
             )
-            responses = tokenizer.batch_decode(response_tensors.cpu(),
-                                               clean_up_tokenization_spaces=True,
-                                               skip_special_tokens=True)
+            responses = tokenizer.batch_decode(
+                response_tensors.cpu(),
+                clean_up_tokenization_spaces=True,
+                skip_special_tokens=True,
+            )
             # Assuming 'targets' is a list of reference texts for BLEU calculation
             targets = [batch["target"]]  # You may need to adjust how you access targets
 
@@ -134,8 +142,8 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
 
     return {
-        'ari': ari_scores,
-        'sacrebleu': bleu_scores,
+        "ari": ari_scores,
+        "sacrebleu": bleu_scores,
     }
 
 
@@ -162,9 +170,11 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
     return LambdaLR(optimizer, lr_lambda)
 
 
-def reward2tensor(responses: List[str],
-                  compute_ari_func: Callable[[str], float],
-                  normalize: bool = False) -> List[torch.Tensor]:
+def reward2tensor(
+    responses: List[str],
+    compute_ari_func: Callable[[str], float],
+    normalize: bool = False,
+) -> List[torch.Tensor]:
     """
     Process responses through the Automated Readability Index function to compute
     rewards, optionally normalize, clip, and convert them to tensors.
@@ -199,53 +209,98 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     parser = argparse.ArgumentParser(
-        description="Rewriting complex scholarly abstracts to laymen.")
+        description="Rewriting complex scholarly abstracts to laymen."
+    )
     # ppo relevant
-    parser.add_argument("--task_name", type=str,
-                        default="Scientific_Abstract_Simplification_ari",
-                        help="Experiment name for tracking")
-    parser.add_argument("--learning_rate", type=float, default=3e-5,
-                        help="Initial learning rate for optimizer")
-    parser.add_argument("--mini_batch_size", type=int, default=4,
-                        help="Mini batch size for PPO updates")
-    parser.add_argument("--ppo_epochs", type=int, default=2,
-                        help="Number of optimization rollouts per batch of samples "
-                             "during PPO training")
-    parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=1,
-                        help="Number of gradient accumulation steps")
-    parser.add_argument("--batch_size", type=int, default=16,
-                        help="Batch size for training")
-    parser.add_argument("--model_name", type=str,
-                        default="haining/sas_baseline",
-                        help="Model name on huggingface")
-    parser.add_argument("--early_stopping", action="store_false",
-                        help="Enable early stopping if KL divergence is too high")
-    parser.add_argument("--target_kl", type=float, default=1.0,
-                        help="Target KL divergence for early stopping")
-    parser.add_argument("--use_score_scaling", action="store_true",
-                        help="Enable score scaling")
-    parser.add_argument("--use_score_norm", action="store_true",
-                        help="Enable score normalization")
-    parser.add_argument("--score_clip", type=float, default=None,
-                        help="Value to clip the scores, use 'None' to disable")
+    parser.add_argument(
+        "--task_name",
+        type=str,
+        default="Scientific_Abstract_Simplification_ari",
+        help="Experiment name for tracking",
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=3e-5,
+        help="Initial learning rate for optimizer",
+    )
+    parser.add_argument(
+        "--mini_batch_size", type=int, default=4, help="Mini batch size for PPO updates"
+    )
+    parser.add_argument(
+        "--ppo_epochs",
+        type=int,
+        default=2,
+        help="Number of optimization rollouts per batch of samples "
+        "during PPO training",
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of gradient accumulation steps",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=16, help="Batch size for training"
+    )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="haining/sas_baseline",
+        help="Model name on huggingface",
+    )
+    parser.add_argument(
+        "--early_stopping",
+        action="store_false",
+        help="Enable early stopping if KL divergence is too high",
+    )
+    parser.add_argument(
+        "--target_kl",
+        type=float,
+        default=1.0,
+        help="Target KL divergence for early stopping",
+    )
+    parser.add_argument(
+        "--use_score_scaling", action="store_true", help="Enable score scaling"
+    )
+    parser.add_argument(
+        "--use_score_norm", action="store_true", help="Enable score normalization"
+    )
+    parser.add_argument(
+        "--score_clip",
+        type=float,
+        default=None,
+        help="Value to clip the scores, use 'None' to disable",
+    )
     # misc
-    parser.add_argument("--eval_interval", type=int, default=50,
-                        help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=32,
-                        help="Num of samples for evaluation")
-    parser.add_argument("--save_folder", type=str,
-                        default="ari_baseline",
-                        help="Experiment name for checkpointing, under the directory"
-                             "of ckpts")
-    parser.add_argument("--normalize_reward", type=bool, default=False,
-                        help="Normalize rewards in z score")
+    parser.add_argument(
+        "--eval_interval", type=int, default=50, help="Interval between evaluations"
+    )
+    parser.add_argument(
+        "--num_eval_samples", type=int, default=32, help="Num of samples for evaluation"
+    )
+    parser.add_argument(
+        "--save_folder",
+        type=str,
+        default="ari_baseline",
+        help="Experiment name for checkpointing, under the directory" "of ckpts",
+    )
+    parser.add_argument(
+        "--normalize_reward",
+        type=bool,
+        default=False,
+        help="Normalize rewards in z score",
+    )
 
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ['eval_interval', 'num_eval_samples',
-                   'save_folder', 'normalize_reward']
+    keys_to_pop = [
+        "eval_interval",
+        "num_eval_samples",
+        "save_folder",
+        "normalize_reward",
+    ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # config ppo
@@ -254,8 +309,10 @@ if __name__ == "__main__":
     wandb.init(project=config.task_name, config=config)
 
     # build dataset
-    dataset = build_dataset(model_name=config.model_name,
-                            task_prefix="summarize, simplify, and contextualize: ")
+    dataset = build_dataset(
+        model_name=config.model_name,
+        task_prefix="summarize, simplify, and contextualize: ",
+    )
     # init SFT'ed models
     policy_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
     ref_model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(config.model_name)
@@ -295,19 +352,21 @@ if __name__ == "__main__":
             query_tensors,
             return_prompt=False,
             generate_ref_response=True,
-            **generation_kwargs
+            **generation_kwargs,
         )
 
-        batch["response"] = tokenizer.batch_decode(response_tensors,
-                                                   skip_special_tokens=True)
-        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
-                                                       skip_special_tokens=True)
+        batch["response"] = tokenizer.batch_decode(
+            response_tensors, skip_special_tokens=True
+        )
+        batch["ref_response"] = tokenizer.batch_decode(
+            ref_response_tensors, skip_special_tokens=True
+        )
 
         rewards = reward2tensor(batch["response"], compute_ari, args.normalize_reward)
         # ref rewards
-        ref_rewards = reward2tensor(batch["ref_response"],
-                                    compute_ari,
-                                    args.normalize_reward)
+        ref_rewards = reward2tensor(
+            batch["ref_response"], compute_ari, args.normalize_reward
+        )
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -317,8 +376,13 @@ if __name__ == "__main__":
             stats,
             batch,
             rewards,
-            columns_to_log=["query", "response", "ref_response", "ref_rewards",
-                            "advantage"],
+            columns_to_log=[
+                "query",
+                "response",
+                "ref_response",
+                "ref_rewards",
+                "advantage",
+            ],
         )
         # lr_scheduler.step()
 
@@ -340,5 +404,5 @@ if __name__ == "__main__":
                 model=policy_model,
                 step=step,
                 eval_score=eval_score,
-                save_folder=args.save_folder
+                save_folder=args.save_folder,
             )
