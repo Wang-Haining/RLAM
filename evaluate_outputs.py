@@ -103,7 +103,7 @@ if __name__ == "__main__":
             output = tokenizer.decode(
                 outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
             )
-            print(output)
+            print(output.cpu())
             result = calculate_metrics(
                 generated_text=output,
                 target_text=example["target"],
