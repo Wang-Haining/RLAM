@@ -119,9 +119,10 @@ if __name__ == "__main__":
 
     # dump results to the CSV file
     if args.output_file:
-        save_dir = os.path.join("evaluation_results", args.output_file)
+        save_dir = os.path.dirname(args.output_file)
         os.makedirs(save_dir, exist_ok=True)
-        with open(save_dir, mode="w", encoding="utf-8") as file:
+        full_file_path = os.path.join(save_dir, os.path.basename(args.output_file))
+        with open(full_file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys())
             writer.writeheader()
             writer.writerows(results)
