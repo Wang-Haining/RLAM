@@ -4,14 +4,13 @@ import numpy as np
 import torch
 import wandb
 from sacrebleu.metrics import BLEU
-from datasets import load_dataset, load_from_disk
 from tqdm import tqdm
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoTokenizer
 from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
-from utils import compute_ari, DATASET_PATH, SEED, TOP_P
+from utils import compute_ari, SEED, TOP_P, build_dataset, collator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -161,51 +160,6 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
         return lr
 
     return LambdaLR(optimizer, lr_lambda)
-
-
-def build_dataset(
-        model_name: str = "haining/sas_baseline",
-        task_prefix: str = "summarize, simplify, and contextualize: ",
-):
-    """
-    Build dataset for training with FLAN-T5. This function filters out too short samples
-    and then extracts a specific number of samples for training.
-
-    Args:
-        model_name: SFT'ed model name.
-        task_prefix: The prefix to prepend to each abstract for task
-        instruction.
-
-    Returns:
-        DataLoader: The DataLoader for the dataset.
-    """
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    ds = load_from_disk(DATASET_PATH)
-    ds = ds.rename_columns({"source": "query"})
-
-    def tokenize(sample):
-        # prepend the task-specific prefix
-        input_text = task_prefix + sample["query"]
-        input_ids = tokenizer.encode(
-            input_text,
-            truncation=True,
-            max_length=tokenizer.model_max_length,
-        )
-        sample["input_ids"] = torch.tensor(input_ids)
-        sample["query"] = tokenizer.decode(sample["input_ids"],
-                                           skip_special_tokens=True,
-                                           clean_up_tokenization_spaces=True)
-
-        return sample
-
-    ds = ds.map(tokenize, batched=False)
-    ds.set_format(type="torch")
-
-    return ds
-
-
-def collator(data):
-    return dict((key, [d[key] for d in data]) for key in data[0])
 
 
 def reward2tensor(responses: List[str],
