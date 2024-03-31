@@ -11,9 +11,8 @@ from transformers import AutoTokenizer
 from typing import List, Callable
 from trl import AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer
 
-from utils import compute_ari
+from utils import compute_ari, DATASET_PATH, SEED, TOP_P
 
-SEED = 42
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -121,7 +120,7 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
 
             response_tensors = model.generate(
                 query_tensors,
-                top_p=0.9,
+                top_p=TOP_P,
                 max_new_tokens=512,
                 do_sample=True
             )
@@ -155,9 +154,9 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
     """
 
     def lr_lambda(current_step: int):
-        # Compute the current scale factor
+        # compute the current scale factor
         scale = max(0, (num_training_steps - current_step) / num_training_steps)
-        # Compute the scaled learning rate
+        # compute the scaled learning rate
         lr = end_lr + (start_lr - end_lr) * scale
         return lr
 
@@ -181,7 +180,7 @@ def build_dataset(
         DataLoader: The DataLoader for the dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    ds = load_from_disk("resources/scientific_abstract_simplification_corpus")
+    ds = load_from_disk(DATASET_PATH)
     ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
@@ -266,7 +265,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str,
                         default="haining/sas_baseline",
                         help="Model name on huggingface")
-    parser.add_argument("--early_stopping", action="store_true",
+    parser.add_argument("--early_stopping", action="store_false",
                         help="Enable early stopping if KL divergence is too high")
     parser.add_argument("--target_kl", type=float, default=1.0,
                         help="Target KL divergence for early stopping")
@@ -285,6 +284,8 @@ if __name__ == "__main__":
                         default="ari_baseline",
                         help="Experiment name for checkpointing, under the directory"
                              "of ckpts")
+    parser.add_argument("--normalize_reward", action="store_false",
+                        help="Normalize rewards in z score")
 
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
@@ -342,14 +343,16 @@ if __name__ == "__main__":
             **generation_kwargs
         )
 
-        batch["response"] = tokenizer.batch_decode(response_tensors)
-                                                   # skip_special_tokens=True)
-        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
-                                                       # skip_special_tokens=True)
+        batch["response"] = tokenizer.batch_decode(response_tensors,
+                                                   skip_special_tokens=True)
+        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
+                                                       skip_special_tokens=True)
 
-        rewards = reward2tensor(batch["response"], compute_ari)
+        rewards = reward2tensor(batch["response"], compute_ari, args.normalize_reward)
         # ref rewards
-        ref_rewards = reward2tensor(batch["ref_response"], compute_ari)
+        ref_rewards = reward2tensor(batch["ref_response"],
+                                    compute_ari,
+                                    args.normalize_reward)
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -364,7 +367,7 @@ if __name__ == "__main__":
         )
         # lr_scheduler.step()
 
-        # evaluate on validation set after every N steps
+        # evaluate on validation set after every n steps
         if step % args.eval_interval == 0:
             eval_score = evaluate_model(
                 model=policy_model,
