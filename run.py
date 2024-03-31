@@ -225,7 +225,12 @@ if __name__ == "__main__":
         help="Initial learning rate for optimizer",
     )
     parser.add_argument(
-        "--mini_batch_size", type=int, default=4, help="Mini batch size for PPO updates"
+        "--steps", type=int, default=20000,
+        help="Number of training steps"
+    )
+    parser.add_argument(
+        "--mini_batch_size", type=int, default=4,
+        help="Mini batch size for PPO updates"
     )
     parser.add_argument(
         "--ppo_epochs",
