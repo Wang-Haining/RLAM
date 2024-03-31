@@ -117,11 +117,11 @@ if __name__ == "__main__":
             )
             results.append(result)
 
-    # dump results to the CSV file
     if args.output_file:
-        save_dir = os.path.dirname(args.output_file)
+        save_dir = "evaluation_results"
         os.makedirs(save_dir, exist_ok=True)
-        full_file_path = os.path.join(save_dir, os.path.basename(args.output_file))
+        full_file_path = os.path.join(save_dir, args.output_file)
+        # Write the results to the CSV file
         with open(full_file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys())
             writer.writeheader()
