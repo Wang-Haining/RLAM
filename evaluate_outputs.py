@@ -103,16 +103,14 @@ if __name__ == "__main__":
             output = tokenizer.decode(
                 outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
             )
-            print(output)
-            print(example)
             result = calculate_metrics(
                 generated_text=output,
                 target_text=example["target"],
-                source_text=example["source"],
+                source_text=example["query"],
             )
             result.update(
                 {
-                    "source": example["source"],
+                    "source": example["query"],
                     "target": example["target"],
                     "output": output.strip(),
                 }
