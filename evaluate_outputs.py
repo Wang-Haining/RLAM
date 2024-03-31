@@ -94,8 +94,8 @@ if __name__ == "__main__":
     with torch.no_grad():
         for example in tqdm(dataset["test"]):
             input_ids = example["input_ids"].to(device)
-            if query_tensors.dim() == 1:
-                query_tensors = query_tensors.unsqueeze(0)
+            if input_ids.dim() == 1:
+                input_ids = input_ids.unsqueeze(0)
             outputs = model.generate(
                 input_ids, top_p=TOP_P, max_length=512, do_sample=True
             )
