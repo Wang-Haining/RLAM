@@ -90,12 +90,10 @@ if __name__ == "__main__":
 
     model.to(device)
     model.eval()
-    test_subset = dataset["test"].select(range(10))
 
     results = []
     with torch.no_grad():
-        # for example in tqdm(dataset["test"]):
-        for example in tqdm(test_subset):
+        for example in tqdm(dataset["test"]):
             input_ids = example["input_ids"].to(device)
             if input_ids.dim() == 1:
                 input_ids = input_ids.unsqueeze(0)
