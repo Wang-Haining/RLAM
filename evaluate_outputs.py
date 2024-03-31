@@ -82,8 +82,8 @@ if __name__ == "__main__":
     )
     # fixme
     tokenizer = AutoTokenizer.from_pretrained(BASELINE_MODEL)
-    if args.ckpt:
-        model = T5ForConditionalGeneration.from_pretrained(args.ckpt)
+    if args.ckpt_path:
+        model = T5ForConditionalGeneration.from_pretrained(args.ckpt_path)
     else:
         model = T5ForConditionalGeneration.from_pretrained(BASELINE_MODEL)
 
