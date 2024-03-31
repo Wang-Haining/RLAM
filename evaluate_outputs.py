@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     results = []
     with torch.no_grad():
-        for example in tqdm(dataset["test"][:20]):
+        for example in tqdm(dataset["test"]):
             input_ids = example["input_ids"].to(device)
             if input_ids.dim() == 1:
                 input_ids = input_ids.unsqueeze(0)
