@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_from_disk
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from utils import DATASET_PATH, SEED
@@ -34,27 +34,28 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
 
-    common_args = {'output_dir': 'ckpts/sft_llama2-7b-hf',
-                   'overwrite_output_dir': False,
-                   'do_train': True,
-                   'do_eval': True,
-                   'do_predict': True,
-                   'evaluation_strategy': 'steps',
-                   'per_device_train_batch_size': 4,
-                   'per_device_eval_batch_size': 4,
-                   'gradient_accumulation_steps': 4,
-                   'learning_rate': 3e-5,
-                   'weight_decay': 1e-1,
-                   'logging_steps': 20,
-                   'eval_steps': 200,
-                   'bf16': True,
-                   'run_name': 'sft_llama2-7b',
-                   'report_to': 'wandb',
-                   'load_best_model_at_end': True,
-                   'save_steps': 200,
-                   'save_total_limit': 3,
-                   'remove_unused_columns': True
-                   }
+    training_args = TrainingArguments(
+        output_dir='ckpts/sft_llama2-7b-hf',
+        overwrite_output_dir=False,
+        do_train=True,
+        do_eval=True,
+        do_predict=True,
+        evaluation_strategy='steps',
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
+        gradient_accumulation_steps=4,
+        learning_rate=3e-5,
+        weight_decay=1e-1,
+        logging_steps=20,
+        eval_steps=200,
+        bf16=True,
+        run_name='sft_llama2-7b',
+        report_to='wandb',
+        load_best_model_at_end=True,
+        save_steps=200,
+        save_total_limit=3,
+        remove_unused_columns=True
+    )
 
     trainer = SFTTrainer(
         model,
@@ -63,7 +64,7 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         data_collator=collator,
         max_seq_length=1024,
-        **common_args
+        args=training_args
     )
 
     trainer.train()
