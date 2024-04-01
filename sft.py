@@ -6,6 +6,9 @@ from datasets import load_from_disk
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from utils import DATASET_PATH, SEED
 
+# from accelerate import PartialState
+# device_string = PartialState().process_index
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # MODEL_NAME = 'meta-llama/Llama-2-7b-hf'
 # MODEL_NAME = 'facebook/galactica-1.3b'
@@ -35,7 +38,9 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     dataset = load_from_disk(DATASET_PATH)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME,
+                                                 torch_dtype=torch.bfloat16,
+                                                 device_map={'': device_string})
     model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
@@ -46,9 +51,9 @@ if __name__ == "__main__":
         do_eval=True,
         do_predict=True,
         evaluation_strategy='steps',
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
+        gradient_accumulation_steps=8,
         learning_rate=3e-5,
         weight_decay=1e-1,
         logging_steps=20,
@@ -69,7 +74,7 @@ if __name__ == "__main__":
         eval_dataset=dataset['validation'],
         formatting_func=formatting_func,
         data_collator=collator,
-        max_seq_length=768,
+        max_seq_length=1024,
         args=training_args
     )
 
