@@ -6,15 +6,14 @@ from datasets import load_from_disk
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from utils import DATASET_PATH, SEED
 
-PROJECT_NAME = 'SFT_Gemma_2B'
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-# MODEL_NAME = 'meta-llama/Llama-2-7b-hf'
-MODEL_NAME = 'facebook/galactica-1.3b'
+MODEL_NAME = 'google/gemma-2b'
+project_name = f'SFT_{MODEL_NAME.split("/")[-1]}'
 RESPONSE_TEMP = "### Answer:"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-# Add a new padding token
-tokenizer.add_special_tokens({'pad_token': '<pad>'})
+# # Add a new padding token
+# tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
 collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 
@@ -39,10 +38,10 @@ if __name__ == "__main__":
 
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
-    model.resize_token_embeddings(len(tokenizer))
+    # model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
-        output_dir=f'ckpts/sft_{MODEL_NAME.split("/")[-1]}',
+        output_dir=f'ckpts/sft_{project_name}',
         overwrite_output_dir=False,
         do_train=True,
         do_eval=True,
@@ -62,7 +61,7 @@ if __name__ == "__main__":
         save_total_limit=3,
         remove_unused_columns=True
     )
-    wandb.init(project=PROJECT_NAME,
+    wandb.init(project=project_name,
                config=training_args)
 
     trainer = SFTTrainer(
