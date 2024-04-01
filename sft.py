@@ -49,7 +49,7 @@ if __name__ == "__main__":
               'load_best_model_at_end': True,
               'save_steps': 200,
               'save_total_limit': 3,
-              'remove_unused_columns': False
+              'remove_unused_columns': None
               },
         train_dataset=dataset['train'],
         eval_dataset=dataset['validation'],
