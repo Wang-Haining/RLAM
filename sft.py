@@ -1,9 +1,13 @@
+import os
 import torch
+import wandb
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_from_disk
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from utils import DATASET_PATH, SEED
 
+PROJECT_NAME = 'SFT_Gemma_2B'
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # MODEL_NAME = 'meta-llama/Llama-2-7b-hf'
 MODEL_NAME = 'facebook/galactica-1.3b'
 RESPONSE_TEMP = "### Answer:"
@@ -30,6 +34,7 @@ def formatting_func(example):
 
 
 if __name__ == "__main__":
+
     torch.manual_seed(SEED)
 
     dataset = load_from_disk(DATASET_PATH)
@@ -43,21 +48,22 @@ if __name__ == "__main__":
         do_eval=True,
         do_predict=True,
         evaluation_strategy='steps',
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
         gradient_accumulation_steps=4,
         learning_rate=3e-5,
         weight_decay=1e-1,
         logging_steps=20,
         eval_steps=200,
         bf16=True,
-        run_name='sft_llama2-7b',
         report_to='wandb',
         load_best_model_at_end=True,
         save_steps=200,
         save_total_limit=3,
         remove_unused_columns=True
     )
+    wandb.init(project=PROJECT_NAME,
+               config=training_args)
 
     trainer = SFTTrainer(
         model,
