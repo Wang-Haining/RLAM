@@ -24,9 +24,7 @@ collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 
 
 def formatting_func(example):
-    text = (f"### Please simplify the scholarly abstract so it is immediately "
-            f"understandable to a layperson: {example['source']}\n {RESPONS
-            E_TEMP} {example['target']}")
+    text = (f"### Please simplify the scholarly abstract so it is immediately understandable to a layperson: {example['source']}\n {RESPONSE_TEMP} {example['target']}")
     return text
 
 
