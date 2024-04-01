@@ -3,7 +3,11 @@ import os
 import torch
 import wandb
 from datasets import load_from_disk
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import (AutoModelForCausalLM,
+                          AutoTokenizer,
+                          TrainingArguments,
+                          EarlyStoppingCallback)
+
 from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
 
 from utils import DATASET_PATH, SEED
@@ -65,6 +69,7 @@ if __name__ == "__main__":
         data_collator=collator,
         max_seq_length=1024,
         args=training_args,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
     )
 
     trainer.train()
