@@ -63,7 +63,7 @@ if __name__ == "__main__":
         remove_unused_columns=True,
     )
     wandb.init(project=PROJECT_NAME,
-               run=run_name,
+               name=run_name,
                config=training_args)
 
     trainer = SFTTrainer(
