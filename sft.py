@@ -51,7 +51,7 @@ if __name__ == "__main__":
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
-        learning_rate=3e-5,
+        learning_rate=1e-5,
         weight_decay=1e-1,
         logging_steps=20,
         eval_steps=20,
