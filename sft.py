@@ -11,21 +11,18 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 
 
-# def formatting_func(example):
-#     output_texts = []
-#     for i in range(len(example['instruction'])):
-#         text = (
-#             f"### Please simplify the scholarly abstract so it is immediately "
-#             f"understandable to a layperson: {example['source'][i]}\n {
-#             RESPONSE_TEMP} "
-#             f"{example['target'][i]}")
-#         output_texts.append(text)
-#     return output_texts
-
-
 def formatting_func(example):
-    text = (f"### Please simplify the scholarly abstract so it is immediately understandable to a layperson: {example['source']}\n {RESPONSE_TEMP} {example['target']}")
-    return text
+    output_texts = []
+    for i in range(len(example['instruction'])):
+        text = f"### Please simplify the scholarly abstract so it is immediately understandable to a layperson: {example['source'][i]}\n {RESPONSE_TEMP} {example['target'][i]}"
+        output_texts.append(text)
+
+    return output_texts
+
+
+# def formatting_func(example):
+#     text = (f"### Please simplify the scholarly abstract so it is immediately understandable to a layperson: {example['source']}\n {RESPONSE_TEMP} {example['target']}")
+#     return text
 
 
 if __name__ == "__main__":
