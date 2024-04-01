@@ -11,7 +11,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # MODEL_NAME = 'facebook/galactica-1.3b'
 MODEL_NAME = 'google/gemma-2b'
 # ('###', 6176), ('▁Answer', 10358), (':', 235292)
-RESPONSE_TEMP = "\n### Answer: "
+RESPONSE_TEMP = "\n### Answer:"
 project_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
