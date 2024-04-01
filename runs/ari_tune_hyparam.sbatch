@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m run --save_folder ari_baseline --normalize_reward true --ppo_epochs 4 --gradient_accumulation_steps 4 --eval_interval 20
+python -m run --save_folder ari_higher_lr --normalize_reward true --ppo_epochs 4 --gradient_accumulation_steps 4 --eval_interval 20
