@@ -10,7 +10,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # MODEL_NAME = 'meta-llama/Llama-2-7b-hf'
 # MODEL_NAME = 'facebook/galactica-1.3b'
 MODEL_NAME = 'google/gemma-2b'
-RESPONSE_TEMP = "### Answer:"
+RESPONSE_TEMP = " ### Answer:"
 project_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
