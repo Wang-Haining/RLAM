@@ -10,7 +10,7 @@ RESPONSE_TEMP = "### Answer:"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 # Add a new padding token
-# tokenizer.add_special_tokens({'pad_token': '<pad>'})
+tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
 collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
-    # model.resize_token_embeddings(len(tokenizer))
+    model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
         output_dir=f'ckpts/sft_{MODEL_NAME.split("/")[-1]}',
