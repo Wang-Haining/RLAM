@@ -40,7 +40,8 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME,
                                                  torch_dtype=torch.bfloat16,
-                                                 device_map={'': device_string})
+                                                 # device_map={'': device_string}
+                                                 )
     model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
