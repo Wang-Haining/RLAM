@@ -14,6 +14,7 @@ BASELINE_MODEL = "haining/sas_baseline"
 DATASET_PATH = 'resources/scientific_abstract_simplification_corpus'
 TOP_P = 0.9
 SEED = 42
+PROJECT_NAME = 'Scholarly_Abstract_Simplification'
 
 # `is_punctuation` is adopted from
 # github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
