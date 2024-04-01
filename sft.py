@@ -14,7 +14,10 @@ collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 def formatting_func(example):
     output_texts = []
     for i in range(len(example['instruction'])):
-        text = (f"### Please simplify the scholarly abstract so it is immediately understandable to a layperson: {example['source'][i]}\n {RESPONSE_TEMP} {example['target'][i]}")
+        text = (
+            f"### Please simplify the scholarly abstract so it is immediately "
+            f"understandable to a layperson: {example['source'][i]}\n {RESPONSE_TEMP} "
+            f"{example['target'][i]}")
         output_texts.append(text)
     return output_texts
 
@@ -45,13 +48,14 @@ if __name__ == "__main__":
               'report_to': 'wandb',
               'load_best_model_at_end': True,
               'save_steps': 200,
-              'save_total_limit': 3
-
+              'save_total_limit': 3,
+              'remove_unused_columns': False
               },
         train_dataset=dataset['train'],
         eval_dataset=dataset['validation'],
         formatting_func=formatting_func,
         data_collator=collator,
+        max_seq_length=1024,
     )
 
     trainer.train()
