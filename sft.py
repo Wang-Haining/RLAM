@@ -54,11 +54,11 @@ if __name__ == "__main__":
         learning_rate=3e-5,
         weight_decay=1e-1,
         logging_steps=20,
-        eval_steps=40,
+        eval_steps=20,
         bf16=True,
         report_to="wandb",
         load_best_model_at_end=True,
-        save_steps=200,
+        save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
     )
