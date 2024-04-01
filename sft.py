@@ -14,7 +14,7 @@ MODEL_NAME = 'google/gemma-2b'
 RESPONSE_TEMP = "\n### Answer:"
 project_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side='right')
 # Add a new padding token
 # tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
@@ -41,6 +41,7 @@ if __name__ == "__main__":
     training_args = TrainingArguments(
         output_dir=f'ckpts/{project_name}',
         overwrite_output_dir=False,
+        num_train_epochs=10,
         do_train=True,
         do_eval=True,
         do_predict=True,
