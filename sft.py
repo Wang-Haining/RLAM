@@ -64,7 +64,7 @@ if __name__ == "__main__":
         eval_dataset=dataset['validation'],
         formatting_func=formatting_func,
         data_collator=collator,
-        max_seq_length=768,
+        max_seq_length=256,
         args=training_args
     )
 
