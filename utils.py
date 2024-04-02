@@ -16,7 +16,7 @@ TOP_P = 0.9
 SEED = 42
 PROJECT_NAME = 'Scholarly_Abstract_Simplification'
 MODEL_NAME = "google/gemma-2b"
-RESPONSE_TEMP = "\n### Answer:"
+RESPONSE_TEMP = "\nLay summary:"
 
 
 # `is_punctuation` is adopted from

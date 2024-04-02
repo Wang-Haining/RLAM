@@ -97,6 +97,7 @@ if __name__ == "__main__":
                 input_ids,
                 top_p=TOP_P,
                 max_length=1024,
+                length_penalty=0.9,
                 do_sample=True,
                 return_dict_in_generate=True,
                 num_return_sequences=1,
