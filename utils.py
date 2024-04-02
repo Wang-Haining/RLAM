@@ -32,8 +32,8 @@ def compute_ari(text: str):
     """
     Compute the Automated Readability Index (ARI) for a given text.
     The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
-    Incomplete sentences (likely not ending in a period, exclamation, or question mark)
-    are not considered.
+    Incomplete sentences will be concluded with an artificial period to approximate the
+    ARI score.
 
     Args:
     text: A string of text to compute ARI.
@@ -41,16 +41,15 @@ def compute_ari(text: str):
     Returns:
         A list of tensors containing the processed rewards.
     """
+    # check if the last sentence is complete
+    if not text.endswith((".", "?", "!")):
+        # approximate the readability
+        text += '.'
     mt = MosesTokenizer(lang='en')
     sentences = sent_tokenize(text)
     words = mt.tokenize(text)
     # remove punctuation marks
     words = [w for w in words if not is_punctuation(w)]
-
-    # check if the last sentence is complete
-    if sentences and not sentences[-1].endswith((".", "?", "!")):
-        # remove the last sentence if it is incomplete
-        sentences = sentences[:-1]
 
     character_count = sum(len(word) for word in words)
     sentences_count = len(sentences)
