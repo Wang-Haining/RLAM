@@ -327,9 +327,8 @@ if __name__ == "__main__":
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
-    # wandb.init(project=config.task_name, config=config)
     wandb.init(project=PROJECT_NAME,
-               name=run_name,
+               name=args.run_name,
                config=args)
     # build dataset
     dataset = build_dataset()
