@@ -99,7 +99,7 @@ if __name__ == "__main__":
                 max_length=1024,
                 do_sample=True,
                 return_dict_in_generate=True,
-                num_return_sequences=1,
+                num_return_sequences=5,
             )
 
             # Decode only the newly generated tokens
