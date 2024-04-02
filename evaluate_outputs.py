@@ -8,9 +8,9 @@ import numpy as np
 import torch
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
-from transformers import AutoTokenizer, T5ForConditionalGeneration
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from utils import BASELINE_MODEL, SEED, TOP_P, build_dataset, compute_ari
+from utils import SEED, TOP_P, build_dataset, compute_ari, MODEL_NAME, RESPONSE_TEMP
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -64,29 +64,22 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     parser = argparse.ArgumentParser(
-        description="Evaluating baseline and policy model outputs."
+        description="Evaluating sft and policy model outputs."
     )
     parser.add_argument(
         "--ckpt_path",
         type=str,
         default=None,
-        help="path to policy model checkpoint",
+        help="path to sft or policy model checkpoint",
     )
     parser.add_argument("--output_file", type=str,
                         help="dir to save evaluation results")
     args = parser.parse_args()
 
-    # get data
-    dataset = build_dataset(
-        model_name=BASELINE_MODEL,
-        task_prefix="summarize, simplify, and contextualize: ",
-    )
-    # fixme
-    tokenizer = AutoTokenizer.from_pretrained(BASELINE_MODEL)
-    if args.ckpt_path:
-        model = T5ForConditionalGeneration.from_pretrained(args.ckpt_path)
-    else:
-        model = T5ForConditionalGeneration.from_pretrained(BASELINE_MODEL)
+    dataset = build_dataset()
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(args.ckpt_path,
+                                                 torch_dtype=torch.bfloat16)
 
     model.to(device)
     model.eval()
@@ -97,12 +90,32 @@ if __name__ == "__main__":
             input_ids = example["input_ids"].to(device)
             if input_ids.dim() == 1:
                 input_ids = input_ids.unsqueeze(0)
+            # calculate the length of the input part
+            input_length = input_ids.size(1)
+
             outputs = model.generate(
-                input_ids, top_p=TOP_P, max_length=512, do_sample=True
+                input_ids,
+                top_p=TOP_P,
+                max_length=1024,
+                do_sample=True,
+                return_dict_in_generate=True,
+                num_return_sequences=1,
             )
+
+            # Decode only the newly generated tokens
+            # Adjust the slicing as needed, here we skip the input tokens
+            gen_tokens = outputs.sequences[:, input_length:].squeeze()
             output = tokenizer.decode(
-                outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
+                gen_tokens,
+                clean_up_tokenization_spaces=True,
+                skip_special_tokens=True
             )
+            # outputs = model.generate(
+            #     input_ids, top_p=TOP_P, max_length=1024, do_sample=True
+            # )
+            # output = tokenizer.decode(
+            #     outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
+            # )
             result = calculate_metrics(
                 generated_text=output,
                 target_text=example["target"],

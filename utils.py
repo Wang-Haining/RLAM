@@ -15,12 +15,16 @@ DATASET_PATH = 'resources/scientific_abstract_simplification_corpus'
 TOP_P = 0.9
 SEED = 42
 PROJECT_NAME = 'Scholarly_Abstract_Simplification'
+MODEL_NAME = "google/gemma-2b"
+RESPONSE_TEMP = "\n### Answer:"
+
 
 # `is_punctuation` is adopted from
 # github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
 def is_punctuation(token):
     match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
     return match is not None
+
 
 def compute_ari(text: str):
     """
@@ -75,17 +79,20 @@ def is_jargon(word):
 
 
 def build_dataset(
-        model_name: str = "haining/sas_baseline",
-        task_prefix: str = "summarize, simplify, and contextualize: ",
+        model_name: str = "google/gemma-2b",
+        task_prefix: str = ("### Simplify the scholarly abstract so it is immediately "
+                            "understandable to a layperson: "),
+        response_template: str = RESPONSE_TEMP
 ):
     """
-    Build dataset for training with FLAN-T5. This function filters out too short samples
-    and then extracts a specific number of samples for training.
+    Build dataset for training. This function filters out too short samples and then
+    extracts a specific number of samples for training.
 
     Args:
         model_name: SFT'ed model name.
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
+        response_template: RESPONSE_TEMP
 
     Returns:
         DataLoader: The DataLoader for the dataset.
@@ -96,11 +103,11 @@ def build_dataset(
 
     def tokenize(sample):
         # prepend the task-specific prefix
-        input_text = task_prefix + sample["query"]
+        input_text = task_prefix + sample["query"] + response_template
         input_ids = tokenizer.encode(
             input_text,
             truncation=True,
-            max_length=tokenizer.model_max_length,
+            max_length=1024,
         )
         sample["input_ids"] = torch.tensor(input_ids)
         sample["query"] = tokenizer.decode(sample["input_ids"],
@@ -143,26 +150,29 @@ def evaluate_outputs(predictions,
     results['ari'] = [compute_ari(p) for p in predictions]
 
     # Compute BLEU scores
-    results['bleu'] = [bleu_metric.corpus_bleu([p], [[r]]).score for p, r in zip(predictions, references)]
+    results['bleu'] = [bleu_metric.corpus_bleu([p], [[r]]).score for p, r in
+                       zip(predictions, references)]
 
     if all_metrics:
         # Compute SARI scores
         sari_metric = load_metric('sari')
         results['sari'] = np.mean([sari_metric.compute(predictions=[p],
                                                        references=[r],
-                                                       sources=[s])['sari'] for p, r, s in zip(predictions, references, sources)])
+                                                       sources=[s])['sari'] for p, r, s
+                                   in zip(predictions, references, sources)])
 
         # Compute ROUGE-L scores
         rouge_metric = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
-        results['rougeL'] = [rouge_metric.score(p, r)['rougeL'].fmeasure for p, r in zip(predictions, references)]
+        results['rougeL'] = [rouge_metric.score(p, r)['rougeL'].fmeasure for p, r in
+                             zip(predictions, references)]
 
     return results
-
 
 # mt = MosesTokenizer(lang='en')
 # text = "This is an example sentence with CRISPR technology, and mRNA vaccines."
 # tokens = mt.tokenize(text)
 #
 # # Filter and print only the tokens that are considered jargon and not punctuation
-# jargon_tokens = [token for token in tokens if not is_punctuation(token) and is_jargon(token)]
+# jargon_tokens = [token for token in tokens if not is_punctuation(token) and
+# is_jargon(token)]
 # print(jargon_tokens)
