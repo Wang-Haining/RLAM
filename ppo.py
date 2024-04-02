@@ -60,8 +60,9 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
     # The logic to check and save among the top 3 models remains the same
 
     if (
-        len(saved_models) < 3
-        or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]
+            len(saved_models) < 3
+            or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])[
+        "ari_mean"]
     ):
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
@@ -172,9 +173,9 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
 
 
 def reward2tensor(
-    responses: List[str],
-    compute_ari_func: Callable[[str], float],
-    normalize: bool = False,
+        responses: List[str],
+        compute_ari_func: Callable[[str], float],
+        normalize: bool = False,
 ) -> List[torch.Tensor]:
     """
     Process responses through the Automated Readability Index function to compute
@@ -238,7 +239,7 @@ if __name__ == "__main__":
         type=int,
         default=2,
         help="Number of optimization rollouts per batch of samples "
-        "during PPO training",
+             "during PPO training",
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -333,8 +334,10 @@ if __name__ == "__main__":
     # build dataset
     dataset = build_dataset()
     # init SFT'ed models
-    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path)
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path)
+    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path,
+                                                                     torch_dtype=torch.bfloat16)
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path,
+                                                                  torch_dtype=torch.bfloat16)
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
     # optimizer and lr scheduler
