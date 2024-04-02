@@ -10,7 +10,8 @@ from transformers import (AutoModelForCausalLM,
 
 from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
 
-from utils import DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME, RESPONSE_TEMP
+from utils import (DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME,
+                   RESPONSE_TEMP, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{MODEL_NAME.split("/")[-1]}'
@@ -21,8 +22,7 @@ collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 def formatting_func(example):
     output_texts = []
     for i in range(len(example["source"])):
-        text = (f"Simplify the scholarly abstract so it is immediately "
-                f"understandable to a layperson: "
+        text = (TASK_PREFIX +
                 f"{example['source'][i]}{RESPONSE_TEMP} {example['target'][i]}")
         output_texts.append(text)
 

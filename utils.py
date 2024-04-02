@@ -16,6 +16,8 @@ TOP_P = 0.9
 SEED = 42
 PROJECT_NAME = 'Scholarly_Abstract_Simplification'
 MODEL_NAME = "google/gemma-2b"
+TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
+               "to a layperson: ")
 RESPONSE_TEMP = "\nLay summary:"
 
 
@@ -80,8 +82,7 @@ def is_jargon(word):
 
 def build_dataset(
         model_name: str = "google/gemma-2b",
-        task_prefix: str = ("### Simplify the scholarly abstract so it is immediately "
-                            "understandable to a layperson: "),
+        task_prefix: str = TASK_PREFIX,
         response_template: str = RESPONSE_TEMP
 ):
     """
