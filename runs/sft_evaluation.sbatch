@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m evaluate_outputs --output_file sft.csv --ckpt_path ckpts/sft_gemma-2b/checkpoint-1120
+python -m evaluate_outputs --output_file sft.csv --ckpt_path ckpts/sft_gemma-2b/checkpoint-1100
