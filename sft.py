@@ -10,11 +10,9 @@ from transformers import (AutoModelForCausalLM,
 
 from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
 
-from utils import DATASET_PATH, SEED, PROJECT_NAME
+from utils import DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME, RESPONSE_TEMP
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-MODEL_NAME = "google/gemma-2b"
-RESPONSE_TEMP = "\n### Answer:"
 run_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="right")
 collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
