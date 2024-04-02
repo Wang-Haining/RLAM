@@ -230,7 +230,7 @@ if __name__ == "__main__":
         help="Number of training steps"
     )
     parser.add_argument(
-        "--mini_batch_size", type=int, default=4,
+        "--mini_batch_size", type=int, default=2,
         help="Mini batch size for PPO updates"
     )
     parser.add_argument(
