@@ -308,6 +308,8 @@ if __name__ == "__main__":
         type=str,
         help="Path to the SFT'ed model",
     )
+    parser.add_argument("--run_name", type=str,
+                        default=f'ppo_{MODEL_NAME.split("/")[-1]}')
 
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
@@ -317,15 +319,18 @@ if __name__ == "__main__":
         "num_eval_samples",
         "save_folder",
         "normalize_reward",
-        "sft_ckpt_path"
+        "sft_ckpt_path",
+        "run_name"
     ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
-    wandb.init(project=config.task_name, config=config)
-
+    # wandb.init(project=config.task_name, config=config)
+    wandb.init(project=PROJECT_NAME,
+               name=run_name,
+               config=args)
     # build dataset
     dataset = build_dataset()
     # init SFT'ed models

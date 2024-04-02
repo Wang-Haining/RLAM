@@ -99,6 +99,7 @@ def build_dataset(
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     ds = load_from_disk(DATASET_PATH)
+    # fixme
     ds = ds.rename_columns({"source": "query"})
 
     def tokenize(sample):
