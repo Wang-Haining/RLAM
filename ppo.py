@@ -311,6 +311,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--run_name", type=str,
                         default=f'ppo_{MODEL_NAME.split("/")[-1]}')
+    parser.add_argument(
+        "--max_new_tokens",
+        type=int,
+        default=300,
+        help="Max rollout length",
+    )
 
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
@@ -321,7 +327,8 @@ if __name__ == "__main__":
         "save_folder",
         "normalize_reward",
         "sft_ckpt_path",
-        "run_name"
+        "run_name",
+        "max_new_tokens"
     ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
@@ -364,7 +371,7 @@ if __name__ == "__main__":
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
-        "max_new_tokens": 300,
+        "max_new_tokens": args.max_new_tokens,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
