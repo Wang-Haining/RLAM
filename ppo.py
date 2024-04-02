@@ -361,7 +361,7 @@ if __name__ == "__main__":
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
-        "max_new_tokens": 512,
+        "max_new_tokens": 300,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
