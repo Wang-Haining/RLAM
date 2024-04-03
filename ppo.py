@@ -60,8 +60,9 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
     # The logic to check and save among the top 3 models remains the same
 
     if (
-        len(saved_models) < 3
-        or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]
+            len(saved_models) < 3
+            or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])[
+        "ari_mean"]
     ):
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
@@ -170,9 +171,9 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
 
 
 def reward2tensor(
-    responses: List[str],
-    compute_ari_func: Callable[[str], float],
-    normalize: bool = False,
+        responses: List[str],
+        compute_ari_func: Callable[[str], float],
+        normalize: bool = False,
 ) -> List[torch.Tensor]:
     """
     Process responses through the Automated Readability Index function to compute
@@ -204,6 +205,28 @@ def reward2tensor(
     return reward_tensors
 
 
+def get_max_new_tokens(step: int,
+                       start: int = 50,
+                       end: int = 240,
+                       curriculum_steps: int = 80) -> int:
+    """
+    Calculates the `max_new_tokens` for the current training step based on a linear
+    curriculum.
+
+    Args:
+        step: Current training step.
+        start: Initial `max_new_tokens` value.
+        end: Final `max_new_tokens` value.
+        curriculum_steps: Total number of steps when max_new_tokens plateaus.
+
+    Returns:
+        int: The calculated `max_new_tokens` for the current step.
+    """
+    if step >= curriculum_steps:
+        return end
+    return int(start + (end - start) * (step / curriculum_steps))
+
+
 if __name__ == "__main__":
     torch.manual_seed(SEED)
 
@@ -224,17 +247,19 @@ if __name__ == "__main__":
         help="Initial learning rate for optimizer",
     )
     parser.add_argument(
-        "--steps", type=int, default=20000, help="Number of training steps"
+        "--steps", type=int, default=20000,
+        help="Number of training steps"
     )
     parser.add_argument(
-        "--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates"
+        "--mini_batch_size", type=int, default=2,
+        help="Mini batch size for PPO updates"
     )
     parser.add_argument(
         "--ppo_epochs",
         type=int,
         default=2,
         help="Number of optimization rollouts per batch of samples "
-        "during PPO training",
+             "during PPO training",
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -306,6 +331,19 @@ if __name__ == "__main__":
         default=300,
         help="Max rollout length",
     )
+    # curriculum for the rollouts
+    parser.add_argument(
+        "--enable_curriculum",
+        action="store_false",
+        help="Enable curriculum learning for rollout length"
+    )
+    parser.add_argument(
+        "--rollout_curriculum",
+        nargs=3,
+        type=int,
+        default=[50, 240, 60],
+        help="Tuple indicating the start, end, and steps for rollout curriculum"
+    )
 
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
@@ -318,6 +356,8 @@ if __name__ == "__main__":
         "sft_ckpt_path",
         "run_name",
         "max_new_tokens",
+        "enable_curriculum",
+        "rollout_curriculum"
     ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
@@ -354,30 +394,41 @@ if __name__ == "__main__":
         # lr_scheduler=lr_scheduler,
     )
 
-    generation_kwargs = {
+    rollout_kwargs = {
         "min_length": 10,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
+        # fixed rollout length
         "max_new_tokens": args.max_new_tokens,
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
+        #
+        if args.enable_curriculum:
+            _max_new_tokens = get_max_new_tokens(step,
+                                                 start=args.rollout_curriculum[0],
+                                                 end=args.rollout_curriculum[1],
+                                                 curriculum_steps=args.rollout_curriculum[2])
+        rollout_kwargs["max_new_tokens"] = _max_new_tokens
+
         query_tensors = batch["input_ids"]
 
         response_tensors, ref_response_tensors = ppo_trainer.generate(
             query_tensors,
             return_prompt=False,
             generate_ref_response=True,
-            **generation_kwargs,
+            **rollout_kwargs,
         )
 
         batch["response"] = tokenizer.batch_decode(
-            response_tensors, skip_special_tokens=True
+            response_tensors
+            # , skip_special_tokens=True
         )
         batch["ref_response"] = tokenizer.batch_decode(
-            ref_response_tensors, skip_special_tokens=True
+            ref_response_tensors
+            # , skip_special_tokens=True
         )
 
         rewards = reward2tensor(batch["response"], compute_ari, args.normalize_reward)
@@ -402,6 +453,7 @@ if __name__ == "__main__":
                 "advantage",
             ],
         )
+        wandb.log(rollout_kwargs)
         # lr_scheduler.step()
 
         # evaluate on validation set after every n steps
