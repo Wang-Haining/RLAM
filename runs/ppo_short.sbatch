@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-24:00:00
+#SBATCH --time=0-4:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo --save_folder ppo_gemma-2b --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1100 --max_new_token 200
+python -m ppo --save_folder ppo_gemma-2b_max_new_token_200 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1200 --max_new_token 200
