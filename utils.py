@@ -152,19 +152,19 @@ def evaluate_outputs(predictions,
     # compute ARI
     results['ari'] = [compute_ari(p) for p in predictions]
 
-    # Compute BLEU scores
+    # compute BLEU scores
     results['bleu'] = [bleu_metric.corpus_bleu([p], [[r]]).score for p, r in
                        zip(predictions, references)]
 
     if all_metrics:
-        # Compute SARI scores
+        # compute SARI scores
         sari_metric = load_metric('sari')
         results['sari'] = np.mean([sari_metric.compute(predictions=[p],
                                                        references=[r],
                                                        sources=[s])['sari'] for p, r, s
                                    in zip(predictions, references, sources)])
 
-        # Compute ROUGE-L scores
+        # compute ROUGE-L scores
         rouge_metric = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
         results['rougeL'] = [rouge_metric.score(p, r)['rougeL'].fmeasure for p, r in
                              zip(predictions, references)]
