@@ -412,6 +412,8 @@ if __name__ == "__main__":
                                                  start=args.rollout_curriculum[0],
                                                  end=args.rollout_curriculum[1],
                                                  curriculum_steps=args.rollout_curriculum[2])
+        else:
+            _max_new_tokens = args.max_new_tokens
         rollout_kwargs["max_new_tokens"] = _max_new_tokens
 
         query_tensors = batch["input_ids"]
