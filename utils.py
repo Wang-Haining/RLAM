@@ -10,6 +10,7 @@ from wordfreq import word_frequency
 from nltk.tokenize import sent_tokenize
 from transformers import AutoTokenizer
 
+# fixme
 BASELINE_MODEL = "haining/sas_baseline"
 DATASET_PATH = 'resources/scientific_abstract_simplification_corpus'
 TOP_P = 0.9
