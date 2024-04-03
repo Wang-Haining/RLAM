@@ -1,3 +1,9 @@
+"""
+Get supervised finetuned Gemma 2B from SAS.
+"""
+
+__author__ = "hw56@indiana.edu"
+
 import os
 
 import torch
@@ -11,7 +17,7 @@ from transformers import (AutoModelForCausalLM,
 from trl import SFTTrainer
 
 from utils import (DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME,
-                   RESPONSE_TEMP, TASK_PREFIX, collator)
+                   RESPONSE_TEMP, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{MODEL_NAME.split("/")[-1]}'
@@ -35,7 +41,6 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME,
                                                  torch_dtype=torch.bfloat16)
-    model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
@@ -68,7 +73,6 @@ if __name__ == "__main__":
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
         formatting_func=formatting_func,
-        # data_collator=collator,
         max_seq_length=1024,
         args=training_args,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
