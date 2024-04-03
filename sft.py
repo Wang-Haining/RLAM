@@ -36,7 +36,7 @@ def formatting_func(example):
 
 if __name__ == "__main__":
 
-    torch.manual_seed(SEED)
+    torch.manual_seed(SEED + 21)
 
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME,
