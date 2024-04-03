@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo --save_folder ppo_gemma-2b_max_new_token_200 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1200 --max_new_token 200
+python -m ppo --save_folder ppo_gemma-2b_max_new_token_200 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --max_new_token 200
