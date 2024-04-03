@@ -18,5 +18,6 @@ module load CUDA/12.2.0
 python -m ppo \
 --save_folder ppo_gemma-2b_rollout_curriculum \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
+--early_stopping true \
 --enable_curriculum true \
 --rollout_curriculum 50 240 60
