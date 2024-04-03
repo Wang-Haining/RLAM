@@ -75,7 +75,8 @@ def compute_ari(text: str):
 
 def is_jargon(word):
     # A lower frequency threshold means the word is less common and might be jargon
-    threshold = 1e-6  # This threshold is arbitrary; adjust based on your needs
+    # fixme
+    threshold = 1e-6  # an arbitrary threshold
     frequency = word_frequency(word, 'en')
     return frequency < threshold
 
