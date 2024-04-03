@@ -1,34 +1,48 @@
 """
-Get supervised finetuned Gemma 2B from SAS.
+This module performs supervised fine-tuning on the Gemma 2B model using the
+Simplified Abstract Simplification (SAS) dataset. It concatenates scientific
+abstracts with their simplified versions using a straightforward template.
 """
 
 __author__ = "hw56@indiana.edu"
+__version__ = "0.0.1"
+__license__ = "0BSD"
 
 import os
+from typing import List
 
 import torch
 import wandb
-from datasets import load_from_disk
-from transformers import (AutoModelForCausalLM,
-                          AutoTokenizer,
-                          TrainingArguments,
-                          EarlyStoppingCallback)
-
+from datasets import DatasetDict, load_from_disk
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer
 
-from utils import (DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME,
-                   RESPONSE_TEMP, TASK_PREFIX)
+from utils import (DATASET_PATH, MODEL_NAME, PROJECT_NAME, RESPONSE_TEMP, SEED,
+                   TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="right")
 
 
-def formatting_func(example):
+def formatting_func(example: DatasetDict) -> List[str]:
+    """
+    Formats input examples by concatenating the source text with the target text,
+    using the task-specific prefix and response template.
+
+    Args:
+        example: A dataset dictionary containing 'source' and 'target' fields.
+
+    Returns:
+        A list of formatted strings ready for model training.
+    """
     output_texts = []
     for i in range(len(example["source"])):
-        text = (TASK_PREFIX +
-                f"{example['source'][i]}{RESPONSE_TEMP} {example['target'][i]}")
+        text = (
+            TASK_PREFIX
+            + f"{example['source'][i]}{RESPONSE_TEMP} {example['target'][i]}"
+        )
         output_texts.append(text)
 
     return output_texts
@@ -39,8 +53,7 @@ if __name__ == "__main__":
     torch.manual_seed(SEED + 21)
 
     dataset = load_from_disk(DATASET_PATH)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME,
-                                                 torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
 
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
@@ -64,9 +77,7 @@ if __name__ == "__main__":
         save_total_limit=3,
         remove_unused_columns=True,
     )
-    wandb.init(project=PROJECT_NAME,
-               name=run_name,
-               config=training_args)
+    wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
     trainer = SFTTrainer(
         model,
@@ -75,7 +86,7 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=1024,
         args=training_args,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     trainer.train()
