@@ -11,8 +11,8 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 
-from utils import (SEED, TOP_P, PROJECT_NAME, MODEL_NAME,
-                   build_dataset, collator, compute_ari)
+from utils import (MODEL_NAME, PROJECT_NAME, SEED, TOP_P, build_dataset,
+                   collator, compute_ari)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -60,9 +60,8 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
     # The logic to check and save among the top 3 models remains the same
 
     if (
-            len(saved_models) < 3
-            or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])[
-        "ari_mean"]
+        len(saved_models) < 3
+        or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]
     ):
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
@@ -127,7 +126,6 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
 
             if query_tensors.dim() == 1:
                 query_tensors = query_tensors.unsqueeze(0)
-
             response_tensors = model.generate(
                 query_tensors, top_p=TOP_P, max_new_tokens=512, do_sample=True
             )
@@ -136,8 +134,7 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
                 clean_up_tokenization_spaces=True,
                 skip_special_tokens=True,
             )
-            # Assuming 'targets' is a list of reference texts for BLEU calculation
-            targets = [batch["target"]]  # You may need to adjust how you access targets
+            targets = [batch["target"]]
 
             for response, target in zip(responses, targets):
                 ari_scores.append(compute_ari_func(response))
@@ -173,9 +170,9 @@ def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
 
 
 def reward2tensor(
-        responses: List[str],
-        compute_ari_func: Callable[[str], float],
-        normalize: bool = False,
+    responses: List[str],
+    compute_ari_func: Callable[[str], float],
+    normalize: bool = False,
 ) -> List[torch.Tensor]:
     """
     Process responses through the Automated Readability Index function to compute
@@ -227,19 +224,17 @@ if __name__ == "__main__":
         help="Initial learning rate for optimizer",
     )
     parser.add_argument(
-        "--steps", type=int, default=20000,
-        help="Number of training steps"
+        "--steps", type=int, default=20000, help="Number of training steps"
     )
     parser.add_argument(
-        "--mini_batch_size", type=int, default=2,
-        help="Mini batch size for PPO updates"
+        "--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates"
     )
     parser.add_argument(
         "--ppo_epochs",
         type=int,
         default=2,
         help="Number of optimization rollouts per batch of samples "
-             "during PPO training",
+        "during PPO training",
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -248,14 +243,9 @@ if __name__ == "__main__":
         help="Number of gradient accumulation steps",
     )
     parser.add_argument(
-        "--batch_size", type=int, default=16, help="Batch size for training"
+        "--batch_size", type=int, default=16,
+        help="Batch size for training"
     )
-    # parser.add_argument(
-    #     "--model_name",
-    #     type=str,
-    #     default="haining/sas_baseline",
-    #     help="Model name on huggingface",
-    # )
     parser.add_argument(
         "--early_stopping",
         action="store_false",
@@ -268,13 +258,11 @@ if __name__ == "__main__":
         help="Target KL divergence for early stopping",
     )
     parser.add_argument(
-        "--use_score_scaling",
-        action="store_true",
+        "--use_score_scaling", action="store_true",
         help="Enable score scaling"
     )
     parser.add_argument(
-        "--use_score_norm",
-        action="store_true",
+        "--use_score_norm", action="store_true",
         help="Enable score normalization"
     )
     parser.add_argument(
@@ -285,7 +273,7 @@ if __name__ == "__main__":
     )
     # misc
     parser.add_argument(
-        "--eval_interval", type=int, default=20,
+        "--eval_interval", type=int, default=10,
         help="Interval between evaluations"
     )
     parser.add_argument(
@@ -309,8 +297,9 @@ if __name__ == "__main__":
         type=str,
         help="Path to the SFT'ed model",
     )
-    parser.add_argument("--run_name", type=str,
-                        default=f'ppo_{MODEL_NAME.split("/")[-1]}')
+    parser.add_argument(
+        "--run_name", type=str, default=f'ppo_{MODEL_NAME.split("/")[-1]}'
+    )
     parser.add_argument(
         "--max_new_tokens",
         type=int,
@@ -328,23 +317,23 @@ if __name__ == "__main__":
         "normalize_reward",
         "sft_ckpt_path",
         "run_name",
-        "max_new_tokens"
+        "max_new_tokens",
     ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
-    wandb.init(project=PROJECT_NAME,
-               name=args.run_name,
-               config=args)
+    wandb.init(project=PROJECT_NAME, name=args.run_name, config=args)
     # build dataset
     dataset = build_dataset()
     # init SFT'ed models
-    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path,
-                                                                     torch_dtype=torch.bfloat16)
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.sft_ckpt_path,
-                                                                  torch_dtype=torch.bfloat16)
+    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        args.sft_ckpt_path, torch_dtype=torch.bfloat16
+    )
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        args.sft_ckpt_path, torch_dtype=torch.bfloat16
+    )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
     # optimizer and lr scheduler

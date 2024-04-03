@@ -18,7 +18,7 @@ PROJECT_NAME = 'Scholarly_Abstract_Simplification'
 MODEL_NAME = "google/gemma-2b"
 TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
                "to a layperson: ")
-RESPONSE_TEMP = "\nLay summary:"
+RESPONSE_TEMP = "\nA concise lay summary:"
 
 
 # `is_punctuation` is adopted from
