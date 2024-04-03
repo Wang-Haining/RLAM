@@ -273,7 +273,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--early_stopping",
-        action="store_false",
+        type=lambda x: (str(x).lower() == 'true'),
+        default=False,
         help="Enable early stopping if KL divergence is too high",
     )
     parser.add_argument(
