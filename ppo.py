@@ -335,7 +335,8 @@ if __name__ == "__main__":
     # curriculum for the rollouts
     parser.add_argument(
         "--enable_curriculum",
-        action="store_false",
+        type=lambda x: (str(x).lower() == 'true'),
+        default=False,
         help="Enable curriculum learning for rollout length"
     )
     parser.add_argument(
