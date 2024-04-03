@@ -8,15 +8,14 @@ from transformers import (AutoModelForCausalLM,
                           TrainingArguments,
                           EarlyStoppingCallback)
 
-from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
+from trl import SFTTrainer
 
 from utils import (DATASET_PATH, SEED, PROJECT_NAME, MODEL_NAME,
-                   RESPONSE_TEMP, TASK_PREFIX)
+                   RESPONSE_TEMP, TASK_PREFIX, collator)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{MODEL_NAME.split("/")[-1]}'
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="right")
-collator = DataCollatorForCompletionOnlyLM(RESPONSE_TEMP, tokenizer=tokenizer)
 
 
 def formatting_func(example):
@@ -41,7 +40,7 @@ if __name__ == "__main__":
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
         overwrite_output_dir=False,
-        num_train_epochs=10,
+        num_train_epochs=10.0,
         do_train=True,
         do_eval=True,
         do_predict=True,
