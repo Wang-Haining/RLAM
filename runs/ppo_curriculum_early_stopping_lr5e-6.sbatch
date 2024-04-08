@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder ppo_gemma-2b_rollout_curriculum_early_stopping \
+--save_folder ppo_gemma-2b_rollout_curriculum_early_stopping_lr5e-6 \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
 --learning_rate 0.000005 \
 --early_stopping true \
