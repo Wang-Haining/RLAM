@@ -16,10 +16,10 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder ppo_gemma-2b_rollout_curriculum_early_stopping_clip0.05 \
+--save_folder ppo_gemma-2b_rollout_curriculum_early_stopping_clip0.2 \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
 --early_stopping true \
 --enable_curriculum true \
 --rollout_curriculum 50 240 60 \
 --use_score_norm \
---score_clip 0.05
+--score_clip 0.2
