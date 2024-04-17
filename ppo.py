@@ -29,15 +29,15 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
         eval_score: Eval scores of the current evaluation.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
-    # Ensure the save directory exists
+    # ensure the save directory exists
     save_dir = os.path.join("ckpts", save_folder)
     os.makedirs(save_dir, exist_ok=True)
 
-    # Define the path for storing metadata about saved models and the last model
+    # define the path for storing metadata about saved models and the last model
     metadata_path = os.path.join(save_dir, "metadata.npz")
     last_model_path = os.path.join(
         save_dir, "last_model.pt"
-    )  # Path for the most recent model
+    )  # path for the most recent model
 
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
@@ -47,7 +47,7 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
 
     current_ari_mean = np.mean(eval_score["ari"])
 
-    # Save the most recent model
+    # save the most recent model
     model.save_pretrained(last_model_path)
     print(f"Saved the most recent model at step {step}.")
 
@@ -56,7 +56,7 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
         f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_"
         f"{np.mean(eval_score['sacrebleu']):.2f}.pt",
     )
-    # The logic to check and save among the top 3 models remains the same
+    # the logic to check and save among the top 3 models remains the same
 
     if (
             len(saved_models) < 3
@@ -67,7 +67,7 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
         model.save_pretrained(save_path)
         saved_models.append({"path": save_path, "ari_mean": current_ari_mean})
 
-        # Update the saved models list and remove the worst model if necessary
+        # update the saved models list and remove the worst model if necessary
         if len(saved_models) > 3:
             worst_model = max(saved_models, key=lambda x: x["ari_mean"])
             saved_models.remove(worst_model)
