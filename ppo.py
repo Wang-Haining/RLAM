@@ -301,9 +301,6 @@ if __name__ == "__main__":
         help="Path to the SFT'ed model",
     )
     parser.add_argument(
-        "--run_name", type=str, default=f'ppo_model_name'
-    )
-    parser.add_argument(
         "--max_new_tokens",
         type=int,
         default=300,
@@ -333,7 +330,6 @@ if __name__ == "__main__":
         "save_folder",
         "normalize_reward",
         "sft_ckpt_path",
-        "run_name",
         "max_new_tokens",
         "enable_curriculum",
         "rollout_curriculum"
@@ -343,7 +339,8 @@ if __name__ == "__main__":
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
-    wandb.init(project=PROJECT_NAME, name=args.run_name, config=args)
+    run_name = args.sft_ckpt_path.split("/")[-2].split('_')[-1]
+    wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
     dataset = build_dataset()
@@ -374,7 +371,6 @@ if __name__ == "__main__":
         dataset=dataset["train"],
         data_collator=collator,
         optimizer=optimizer,
-        # lr_scheduler=lr_scheduler,
     )
 
     rollout_kwargs = {
