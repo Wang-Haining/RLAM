@@ -54,8 +54,17 @@ if __name__ == "__main__":
     torch.manual_seed(SEED + 21)
 
     dataset = load_from_disk(DATASET_PATH)
-    train_dataset = dataset['train'].map(lambda x: preprocess_function(x, tokenizer))
-    val_dataset = dataset['validation'].map(lambda x: preprocess_function(x, tokenizer))
+    train_dataset = dataset['train'].map(
+        lambda batch: preprocess_function(batch, tokenizer),
+        batched=True,
+        num_proc=2
+    )
+    val_dataset = dataset['validation'].map(
+        lambda batch: preprocess_function(batch, tokenizer),
+        batched=True,
+        num_proc=2
+    )
+
     model = AutoModelForCausalLM.from_pretrained(SEQ2SEQ_MODEL_NAME,
                                                  torch_dtype=torch.bfloat16)
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
