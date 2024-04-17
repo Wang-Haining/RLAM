@@ -384,7 +384,7 @@ if __name__ == "__main__":
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-        #
+        # rollout curriculum
         if args.enable_curriculum:
             _max_new_tokens = get_max_new_tokens(step,
                                                  start=args.rollout_curriculum[0],
