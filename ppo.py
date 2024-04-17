@@ -8,7 +8,8 @@ import wandb
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
 from transformers import AutoTokenizer
-from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
+from trl import (AutoModelForCausalLMWithValueHead,
+                 AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer)
 
 from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED, TOP_P, build_dataset,
                    collator, compute_ari)
@@ -343,13 +344,21 @@ if __name__ == "__main__":
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
     wandb.init(project=PROJECT_NAME, name=args.run_name, config=args)
+
     # build dataset
     dataset = build_dataset()
+
     # init SFT'ed models
-    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+    if 'gemma' in args.sft_ckpt_path:
+        AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
+    elif 't5' in args.sft_ckpt_path:
+        AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
+    else:
+        raise ValueError(f"Unkown sft'ed ckpt path {args.sft_ckpt_path}")
+    policy_model = AutoModelForLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+    ref_model = AutoModelForLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
