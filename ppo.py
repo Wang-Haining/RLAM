@@ -11,7 +11,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 
-from utils import (MODEL_NAME, PROJECT_NAME, SEED, TOP_P, build_dataset,
+from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED, TOP_P, build_dataset,
                    collator, compute_ari)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -145,29 +145,6 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
         "ari": ari_scores,
         "sacrebleu": bleu_scores,
     }
-
-
-def linear_schedule(optimizer, start_lr, end_lr, num_training_steps):
-    """
-    Create a schedule with a learning rate that decreases linearly from the initial lr
-    set in the optimizer to end_lr.
-
-    Args:
-        optimizer: The optimizer for which to schedule the learning rate.
-        start_lr: The initial learning rate.
-        end_lr: The final learning rate.
-        num_training_steps: The number of steps over which to linearly decrease the
-            learning rate.
-    """
-
-    def lr_lambda(current_step: int):
-        # compute the current scale factor
-        scale = max(0, (num_training_steps - current_step) / num_training_steps)
-        # compute the scaled learning rate
-        lr = end_lr + (start_lr - end_lr) * scale
-        return lr
-
-    return LambdaLR(optimizer, lr_lambda)
 
 
 def reward2tensor(
@@ -309,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_folder",
         type=str,
-        default=f"ppo_{MODEL_NAME}",
+        default=f"ppo_{CLM_MODEL_NAME}",
         help="Experiment name for checkpointing, under the directory" "of ckpts",
     )
     parser.add_argument(
@@ -324,7 +301,7 @@ if __name__ == "__main__":
         help="Path to the SFT'ed model",
     )
     parser.add_argument(
-        "--run_name", type=str, default=f'ppo_{MODEL_NAME.split("/")[-1]}'
+        "--run_name", type=str, default=f'ppo_model_name'
     )
     parser.add_argument(
         "--max_new_tokens",
@@ -378,12 +355,8 @@ if __name__ == "__main__":
     )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
-    # optimizer and lr scheduler
+    # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=args.learning_rate)
-    # lr_scheduler = linear_schedule(optimizer,
-    #                                start_lr=args.learning_rate,
-    #                                end_lr=1e-6,
-    #                                num_training_steps=1000)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -426,14 +399,8 @@ if __name__ == "__main__":
             **rollout_kwargs,
         )
 
-        batch["response"] = tokenizer.batch_decode(
-            response_tensors
-            # , skip_special_tokens=True
-        )
-        batch["ref_response"] = tokenizer.batch_decode(
-            ref_response_tensors
-            # , skip_special_tokens=True
-        )
+        batch["response"] = tokenizer.batch_decode(response_tensors)
+        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
 
         rewards = reward2tensor(batch["response"], compute_ari, args.normalize_reward)
         # ref rewards
@@ -458,7 +425,6 @@ if __name__ == "__main__":
             ],
         )
         wandb.log(rollout_kwargs)
-        # lr_scheduler.step()
 
         # evaluate on validation set after every n steps
         if step % args.eval_interval == 0:
