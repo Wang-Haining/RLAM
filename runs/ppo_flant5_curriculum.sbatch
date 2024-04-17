@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_sft_gemma_with_rollout_curriculum
+#SBATCH --job-name=ppo_sft_flant5_with_rollout_curriculum
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -17,6 +17,6 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 python -m ppo \
 --save_folder ppo_gemma-2b_rollout_curriculum \
---sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
+--sft_ckpt_path ckpts/sft_flan-t5-xl/checkpoint-2220 \
 --enable_curriculum true \
 --rollout_curriculum 50 240 60
