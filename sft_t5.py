@@ -24,24 +24,25 @@ run_name = f'sft_{SEQ2SEQ_MODEL_NAME.split("/")[-1]}'
 tokenizer = AutoTokenizer.from_pretrained(SEQ2SEQ_MODEL_NAME, padding_side="right")
 
 
-def preprocess_function(examples,
-                        tokenizer):
+def preprocess_function(examples, tokenizer):
     inputs = [TASK_PREFIX + text + RESPONSE_TEMP for text in examples["source"]]
     targets = [text for text in examples["target"]]
-    model_inputs = tokenizer(inputs,
-                             max_length=T5_MAX_INPUT_LEN,
-                             truncation=True,
-                             padding="max_length")
 
-    # Set up the tokenizer's decode method to handle labels
-    with tokenizer.as_target_tokenizer():
-        labels = tokenizer(targets,
-                           max_length=T5_MAX_OUTPUT_LEN,
-                           truncation=True,
-                           padding="max_length")
+    tokenized_examples = tokenizer(
+        inputs,
+        text_target=targets,
+        max_length=T5_MAX_INPUT_LEN,
+        truncation=True,
+        padding="max_length",
+        max_target_length=T5_MAX_OUTPUT_LEN,
+        return_tensors="pt"
+    )
 
-    model_inputs["labels"] = labels["input_ids"]
-    return model_inputs
+    return {
+        "input_ids": tokenized_examples.input_ids,
+        "attention_mask": tokenized_examples.attention_mask,
+        "labels": tokenized_examples.labels
+    }
 
 
 if __name__ == "__main__":
