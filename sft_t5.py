@@ -28,21 +28,25 @@ def preprocess_function(examples, tokenizer):
     inputs = [TASK_PREFIX + text + RESPONSE_TEMP for text in examples["source"]]
     targets = [text for text in examples["target"]]
 
-    tokenized_examples = tokenizer(
+    model_inputs = tokenizer(
         inputs,
-        text_target=targets,
         max_length=T5_MAX_INPUT_LEN,
         truncation=True,
         padding="max_length",
-        max_target_length=T5_MAX_OUTPUT_LEN,
         return_tensors="pt"
     )
 
-    return {
-        "input_ids": tokenized_examples.input_ids,
-        "attention_mask": tokenized_examples.attention_mask,
-        "labels": tokenized_examples.labels
-    }
+    labels = tokenizer(
+        targets,
+        max_length=T5_MAX_OUTPUT_LEN,
+        truncation=True,
+        padding="max_length",
+        return_tensors="pt"
+    )
+
+    model_inputs["labels"] = labels.input_ids
+
+    return model_inputs
 
 
 if __name__ == "__main__":
