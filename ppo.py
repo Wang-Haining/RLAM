@@ -339,7 +339,7 @@ if __name__ == "__main__":
     # config ppo
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
-    run_name = args.sft_ckpt_path.split("/")[-2].split('_')[-1]
+    run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
