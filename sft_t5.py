@@ -12,25 +12,13 @@ import os
 import torch
 import wandb
 from datasets import DatasetDict, load_from_disk
-from transformers import (
-    AutoModelForSeq2SeqLM,
-    AutoTokenizer,
-    DataCollatorForSeq2Seq,
-    EarlyStoppingCallback,
-    Trainer,
-    TrainingArguments,
-)
+from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
+                          DataCollatorForSeq2Seq, EarlyStoppingCallback,
+                          Trainer, TrainingArguments)
 
-from utils import (
-    DATASET_PATH,
-    PROJECT_NAME,
-    RESPONSE_TEMP,
-    SEED,
-    SEQ2SEQ_MODEL_NAME,
-    T5_MAX_INPUT_LEN,
-    T5_MAX_OUTPUT_LEN,
-    TASK_PREFIX,
-)
+from utils import (DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
+                   SEQ2SEQ_MODEL_NAME, T5_MAX_INPUT_LEN, T5_MAX_OUTPUT_LEN,
+                   TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{SEQ2SEQ_MODEL_NAME.split("/")[-1]}'
@@ -67,11 +55,9 @@ if __name__ == "__main__":
 
     dataset = load_from_disk(DATASET_PATH)
     train_dataset = dataset["train"].map(
-        lambda batch: preprocess_function(batch, tokenizer), batched=True, num_proc=2
-    )
+        lambda batch: preprocess_function(batch, tokenizer), batched=True)
     val_dataset = dataset["validation"].map(
-        lambda batch: preprocess_function(batch, tokenizer), batched=True, num_proc=2
-    )
+        lambda batch: preprocess_function(batch, tokenizer), batched=True)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         SEQ2SEQ_MODEL_NAME, torch_dtype=torch.bfloat16
