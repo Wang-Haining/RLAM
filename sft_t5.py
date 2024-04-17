@@ -12,12 +12,25 @@ import os
 import torch
 import wandb
 from datasets import DatasetDict, load_from_disk
-from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
-                          AutoTokenizer, DataCollatorForSeq2Seq,
-                          EarlyStoppingCallback, Trainer, TrainingArguments)
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    DataCollatorForSeq2Seq,
+    EarlyStoppingCallback,
+    Trainer,
+    TrainingArguments,
+)
 
-from utils import (DATASET_PATH, SEQ2SEQ_MODEL_NAME, PROJECT_NAME, RESPONSE_TEMP, SEED,
-                   T5_MAX_INPUT_LEN, T5_MAX_OUTPUT_LEN, TASK_PREFIX)
+from utils import (
+    DATASET_PATH,
+    PROJECT_NAME,
+    RESPONSE_TEMP,
+    SEED,
+    SEQ2SEQ_MODEL_NAME,
+    T5_MAX_INPUT_LEN,
+    T5_MAX_OUTPUT_LEN,
+    TASK_PREFIX,
+)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{SEQ2SEQ_MODEL_NAME.split("/")[-1]}'
@@ -33,7 +46,7 @@ def preprocess_function(examples, tokenizer):
         max_length=T5_MAX_INPUT_LEN,
         truncation=True,
         padding="max_length",
-        return_tensors="pt"
+        return_tensors="pt",
     )
 
     labels = tokenizer(
@@ -41,7 +54,7 @@ def preprocess_function(examples, tokenizer):
         max_length=T5_MAX_OUTPUT_LEN,
         truncation=True,
         padding="max_length",
-        return_tensors="pt"
+        return_tensors="pt",
     )
 
     model_inputs["labels"] = labels.input_ids
@@ -50,23 +63,19 @@ def preprocess_function(examples, tokenizer):
 
 
 if __name__ == "__main__":
-
     torch.manual_seed(SEED + 21)
 
     dataset = load_from_disk(DATASET_PATH)
-    train_dataset = dataset['train'].map(
-        lambda batch: preprocess_function(batch, tokenizer),
-        batched=True,
-        num_proc=2
+    train_dataset = dataset["train"].map(
+        lambda batch: preprocess_function(batch, tokenizer), batched=True, num_proc=2
     )
-    val_dataset = dataset['validation'].map(
-        lambda batch: preprocess_function(batch, tokenizer),
-        batched=True,
-        num_proc=2
+    val_dataset = dataset["validation"].map(
+        lambda batch: preprocess_function(batch, tokenizer), batched=True, num_proc=2
     )
 
-    model = AutoModelForCausalLM.from_pretrained(SEQ2SEQ_MODEL_NAME,
-                                                 torch_dtype=torch.bfloat16)
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        SEQ2SEQ_MODEL_NAME, torch_dtype=torch.bfloat16
+    )
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
     training_args = TrainingArguments(
