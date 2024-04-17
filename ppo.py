@@ -343,7 +343,7 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
-    dataset = build_dataset()
+    dataset = build_dataset(model_name=args.sft_ckpt_path)
 
     # init SFT'ed models
     if 'gemma' in args.sft_ckpt_path:

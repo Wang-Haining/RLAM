@@ -86,7 +86,7 @@ def is_jargon(word):
 
 
 def build_dataset(
-        model_name: str = "google/gemma-2b",
+        model_name: str,
         task_prefix: str = TASK_PREFIX,
         response_template: str = RESPONSE_TEMP
 ):
