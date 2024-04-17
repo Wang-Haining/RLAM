@@ -16,10 +16,14 @@ DATASET_PATH = 'resources/scientific_abstract_simplification_corpus'
 TOP_P = 0.9
 SEED = 42
 PROJECT_NAME = 'Scholarly_Abstract_Simplification'
-MODEL_NAME = "google/gemma-2b"
+CLM_MODEL_NAME = "google/gemma-2b"
+SEQ2SEQ_MODEL_NAME = 'google/flan-t5-xl'
 TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
                "to a layperson: ")
 RESPONSE_TEMP = "\nA concise lay summary:"
+
+T5_MAX_INPUT_LEN = 512
+T5_MAX_OUTPUT_LEN = 256
 
 
 # `is_punctuation` is adopted from
