@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import wandb
 from sacrebleu.metrics import BLEU
-from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
