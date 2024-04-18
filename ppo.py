@@ -18,8 +18,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-
-def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
+def save_checkpoint(model, step, eval_score, save_folder):
     """
     Save model checkpoint if it's among the three with the lowest ARI scores and always
     save the last model.
@@ -30,16 +29,14 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
         eval_score: Eval scores of the current evaluation.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
-    # ensure the save directory exists
     save_dir = os.path.join("ckpts", save_folder)
     os.makedirs(save_dir, exist_ok=True)
 
     # define the path for storing metadata about saved models and the last model
     metadata_path = os.path.join(save_dir, "metadata.npz")
-    last_model_path = os.path.join(
-        save_dir, "last_model.pt"
-    )  # path for the most recent model
+    last_model_path = os.path.join(save_dir, f"last_model_step_{step}.pt")
 
+    # Load or initialize metadata
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
         saved_models = list(metadata["saved_models"])
@@ -47,50 +44,34 @@ def save_checkpoint(model, step, eval_score, save_folder="ckpts/ari_baseline"):
         saved_models = []
 
     current_ari_mean = np.mean(eval_score["ari"])
-
-    # save the most recent model
-    model.save_pretrained(last_model_path)
+    model.save_pretrained(last_model_path)  # Save the most recent model
     print(f"Saved the most recent model at step {step}.")
 
     save_path = os.path.join(
         save_dir,
-        f"model_step_{step}_ari_{current_ari_mean:.2f}_bleu_"
-        f"{np.mean(eval_score['sacrebleu']):.2f}.pt",
+        f"model_step_{step}_ari_{current_ari_mean:.2f}.pt",
     )
-    # the logic to check and save among the top 3 models remains the same
 
-    if (
-            len(saved_models) < 3
-            or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])[
-        "ari_mean"]
-    ):
+    if (len(saved_models) < 3 or current_ari_mean < max(saved_models,
+                                                        key=lambda x: x["ari_mean"])["ari_mean"]):
         print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
         model.save_pretrained(save_path)
         saved_models.append({"path": save_path, "ari_mean": current_ari_mean})
 
-        # update the saved models list and remove the worst model if necessary
+        # Remove the worst model if more than three are saved
         if len(saved_models) > 3:
             worst_model = max(saved_models, key=lambda x: x["ari_mean"])
             saved_models.remove(worst_model)
-            try:
+            if os.path.isfile(worst_model["path"]):
                 os.remove(worst_model["path"])
-                print(
-                    f"Removed model with ARI mean {worst_model['ari_mean']:.2f} to"
-                    f" maintain top 3 models."
-                )
-            except IsADirectoryError:
-                print(
-                    f"Error: Attempted to remove a directory instead of a file: "
-                    f"{worst_model['path']}"
-                )
-            except FileNotFoundError:
-                print(f"Error: File not found for removal: {worst_model['path']}")
+                print(f"Removed model with ARI mean {worst_model['ari_mean']:.2f}.")
+            else:
+                print(f"Error: Attempted to remove a directory or non-existent file: "
+                      f"{worst_model['path']}")
+
     else:
-        print(
-            f"Model at step {step} with ARI mean {current_ari_mean:.2f} not among the "
-            f"top 3 lowest ARI scores. Not saved as a top model but the latest model "
-            f"is updated."
-        )
+        print(f"Model at step {step} with ARI mean {current_ari_mean:.2f} "
+              f"not saved as a top model.")
 
     np.savez(metadata_path, saved_models=saved_models)
 
