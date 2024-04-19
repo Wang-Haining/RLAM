@@ -332,7 +332,7 @@ if __name__ == "__main__":
     elif 't5' in args.sft_ckpt_path:
         AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
     else:
-        raise ValueError(f"Unkown sft'ed ckpt path {args.sft_ckpt_path}")
+        raise ValueError(f"Unknown sft'ed ckpt path {args.sft_ckpt_path}")
     policy_model = AutoModelForLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
