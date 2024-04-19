@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder ppo_flan-t5-xl_rollout_curriculum \
+--save_folder ppo_flan-t5-xl_rollout_curriculum_50_240_200 \
 --sft_ckpt_path ckpts/sft_flan-t5-xl/checkpoint-2220 \
 --enable_curriculum true \
 --rollout_curriculum 50 240 200
