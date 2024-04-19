@@ -357,7 +357,8 @@ if __name__ == "__main__":
     rollout_kwargs = {
         "min_length": 10,
         "top_k": 0.0,
-        "top_p": 1.0,
+        # "top_p": 1.0,
+        "top_p": 0.9,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
         # fixed rollout length
