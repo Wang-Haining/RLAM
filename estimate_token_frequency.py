@@ -5,8 +5,10 @@ from nltk.tokenize import sent_tokenize
 from collections import Counter
 
 dataset = load_dataset("wikipedia", "20220301.en")
-
-split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuffle=True)
+# fixme
+pilot_dataset = dataset['train'].select(range(10000))
+split_dataset = pilot_dataset.train_test_split(test_size=0.05, seed=42, shuffle=True)
+# split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuffle=True)
 split_dataset['val'] = split_dataset.pop('test')
 
 tokenizer = MosesTokenizer(lang='en')
