@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from datasets import load_dataset
 from sacremoses import MosesTokenizer
@@ -19,17 +18,24 @@ tokenizer = MosesTokenizer(lang='en')
 
 def process_batch(batch):
     """Process a batch of text data to deduplicate and count tokens."""
-    seen_sentences = set()  # local seen sentences
     token_counter = Counter()
+    seen_sentences = set()  # local seen sentences
 
-    sentences = sent_tokenize(batch['text'])
-    for sentence in sentences:
-        if sentence not in seen_sentences:
-            seen_sentences.add(sentence)
-            tokens = tokenizer.tokenize(sentence)
-            token_counter.update(tokens)
+    # Ensure that we are processing strings; log if not
+    texts = batch['text'] if isinstance(batch['text'], list) else [batch['text']]
+    for text in texts:
+        if isinstance(text, str):
+            sentences = sent_tokenize(text)
+            for sentence in sentences:
+                if sentence not in seen_sentences:
+                    seen_sentences.add(sentence)
+                    tokens = tokenizer.tokenize(sentence)
+                    token_counter.update(tokens)
+        else:
+            print(f"Skipping non-string text: {text}")  # Logging non-string entries
 
     return {"tokens": list(token_counter.elements())}
+
 
 
 def merge_counters(accumulated_results, batch_results):
