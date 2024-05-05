@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 # load the dataset and prepare it
 dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
-split_dataset = dataset.train_test_split(test_size=0.05, seed=42, shuffle=True)
-split_dataset["val"] = split_dataset.pop("test")
+split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuffle=True)
+split_dataset['val'] = split_dataset.pop('test')
 
 tokenizer = MosesTokenizer(lang="en")
 
