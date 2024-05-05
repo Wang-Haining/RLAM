@@ -9,7 +9,7 @@ dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
 pilot_dataset = dataset['train'].select(range(100000))  # Using a subset for pilot testing
 split_dataset = pilot_dataset.train_test_split(test_size=0.05, seed=42, shuffle=True)
 split_dataset['val'] = split_dataset.pop('test')
-
+print('data ok')
 tokenizer = MosesTokenizer(lang='en')
 
 def process_text(text):
