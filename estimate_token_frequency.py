@@ -20,8 +20,8 @@ tokenizer = MosesTokenizer(lang='en')
 
 def process_batch(batch):
     """Process a batch of text data to deduplicate and count tokens."""
-    token_counter = Counter()
-    seen_sentences = set()  # local seen sentences
+    token_list = []  # Store tokens as a list of lists
+    seen_sentences = set()  # Local seen sentences
 
     for text in batch['text']:
         if isinstance(text, str):
@@ -30,11 +30,9 @@ def process_batch(batch):
                 if sentence not in seen_sentences:
                     seen_sentences.add(sentence)
                     tokens = tokenizer.tokenize(sentence)
-                    token_counter.update(tokens)
-        else:
-            print(f"Skipping non-string text: {text}")  # Logging non-string entries
+                    token_list.append(tokens)  # Append list of tokens for each sentence
 
-    return token_counter
+    return {"tokens": token_list}
 
 
 def process_dataset(dataset):
