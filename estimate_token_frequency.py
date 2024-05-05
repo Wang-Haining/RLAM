@@ -1,7 +1,6 @@
 import csv
 from datasets import load_dataset
 from sacremoses import MosesTokenizer
-from nltk.tokenize import sent_tokenize
 from collections import Counter
 
 # Load the dataset and prepare it
@@ -9,18 +8,17 @@ dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
 pilot_dataset = dataset['train'].select(range(100000))  # Using a subset for pilot testing
 split_dataset = pilot_dataset.train_test_split(test_size=0.05, seed=42, shuffle=True)
 split_dataset['val'] = split_dataset.pop('test')
-print('data ok')
+
 tokenizer = MosesTokenizer(lang='en')
 
 def process_text(text):
-    """Tokenize text and count tokens."""
+    """Tokenize text directly and count tokens."""
     token_counter = Counter()
     if isinstance(text, str):
-        sentences = sent_tokenize(text)
-        for sentence in sentences:
-            tokens = tokenizer.tokenize(sentence)
-            token_counter.update(tokens)
+        tokens = tokenizer.tokenize(text)
+        token_counter.update(tokens)
     return token_counter
+
 
 def process_dataset(dataset):
     """Process the dataset and accumulate token counts."""
