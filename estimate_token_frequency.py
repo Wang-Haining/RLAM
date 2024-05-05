@@ -1,4 +1,5 @@
 import csv
+from nltk.tokenize import sent_tokenize
 from datasets import load_dataset
 from sacremoses import MosesTokenizer
 from collections import Counter
@@ -19,8 +20,10 @@ def process_text(text):
     """Tokenize text directly and count tokens."""
     token_counter = Counter()
     if isinstance(text, str):
-        tokens = tokenizer.tokenize(text)
-        token_counter.update(tokens)
+        sents = sent_tokenize(text)
+        for sent in sents:
+            tokens = tokenizer.tokenize(sent)
+            token_counter.update(tokens)
     return token_counter
 
 
