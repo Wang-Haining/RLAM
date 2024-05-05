@@ -6,7 +6,7 @@ from collections import Counter
 
 dataset = load_dataset("wikipedia", "20220301.en")
 # fixme
-pilot_dataset = dataset['train'].select(range(10000))
+pilot_dataset = dataset['train'].select(range(100000))
 split_dataset = pilot_dataset.train_test_split(test_size=0.05, seed=42, shuffle=True)
 # split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuffle=True)
 split_dataset['val'] = split_dataset.pop('test')
@@ -23,9 +23,7 @@ def process_batch(batch):
     token_counter = Counter()
     seen_sentences = set()  # local seen sentences
 
-    # Ensure that we are processing strings; log if not
-    texts = batch['text'] if isinstance(batch['text'], list) else [batch['text']]
-    for text in texts:
+    for text in batch['text']:
         if isinstance(text, str):
             sentences = sent_tokenize(text)
             for sentence in sentences:
@@ -36,21 +34,21 @@ def process_batch(batch):
         else:
             print(f"Skipping non-string text: {text}")  # Logging non-string entries
 
-    return {"tokens": list(token_counter.elements())}
-
-
-
-def merge_counters(accumulated_results, batch_results):
-    """Merge token lists from batches into a single Counter."""
-    return accumulated_results + Counter(batch_results['tokens'])
+    return token_counter
 
 
 def process_dataset(dataset):
-    return dataset.map(process_batch,
-                       batched=True,
-                       batch_size=1000,
-                       num_proc=8,
-                       remove_columns=dataset.column_names).reduce(merge_counters, Counter())
+    """Process the dataset and accumulate token counts."""
+    # Perform map operation to process batches
+    result = dataset.map(process_batch, batched=True, batch_size=1000, num_proc=8)
+
+    # Manually aggregate token counts from all batches
+    total_counter = Counter()
+    for batch_counter in result['tokens']:
+        total_counter.update(batch_counter)
+
+    return total_counter
+
 
 # process training and validation datasets
 train_token_counter = process_dataset(split_dataset['train'])
