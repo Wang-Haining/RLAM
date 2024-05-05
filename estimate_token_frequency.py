@@ -17,23 +17,24 @@ seen_sentences = set()
 # Initialize tokenizer
 tokenizer = MosesTokenizer(lang='en')
 
-
 def process_batch(batch):
     """Process a batch of text data to deduplicate and count tokens."""
-    token_list = []  # Store tokens as a list of lists
-    seen_sentences = set()  # Local seen sentences
+    tokens_output = []  # This will store the tokens corresponding to each text input
 
     for text in batch['text']:
+        local_tokens = []  # Tokens from this text
         if isinstance(text, str):
             sentences = sent_tokenize(text)
+            seen_sentences = set()  # Local seen sentences for this text
             for sentence in sentences:
                 if sentence not in seen_sentences:
                     seen_sentences.add(sentence)
                     tokens = tokenizer.tokenize(sentence)
-                    token_list.append(tokens)  # Append list of tokens for each sentence
+                    local_tokens.extend(tokens)  # Collect tokens from each sentence
 
-    return {"tokens": token_list}
+        tokens_output.append(local_tokens)  # Append the list of tokens from this text to the output
 
+    return {"tokens": tokens_output}  # Return a dictionary with a list of tokens lists
 
 def process_dataset(dataset):
     """Process the dataset and accumulate token counts."""
@@ -42,8 +43,9 @@ def process_dataset(dataset):
 
     # Manually aggregate token counts from all batches
     total_counter = Counter()
-    for batch_counter in result['tokens']:
-        total_counter.update(batch_counter)
+    for batch in result['tokens']:
+        for tokens in batch:
+            total_counter.update(tokens)
 
     return total_counter
 
