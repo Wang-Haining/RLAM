@@ -72,7 +72,8 @@ print(
     "Types:",
     len(val_token_counter),
 )
-
+# Training set - Total Tokens: 3459351600 Types: 14118606
+# Validation set - Total Tokens: 181880582 Types: 2147992
 
 def save_counter_to_csv(counter, filename):
     """Save a Counter object to a CSV file."""
