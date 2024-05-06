@@ -29,13 +29,13 @@ def process_chunk(texts):
     """Process a chunk of texts and accumulate token counts."""
     counter = Counter()
     for text in texts:
-        counter.update(process_text(text))
+        counter.update(process_text(text.lower()))
     return counter
 
 
 def process_dataset(dataset):
     """Process the dataset and accumulate token counts using multiprocessing."""
-    texts = [t.lower() for t in dataset["text"]]
+    texts = dataset["text"]
     num_processes = mp.cpu_count()
     chunksize = max(1, len(texts) // (10 * num_processes))
     # set up the pool and tqdm for the progress bar
