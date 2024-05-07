@@ -61,9 +61,9 @@ def compute_sent_len(sent: str) -> int:
 
 
 def fetch_or_estimate_token_difficulty(token,
-                                       top_100k_tokens=top_100k_tokens,
-                                       wd_model=wd_model,
-                                       total_tokens=total_tokens):
+                                       top_100k_tokens,
+                                       wd_model,
+                                       total_tokens):
     """
     Fetch a token's difficulty score if it is among the most frequent 100,000 tokens;
     otherwise, estimate the difficulty using a machine learning model. The difficulty
