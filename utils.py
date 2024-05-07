@@ -27,7 +27,7 @@ RESPONSE_TEMP = "\nA concise lay summary:"
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
 
-word_difficulty_model = load('word_freq/model.joblib')
+# word_difficulty_model = load('word_freq/model.joblib')
 def compute_sent_len(sent: str) -> int:
     """
     Compute length of a sentence. Punctuation marks and non-word tokens are not counted.
