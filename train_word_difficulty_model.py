@@ -170,7 +170,7 @@ if __name__ == "__main__":
     # prepare data and train the model
     data = prepare_data(token_freq, total_tokens)
     train_data, val_data = split_data(data, val_frac=0.1)
-    # val mse: Ridge 0.443 (not sensitive to the choice of alpha)
+    # val mse: Ridge 0.444 (not sensitive to the choice of alpha)
     # OLS 0.478, linearSVR 0.489
     model = train_regression_model(train_data, val_data)
 
