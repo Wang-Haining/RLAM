@@ -1,4 +1,5 @@
 import csv
+import heapq
 import pickle
 import random
 import re
@@ -7,7 +8,6 @@ import numpy as np
 import pandas as pd
 import torch
 from datasets import load_dataset, load_from_disk, load_metric
-from nltk.tokenize import sent_tokenize
 from rouge_score import rouge_scorer
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
@@ -19,7 +19,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
-from wordfreq import word_frequency
 
 # fixme
 BASELINE_MODEL = "haining/sas_baseline"
@@ -38,14 +37,18 @@ WORD_DIFFICULTY_MODEL = 'word_freq/model.pkl'
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
 
-# wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
+
 def read_token_frequencies(filename=WORD_FREQ_CSV):
     with open(filename, mode="r", encoding="utf-8") as file:
         reader = csv.reader(file)
         next(reader)  # skip header
         return {rows[0]: int(rows[1]) for rows in reader}
+# get word frequencies and the model to predict relative rare word's difficulty
+token_freq = read_token_frequencies()
+top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
+wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
+total_tokens = sum(token_freq.values())
 
-# token_freq = read_token_frequencies()
 
 def compute_sent_len(sent: str) -> int:
     """
@@ -62,37 +65,38 @@ def compute_sent_len(sent: str) -> int:
     return len([t for t in tokens if word_pattern.match(t)])
 
 
-# def estimate_token_difficulty(token, wd_model):
-#     """Predict the difficulty of a token using a pre-trained model."""
-#     if token in
-#
-#     df = pd.DataFrame({
-#         'tokens': [token],
-#         'token_len': [len(token)]
-#     })
-#     return wd_model.predict(df).pop()
-#
-#     # Example prediction
-#     token = 'example'
-#     difficulty = predict_token_difficulty(token, model)
-#     print(f"Difficulty for token '{token}': {difficulty}")
-
-
-
-
-def compute_token_difficulty():
+def fetch_or_estimate_token_difficulty(token,
+                                       top_100k_tokens=top_100k_tokens,
+                                       wd_model=wd_model,
+                                       total_tokens=total_tokens):
     """
+    Fetch a token's difficulty score if it is among the most frequent 100,000 tokens;
+    otherwise, estimate the difficulty using a machine learning model. The difficulty
+    score is defined as the negative logarithm of the frequency of a token per billion,
+    based on its occurrences in the English Wikipedia corpus.
 
-    Word difficulty is defined as the negative log frequency in the English Wikipedia
-    corpus.
+    References:
+        https://aclanthology.org/2021.ranlp-1.133/
 
-    :return:
+    Args:
+        token (str): The token for which the difficulty score is to be determined.
+        top_100k_tokens (set): A set containing the most frequent 100,000 tokens.
+        wd_model (model): Trained machine learning model to estimate token difficulty.
+        total_tokens (int): Total number of tokens in the corpus for normalization.
+
+    Returns:
+        The estimated difficulty score of the token.
     """
-
-
-    type = []
-    pass
-
+    if token in top_100k_tokens:
+        wiki_freq = token_freq[token]
+    else:
+        df = pd.DataFrame({
+            'tokens': [token],
+            'token_len': [len(token)]
+        })
+        wiki_freq = np.exp(wd_model.predict(df)[0])
+    freq_per_billion = wiki_freq / total_tokens * 1e9
+    return -np.log(freq_per_billion)
 
 
 class ByteNGramExtractor(BaseEstimator, TransformerMixin):
@@ -112,9 +116,6 @@ class ByteNGramExtractor(BaseEstimator, TransformerMixin):
             ]
             return self.delimiter.join(ngrams)
         return [get_byte_ngrams(token) for token in tokens]
-
-
-
 
 
 def reshape_data(x):
@@ -234,65 +235,65 @@ def split_data(data, val_frac=0.1):
     val_data = data[split_idx:]
     return train_data, val_data
 
-
-
-# `is_punctuation` is adopted from
-# github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
-def is_punctuation(token):
-    match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
-    return match is not None
-
-
-def compute_ari(text: str):
-    """
-    Compute the Automated Readability Index (ARI) for a given text.
-    The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
-    Incomplete sentences will be concluded with an artificial period to approximate the
-    ARI score.
-
-    Args:
-    text: A string of text to compute ARI.
-
-    Returns:
-        A list of tensors containing the processed rewards.
-    """
-    # check if the last sentence is complete
-    if not text.endswith((".", "?", "!")):
-        # approximate the readability
-        text += '.'
-    mt = MosesTokenizer(lang='en')
-    sentences = sent_tokenize(text)
-    words = mt.tokenize(text)
-    # remove punctuation marks
-    words = [w for w in words if not is_punctuation(w)]
-
-    character_count = sum(len(word) for word in words)
-    sentences_count = len(sentences)
-    words_count = len(words)
-
-    # avoid division by zero
-    if sentences_count == 0 or words_count == 0:
-        return 0
-
-    # apply the ARI formula
-    ari_score = (
-            4.71 * (character_count / words_count)
-            + 0.5 * (words_count / sentences_count)
-            - 21.43
-    )
-
-    # clip for stability (assuming a reasonable ARI range)
-    ari_score = max(min(ari_score, 35.0), 2.0)
-
-    return ari_score
-
-
-def is_jargon(word):
-    # A lower frequency threshold means the word is less common and might be jargon
-    # fixme
-    threshold = 1e-6  # an arbitrary threshold
-    frequency = word_frequency(word, 'en')
-    return frequency < threshold
+#
+#
+# # `is_punctuation` is adopted from
+# # github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
+# def is_punctuation(token):
+#     match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
+#     return match is not None
+#
+#
+# def compute_ari(text: str):
+#     """
+#     Compute the Automated Readability Index (ARI) for a given text.
+#     The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
+#     Incomplete sentences will be concluded with an artificial period to approximate the
+#     ARI score.
+#
+#     Args:
+#     text: A string of text to compute ARI.
+#
+#     Returns:
+#         A list of tensors containing the processed rewards.
+#     """
+#     # check if the last sentence is complete
+#     if not text.endswith((".", "?", "!")):
+#         # approximate the readability
+#         text += '.'
+#     mt = MosesTokenizer(lang='en')
+#     sentences = sent_tokenize(text)
+#     words = mt.tokenize(text)
+#     # remove punctuation marks
+#     words = [w for w in words if not is_punctuation(w)]
+#
+#     character_count = sum(len(word) for word in words)
+#     sentences_count = len(sentences)
+#     words_count = len(words)
+#
+#     # avoid division by zero
+#     if sentences_count == 0 or words_count == 0:
+#         return 0
+#
+#     # apply the ARI formula
+#     ari_score = (
+#             4.71 * (character_count / words_count)
+#             + 0.5 * (words_count / sentences_count)
+#             - 21.43
+#     )
+#
+#     # clip for stability (assuming a reasonable ARI range)
+#     ari_score = max(min(ari_score, 35.0), 2.0)
+#
+#     return ari_score
+#
+#
+# def is_jargon(word):
+#     # A lower frequency threshold means the word is less common and might be jargon
+#     # fixme
+#     threshold = 1e-6  # an arbitrary threshold
+#     frequency = word_frequency(word, 'en')
+#     return frequency < threshold
 
 
 def build_dataset(
