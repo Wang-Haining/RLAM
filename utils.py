@@ -43,11 +43,6 @@ def read_token_frequencies(filename=WORD_FREQ_CSV):
         reader = csv.reader(file)
         next(reader)  # skip header
         return {rows[0]: int(rows[1]) for rows in reader}
-# get word frequencies and the model to predict relative rare word's difficulty
-token_freq = read_token_frequencies()
-top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
-wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
-total_tokens = sum(token_freq.values())
 
 
 def compute_sent_len(sent: str) -> int:
