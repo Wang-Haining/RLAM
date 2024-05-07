@@ -25,17 +25,13 @@ def read_token_frequencies(filename):
 
 class ByteNGramExtractor(BaseEstimator, TransformerMixin):
     """Converts tokens into byte n-grams using a unique delimiter."""
-
     def __init__(self, n=1, delimiter="|"):
         self.n = n
         self.delimiter = delimiter
-
     def fit(self, x, y=None):
         return self
-
     def transform(self, tokens):
         """Transform each token into its byte n-grams, separated by a delimiter."""
-
         def get_byte_ngrams(token):
             bytes_token = token.encode("utf-8")
             ngrams = [
@@ -43,73 +39,76 @@ class ByteNGramExtractor(BaseEstimator, TransformerMixin):
                 for i in range(len(bytes_token) - self.n + 1)
             ]
             return self.delimiter.join(ngrams)
-
         return [get_byte_ngrams(token) for token in tokens]
 
 
+def reshape_data(x):
+    """Reshape the input data to be two-dimensional."""
+    return x.to_numpy().reshape(-1, 1)
+
+def create_dataframe(data):
+    """Convert training/validation data into a DataFrame."""
+    return pd.DataFrame({
+        "tokens": [t for t, _ in data],
+        "token_len": [len(t) for t, _ in data],
+        "y": [np.log(freq) for _, freq in data]
+    })
+
+def define_transformers():
+    """Define the transformers for the column transformer."""
+    return ColumnTransformer([
+        (
+            "byte_unigrams",
+            make_pipeline(
+                ByteNGramExtractor(n=1),
+                CountVectorizer(analyzer=lambda x: x.split("|")),
+            ),
+            "tokens",
+        ),
+        (
+            "byte_bigrams",
+            make_pipeline(
+                ByteNGramExtractor(n=2),
+                CountVectorizer(analyzer=lambda x: x.split("|")),
+            ),
+            "tokens",
+        ),
+        (
+            "byte_trigrams",
+            make_pipeline(
+                ByteNGramExtractor(n=3),
+                CountVectorizer(analyzer=lambda x: x.split("|")),
+            ),
+            "tokens",
+        ),
+        (
+            "token_len",
+            FunctionTransformer(reshape_data, validate=False),
+            "token_len",
+        ),
+    ])
+
+
 def train_regression_model(train_data, val_data):
-    train_df = pd.DataFrame(
-        {
-            "tokens": [t for t, _ in train_data],
-            "token_len": [len(t) for t, _ in train_data],
-            "y": [np.log(freq) for _, freq in train_data],
-        }
-    )
-    val_df = pd.DataFrame(
-        {
-            "tokens": [t for t, _ in val_data],
-            "token_len": [len(t) for t, _ in val_data],
-            "y": [np.log(freq) for _, freq in val_data],
-        }
-    )
-
-    # fixme: transformer.named_transformers_['byte_unigrams'].named_steps['countvectorizer'].get_feature_names_out()
-    transformer = ColumnTransformer(
-        [
-            (
-                "byte_unigrams",
-                make_pipeline(
-                    ByteNGramExtractor(n=1),
-                    CountVectorizer(analyzer=lambda x: x.split("|")),
-                ),
-                "tokens",
-            ),
-            (
-                "byte_bigrams",
-                make_pipeline(
-                    ByteNGramExtractor(n=2),
-                    CountVectorizer(analyzer=lambda x: x.split("|")),
-                ),
-                "tokens",
-            ),
-            (
-                "byte_trigrams",
-                make_pipeline(
-                    ByteNGramExtractor(n=3),
-                    CountVectorizer(analyzer=lambda x: x.split("|")),
-                ),
-                "tokens",
-            ),
-            (
-                "token_len",
-                FunctionTransformer(
-                    lambda x: x.to_numpy().reshape(-1, 1), validate=False
-                ),
-                "token_len",
-            ),
-        ]
-    )
-
-    model = Pipeline([("transformer", transformer), ("ridge", Ridge())])
-
+    # Prepare data
+    train_df = create_dataframe(train_data)
+    val_df = create_dataframe(val_data)
+    # Define transformers and model pipeline
+    transformer = define_transformers()
+    model = Pipeline([
+        ("transformer", transformer),
+        ("ridge", Ridge(1.0))
+    ])
     # fit the model pipeline
-    X = train_df.drop("y", axis=1)
-    y = train_df["y"]
-    model.fit(X, y)
-
-    y_pred = model.predict(val_df.drop("y", axis=1))
-    mse = mean_squared_error(val_df["y"], y_pred)
+    X_train, y_train = train_df.drop("y", axis=1), train_df["y"]
+    model.fit(X_train, y_train)
+    # validate the model
+    X_val = val_df.drop("y", axis=1)
+    y_val = val_df["y"]
+    y_pred = model.predict(X_val)
+    mse = mean_squared_error(y_val, y_pred)
     print(f"MSE on validation set: {mse}")
+    # save the trained model
     dump(model, "word_freq/model.joblib")
     return model
 
@@ -153,18 +152,7 @@ def split_data(data, val_frac=0.1):
     split_idx = int(len(data) * (1 - val_frac))
     train_data = data[:split_idx]
     val_data = data[split_idx:]
-
     return train_data, val_data
-
-
-# def predict_token_difficulty(token, model):
-#     """Predict the difficulty of a token using a pre-trained model."""
-#     df = pd.DataFrame({
-#         'tokens': [token],
-#         'token_len': [len(token)]
-#     })
-#
-#     return model.predict(df).pop()
 
 
 if __name__ == "__main__":
@@ -175,9 +163,8 @@ if __name__ == "__main__":
     # prepare data and train the model
     data = prepare_data(token_freq, total_tokens)
     train_data, val_data = split_data(data, val_frac=0.1)
+    # val mse: Ridge 0.443 (not sensitive to the choice of alpha)
+    # OLS 0.478, linearSVR 0.489
     model = train_regression_model(train_data, val_data)
 
-    # # Example prediction
-    # token = 'example'
-    # difficulty = predict_token_difficulty(token, model)
-    # print(f"Difficulty for token '{token}': {difficulty}")
+
