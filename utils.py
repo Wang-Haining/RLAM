@@ -1,23 +1,15 @@
-import re
-import torch
-import numpy as np
-import pickle
-from datasets import load_dataset, load_from_disk
-from rouge_score import rouge_scorer
-from datasets import load_metric
-from sacrebleu.metrics import BLEU
-from sacremoses import MosesTokenizer
-from wordfreq import word_frequency
-from nltk.tokenize import sent_tokenize
-from transformers import AutoTokenizer
-from joblib import load
 import csv
-import os.path
 import pickle
 import random
+import re
 
 import numpy as np
 import pandas as pd
+import torch
+from datasets import load_dataset, load_from_disk, load_metric
+from nltk.tokenize import sent_tokenize
+from rouge_score import rouge_scorer
+from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
@@ -26,6 +18,8 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
+from transformers import AutoTokenizer
+from wordfreq import word_frequency
 
 # fixme
 BASELINE_MODEL = "haining/sas_baseline"
@@ -38,16 +32,19 @@ SEQ2SEQ_MODEL_NAME = 'google/flan-t5-xl'
 TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
                "to a layperson: ")
 RESPONSE_TEMP = "\nA concise lay summary:"
-WORD_DIFFICULTY_MODEL = 'word_freq/wiki_token_freq.csv'
+WORD_DIFFICULTY_MODEL = 'word_freq/wiki_token_freq.pkl'
 
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
 
-# def load_model_with_pickle(filename):
-#     """Load a model using pickle."""
-#     with open(filename, 'rb') as file:
-#         return pickle.load(file)
-# wd_model = load_model_with_pickle("word_freq/model.pkl")
+wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
+def read_token_frequencies(filename='word_freq/wiki_token_freq.csv'):
+    with open(filename, mode="r", encoding="utf-8") as file:
+        reader = csv.reader(file)
+        next(reader)  # skip header
+        return {rows[0]: int(rows[1]) for rows in reader}
+
+# token_freq = read_token_frequencies()
 
 def compute_sent_len(sent: str) -> int:
     """
@@ -64,19 +61,20 @@ def compute_sent_len(sent: str) -> int:
     return len([t for t in tokens if word_pattern.match(t)])
 
 
-# def predict_token_difficulty(token, model):
+# def estimate_token_difficulty(token, wd_model):
 #     """Predict the difficulty of a token using a pre-trained model."""
+#     if token in
+#
 #     df = pd.DataFrame({
 #         'tokens': [token],
 #         'token_len': [len(token)]
 #     })
+#     return wd_model.predict(df).pop()
 #
-#     return model.predict(df).pop()
-
-    # # Example prediction
-    # token = 'example'
-    # difficulty = predict_token_difficulty(token, model)
-    # print(f"Difficulty for token '{token}': {difficulty}")
+#     # Example prediction
+#     token = 'example'
+#     difficulty = predict_token_difficulty(token, model)
+#     print(f"Difficulty for token '{token}': {difficulty}")
 
 
 
@@ -115,11 +113,7 @@ class ByteNGramExtractor(BaseEstimator, TransformerMixin):
         return [get_byte_ngrams(token) for token in tokens]
 
 
-def read_token_frequencies(filename):
-    with open(filename, mode="r", encoding="utf-8") as file:
-        reader = csv.reader(file)
-        next(reader)  # skip header
-        return {rows[0]: int(rows[1]) for rows in reader}
+
 
 
 def reshape_data(x):
