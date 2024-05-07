@@ -172,5 +172,5 @@ if __name__ == "__main__":
     # OLS 0.478, linearSVR 0.489
     model = train_regression_model(train_data, val_data)
     # save the trained model
-    with open("word_freq/model.joblib", 'wb') as file:
+    with open("word_freq/model.pkl", 'wb') as file:
         pickle.dump(model, file)
