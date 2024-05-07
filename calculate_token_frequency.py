@@ -3,9 +3,9 @@ This module is used to calculate the frequency of tokens (defined by a Moses tok
 in the English Wikipedia corpus.
 """
 
+import os
 import csv
 import multiprocessing as mp
-import os
 from collections import Counter
 
 from datasets import load_dataset
@@ -13,8 +13,11 @@ from nltk.tokenize import sent_tokenize
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 
+dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
+tokenizer = MosesTokenizer(lang="en")
 
-def process_text(text, tokenizer):
+
+def process_text(text):
     """Tokenize text directly and count tokens."""
     token_counter = Counter()
     sents = sent_tokenize(text)
@@ -26,11 +29,9 @@ def process_text(text, tokenizer):
 
 def process_chunk(texts):
     """Process a chunk of texts and accumulate token counts."""
-    # Initialize tokenizer inside the function
-    tokenizer = MosesTokenizer(lang="en")
     counter = Counter()
     for text in texts:
-        counter.update(process_text(text.lower(), tokenizer))
+        counter.update(process_text(text.lower()))
     return counter
 
 
@@ -69,17 +70,14 @@ def save_counter_to_csv(counter, filename):
             writer.writerow([token, frequency])
 
 
-if __name__ == "__main__":
+token_counter = process_dataset(dataset["train"])
 
-    dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
-    tokenizer = MosesTokenizer(lang="en")
-    token_counter = process_dataset(dataset["train"])
 
-    print(
-        "Total Tokens:",
-        sum(token_counter.values()),
-        "Types:",
-        len(token_counter),
-    )
+print(
+    "Total Tokens:",
+    sum(token_counter.values()),
+    "Types:",
+    len(token_counter),
+)
 
-    save_counter_to_csv(token_counter, "outputs/wiki_train_token_frequencies.csv")
+save_counter_to_csv(token_counter, "outputs/wiki_train_token_frequencies.csv")
