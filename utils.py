@@ -9,6 +9,8 @@ from sacremoses import MosesTokenizer
 from wordfreq import word_frequency
 from nltk.tokenize import sent_tokenize
 from transformers import AutoTokenizer
+from joblib import load
+from sklearn.base import BaseEstimator, TransformerMixin
 
 # fixme
 BASELINE_MODEL = "haining/sas_baseline"
@@ -24,6 +26,71 @@ RESPONSE_TEMP = "\nA concise lay summary:"
 
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
+
+word_difficulty_model = load('word_freq/model.joblib')
+def compute_sent_len(sent: str) -> int:
+    """
+    Compute length of a sentence. Punctuation marks and non-word tokens are not counted.
+
+    Args:
+        sent: A string, the input sentence to tokenize.
+    Returns:
+        Sentence length.
+    """
+    mt = MosesTokenizer(lang='en')
+    tokens = mt.tokenize(sent)
+    word_pattern = re.compile(r"^'?[\w-]+$")
+    return len([t for t in tokens if word_pattern.match(t)])
+
+
+
+# def predict_token_difficulty(token, model):
+#     """Predict the difficulty of a token using a pre-trained model."""
+#     df = pd.DataFrame({
+#         'tokens': [token],
+#         'token_len': [len(token)]
+#     })
+#
+#     return model.predict(df).pop()
+
+    # # Example prediction
+    # token = 'example'
+    # difficulty = predict_token_difficulty(token, model)
+    # print(f"Difficulty for token '{token}': {difficulty}")
+
+
+class ByteNGramExtractor(BaseEstimator, TransformerMixin):
+    """Converts tokens into byte n-grams using a unique delimiter."""
+    def __init__(self, n=1, delimiter="|"):
+        self.n = n
+        self.delimiter = delimiter
+    def fit(self, x, y=None):
+        return self
+    def transform(self, tokens):
+        """Transform each token into its byte n-grams, separated by a delimiter."""
+        def get_byte_ngrams(token):
+            bytes_token = token.encode("utf-8")
+            ngrams = [
+                bytes_token[i : i + self.n].decode("utf-8", "ignore")
+                for i in range(len(bytes_token) - self.n + 1)
+            ]
+            return self.delimiter.join(ngrams)
+        return [get_byte_ngrams(token) for token in tokens]
+
+
+def compute_token_difficulty():
+    """
+
+    Word difficulty is defined as the negative log frequency in the English Wikipedia
+    corpus.
+
+    :return:
+    """
+
+
+    type = []
+    pass
+
 
 
 # `is_punctuation` is adopted from

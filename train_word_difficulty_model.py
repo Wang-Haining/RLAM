@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from joblib import dump
 from sacremoses import MosesTokenizer
-from sklearn.base import BaseEstimator, TransformerMixin
+from utils import ByteNGramExtractor
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import Ridge
@@ -21,25 +21,6 @@ def read_token_frequencies(filename):
         reader = csv.reader(file)
         next(reader)  # skip header
         return {rows[0]: int(rows[1]) for rows in reader}
-
-
-class ByteNGramExtractor(BaseEstimator, TransformerMixin):
-    """Converts tokens into byte n-grams using a unique delimiter."""
-    def __init__(self, n=1, delimiter="|"):
-        self.n = n
-        self.delimiter = delimiter
-    def fit(self, x, y=None):
-        return self
-    def transform(self, tokens):
-        """Transform each token into its byte n-grams, separated by a delimiter."""
-        def get_byte_ngrams(token):
-            bytes_token = token.encode("utf-8")
-            ngrams = [
-                bytes_token[i : i + self.n].decode("utf-8", "ignore")
-                for i in range(len(bytes_token) - self.n + 1)
-            ]
-            return self.delimiter.join(ngrams)
-        return [get_byte_ngrams(token) for token in tokens]
 
 
 def reshape_data(x):
