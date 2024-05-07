@@ -13,6 +13,8 @@ from nltk.tokenize import sent_tokenize
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 
+from utils import WORD_FREQ_CSV
+
 dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
 tokenizer = MosesTokenizer(lang="en")
 
@@ -80,4 +82,4 @@ print(
     len(token_counter),
 )
 
-save_counter_to_csv(token_counter, "word_freq/wiki_token_freq.csv")
+save_counter_to_csv(token_counter, WORD_FREQ_CSV)
