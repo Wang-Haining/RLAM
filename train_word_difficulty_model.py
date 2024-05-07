@@ -21,5 +21,4 @@ if __name__ == "__main__":
     # val mse: Ridge ~0.444 (not sensitive to the choice of alpha)
     # OLS ~0.478, linearSVR ~0.489
     model = train_regression_model(train_data, val_data)
-    with open(WORD_DIFFICULTY_MODEL, "wb") as f:
-        pickle.dump(model, f)
+    pickle.dump(model, open(WORD_DIFFICULTY_MODEL, "wb"))
