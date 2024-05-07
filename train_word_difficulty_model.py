@@ -1,11 +1,11 @@
 import csv
+import pickle
 import random
 
 import numpy as np
 import pandas as pd
-from joblib import dump
 from sacremoses import MosesTokenizer
-from utils import ByteNGramExtractor
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import Ridge
@@ -14,6 +14,25 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 tokenizer = MosesTokenizer(lang="en")
+
+
+class ByteNGramExtractor(BaseEstimator, TransformerMixin):
+    """Converts tokens into byte n-grams using a unique delimiter."""
+    def __init__(self, n=1, delimiter="|"):
+        self.n = n
+        self.delimiter = delimiter
+    def fit(self, x, y=None):
+        return self
+    def transform(self, tokens):
+        """Transform each token into its byte n-grams, separated by a delimiter."""
+        def get_byte_ngrams(token):
+            bytes_token = token.encode("utf-8")
+            ngrams = [
+                bytes_token[i : i + self.n].decode("utf-8", "ignore")
+                for i in range(len(bytes_token) - self.n + 1)
+            ]
+            return self.delimiter.join(ngrams)
+        return [get_byte_ngrams(token) for token in tokens]
 
 
 def read_token_frequencies(filename):
@@ -96,8 +115,6 @@ def train_regression_model(train_data, val_data):
     y_pred = model.predict(X_val)
     mse = mean_squared_error(y_val, y_pred)
     print(f"MSE on validation set: {mse}")
-    # save the trained model
-    dump(model, "word_freq/model.joblib")
     return model
 
 
@@ -154,5 +171,6 @@ if __name__ == "__main__":
     # val mse: Ridge 0.444 (not sensitive to the choice of alpha)
     # OLS 0.478, linearSVR 0.489
     model = train_regression_model(train_data, val_data)
-
-
+    # save the trained model
+    with open("word_freq/model.joblib", 'wb') as file:
+        pickle.dump(model, file)
