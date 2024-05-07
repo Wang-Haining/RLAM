@@ -66,8 +66,13 @@ def compute_token_difficulty(
     """
     Fetch a token's difficulty score if it is among the most frequent 100,000 tokens;
     otherwise, estimate the difficulty using a machine learning model. The difficulty
-    score is defined as the negative logarithm of the frequency of a token per billion,
-    based on its occurrences in the English Wikipedia corpus.
+    score is defined as the logarithm of the token's frequency per billion, based on its
+    occurrences in the English Wikipedia corpus. This modifies the original authors'
+    definition of the word difficulty score as the negative logarithm.
+    We adopt this approach because it is natural for a reinforcement learning model to
+    maximize the gain from making a word more accessible. For example, the difficulty
+    score for 'good' is 11.9, while for 'gnarly' it is 4.9. Our goal is to make 'gnarly'
+    less frequent by increasing its difficulty score.
 
     References:
         https://aclanthology.org/2021.ranlp-1.133/
@@ -89,7 +94,7 @@ def compute_token_difficulty(
         df = pd.DataFrame({"tokens": [token], "token_len": [len(token)]})
         wiki_freq = np.exp(wd_model.predict(df)[0])
     freq_per_billion = wiki_freq / total_tokens * 1e9
-    return -np.log(freq_per_billion)
+    return np.log(freq_per_billion)
 
 
 class ByteNGramExtractor(BaseEstimator, TransformerMixin):
