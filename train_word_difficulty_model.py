@@ -1,4 +1,5 @@
 import csv
+import os.path
 import pickle
 import random
 
@@ -12,9 +13,10 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
+from utils import WORD_DIFFICULTY_MODEL
 
 tokenizer = MosesTokenizer(lang="en")
-
+random.seed(42)
 
 class ByteNGramExtractor(BaseEstimator, TransformerMixin):
     """Converts tokens into byte n-grams using a unique delimiter."""
@@ -160,9 +162,10 @@ def split_data(data, val_frac=0.1):
     return train_data, val_data
 
 
-if __name__ == "__main__":
-    # Total Tokens: 3641232182 Types: 14569875
-    token_freq = read_token_frequencies("word_freq/wiki_token_freq.csv")
+# if __name__ == "__main__":
+if not os.path.exists(WORD_DIFFICULTY_MODEL):
+    # Total Tokens: 3,641,232,182 Types: 14,569,875
+    token_freq = read_token_frequencies(WORD_DIFFICULTY_MODEL)
     total_tokens = sum(token_freq.values())
 
     # prepare data and train the model
@@ -172,5 +175,7 @@ if __name__ == "__main__":
     # OLS 0.478, linearSVR 0.489
     model = train_regression_model(train_data, val_data)
     # save the trained model
-    with open("word_freq/model.pkl", 'wb') as file:
+    with open(WORD_DIFFICULTY_MODEL, 'wb') as file:
         pickle.dump(model, file)
+else:
+    model = pickle.load(WORD_DIFFICULTY_MODEL)

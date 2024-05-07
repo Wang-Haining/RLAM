@@ -24,6 +24,7 @@ SEQ2SEQ_MODEL_NAME = 'google/flan-t5-xl'
 TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
                "to a layperson: ")
 RESPONSE_TEMP = "\nA concise lay summary:"
+WORD_DIFFICULTY_MODEL = 'word_freq/wiki_token_freq.csv'
 
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
