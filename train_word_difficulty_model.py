@@ -175,7 +175,7 @@ if __name__ == "__main__":
     # prepare data and train the model
     data = prepare_data(token_freq, total_tokens)
     train_data, val_data = split_data(data, val_frac=0.1)
-    model = train_regression_model(data)
+    model = train_regression_model(train_data, val_data)
 
     # # Example prediction
     # token = 'example'
