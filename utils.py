@@ -38,7 +38,7 @@ WORD_DIFFICULTY_MODEL = 'word_freq/model.pkl'
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
 
-wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
+# wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
 def read_token_frequencies(filename=WORD_FREQ_CSV):
     with open(filename, mode="r", encoding="utf-8") as file:
         reader = csv.reader(file)
