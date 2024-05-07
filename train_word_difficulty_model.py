@@ -46,6 +46,12 @@ def reshape_data(x):
     """Reshape the input data to be two-dimensional."""
     return x.to_numpy().reshape(-1, 1)
 
+
+def custom_analyzer(x):
+    """Custom analyzer for CountVectorizer that splits on '|'."""
+    return x.split('|')
+
+
 def create_dataframe(data):
     """Convert training/validation data into a DataFrame."""
     return pd.DataFrame({
@@ -54,6 +60,7 @@ def create_dataframe(data):
         "y": [np.log(freq) for _, freq in data]
     })
 
+
 def define_transformers():
     """Define the transformers for the column transformer."""
     return ColumnTransformer([
@@ -61,7 +68,7 @@ def define_transformers():
             "byte_unigrams",
             make_pipeline(
                 ByteNGramExtractor(n=1),
-                CountVectorizer(analyzer=lambda x: x.split("|")),
+                CountVectorizer(analyzer=custom_analyzer),
             ),
             "tokens",
         ),
@@ -69,7 +76,7 @@ def define_transformers():
             "byte_bigrams",
             make_pipeline(
                 ByteNGramExtractor(n=2),
-                CountVectorizer(analyzer=lambda x: x.split("|")),
+                CountVectorizer(analyzer=custom_analyzer),
             ),
             "tokens",
         ),
@@ -77,7 +84,7 @@ def define_transformers():
             "byte_trigrams",
             make_pipeline(
                 ByteNGramExtractor(n=3),
-                CountVectorizer(analyzer=lambda x: x.split("|")),
+                CountVectorizer(analyzer=custom_analyzer),
             ),
             "tokens",
         ),
