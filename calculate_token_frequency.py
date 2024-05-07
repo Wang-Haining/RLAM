@@ -80,4 +80,4 @@ print(
     len(token_counter),
 )
 
-save_counter_to_csv(token_counter, "outputs/wiki_train_token_frequencies.csv")
+save_counter_to_csv(token_counter, "word_freq/wiki_train_token_frequencies.csv")
