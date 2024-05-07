@@ -1,6 +1,4 @@
 import csv
-import heapq
-import pickle
 import random
 import re
 
@@ -22,17 +20,19 @@ from transformers import AutoTokenizer
 
 # fixme
 BASELINE_MODEL = "haining/sas_baseline"
-DATASET_PATH = 'resources/scientific_abstract_simplification_corpus'
+DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 TOP_P = 0.9
 SEED = 42
-PROJECT_NAME = 'Scholarly_Abstract_Simplification'
+PROJECT_NAME = "Scholarly_Abstract_Simplification"
 CLM_MODEL_NAME = "google/gemma-2b"
-SEQ2SEQ_MODEL_NAME = 'google/flan-t5-xl'
-TASK_PREFIX = ("Simplify the scholarly abstract so it is immediately understandable "
-               "to a layperson: ")
+SEQ2SEQ_MODEL_NAME = "google/flan-t5-xl"
+TASK_PREFIX = (
+    "Simplify the scholarly abstract so it is immediately understandable "
+    "to a layperson: "
+)
 RESPONSE_TEMP = "\nA concise lay summary:"
-WORD_FREQ_CSV = 'word_freq/wiki_token_freq.csv'
-WORD_DIFFICULTY_MODEL = 'word_freq/model.pkl'
+WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
+WORD_DIFFICULTY_MODEL = "word_freq/model.pkl"
 
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
@@ -54,16 +54,15 @@ def compute_sent_len(sent: str) -> int:
     Returns:
         Sentence length.
     """
-    mt = MosesTokenizer(lang='en')
+    mt = MosesTokenizer(lang="en")
     tokens = mt.tokenize(sent)
     word_pattern = re.compile(r"^'?[\w-]+$")
     return len([t for t in tokens if word_pattern.match(t)])
 
 
-def fetch_or_estimate_token_difficulty(token,
-                                       top_100k_tokens,
-                                       wd_model,
-                                       total_tokens):
+def compute_token_difficulty(
+    token, top_100k_tokens, wd_model, total_tokens, token_freq
+):
     """
     Fetch a token's difficulty score if it is among the most frequent 100,000 tokens;
     otherwise, estimate the difficulty using a machine learning model. The difficulty
@@ -74,10 +73,12 @@ def fetch_or_estimate_token_difficulty(token,
         https://aclanthology.org/2021.ranlp-1.133/
 
     Args:
-        token (str): The token for which the difficulty score is to be determined.
-        top_100k_tokens (set): A set containing the most frequent 100,000 tokens.
-        wd_model (model): Trained machine learning model to estimate token difficulty.
-        total_tokens (int): Total number of tokens in the corpus for normalization.
+        token: The token for which the difficulty score is to be determined.
+        top_100k_tokens: A set containing the most frequent 100,000 tokens.
+        wd_model: Trained machine learning model to estimate token difficulty.
+        total_tokens: Total number of tokens in the corpus for normalization.
+        token_freq: A dictionary containing the occurrence of each token in the English
+            Wikipedia corpus.
 
     Returns:
         The estimated difficulty score of the token.
@@ -85,10 +86,7 @@ def fetch_or_estimate_token_difficulty(token,
     if token in top_100k_tokens:
         wiki_freq = token_freq[token]
     else:
-        df = pd.DataFrame({
-            'tokens': [token],
-            'token_len': [len(token)]
-        })
+        df = pd.DataFrame({"tokens": [token], "token_len": [len(token)]})
         wiki_freq = np.exp(wd_model.predict(df)[0])
     freq_per_billion = wiki_freq / total_tokens * 1e9
     return -np.log(freq_per_billion)
@@ -96,13 +94,17 @@ def fetch_or_estimate_token_difficulty(token,
 
 class ByteNGramExtractor(BaseEstimator, TransformerMixin):
     """Converts tokens into byte n-grams using a unique delimiter."""
+
     def __init__(self, n=1, delimiter="|"):
         self.n = n
         self.delimiter = delimiter
+
     def fit(self, x, y=None):
         return self
+
     def transform(self, tokens):
         """Transform each token into its byte n-grams, separated by a delimiter."""
+
         def get_byte_ngrams(token):
             bytes_token = token.encode("utf-8")
             ngrams = [
@@ -110,6 +112,7 @@ class ByteNGramExtractor(BaseEstimator, TransformerMixin):
                 for i in range(len(bytes_token) - self.n + 1)
             ]
             return self.delimiter.join(ngrams)
+
         return [get_byte_ngrams(token) for token in tokens]
 
 
@@ -120,51 +123,55 @@ def reshape_data(x):
 
 def custom_analyzer(x):
     """Custom analyzer for CountVectorizer that splits on '|'."""
-    return x.split('|')
+    return x.split("|")
 
 
 def create_dataframe(data):
     """Convert training/validation data into a DataFrame."""
-    return pd.DataFrame({
-        "tokens": [t for t, _ in data],
-        "token_len": [len(t) for t, _ in data],
-        "y": [np.log(freq) for _, freq in data]
-    })
+    return pd.DataFrame(
+        {
+            "tokens": [t for t, _ in data],
+            "token_len": [len(t) for t, _ in data],
+            "y": [np.log(freq) for _, freq in data],
+        }
+    )
 
 
 def define_transformers():
     """Define the transformers for the column transformer."""
-    return ColumnTransformer([
-        (
-            "byte_unigrams",
-            make_pipeline(
-                ByteNGramExtractor(n=1),
-                CountVectorizer(analyzer=custom_analyzer),
+    return ColumnTransformer(
+        [
+            (
+                "byte_unigrams",
+                make_pipeline(
+                    ByteNGramExtractor(n=1),
+                    CountVectorizer(analyzer=custom_analyzer),
+                ),
+                "tokens",
             ),
-            "tokens",
-        ),
-        (
-            "byte_bigrams",
-            make_pipeline(
-                ByteNGramExtractor(n=2),
-                CountVectorizer(analyzer=custom_analyzer),
+            (
+                "byte_bigrams",
+                make_pipeline(
+                    ByteNGramExtractor(n=2),
+                    CountVectorizer(analyzer=custom_analyzer),
+                ),
+                "tokens",
             ),
-            "tokens",
-        ),
-        (
-            "byte_trigrams",
-            make_pipeline(
-                ByteNGramExtractor(n=3),
-                CountVectorizer(analyzer=custom_analyzer),
+            (
+                "byte_trigrams",
+                make_pipeline(
+                    ByteNGramExtractor(n=3),
+                    CountVectorizer(analyzer=custom_analyzer),
+                ),
+                "tokens",
             ),
-            "tokens",
-        ),
-        (
-            "token_len",
-            FunctionTransformer(reshape_data, validate=False),
-            "token_len",
-        ),
-    ])
+            (
+                "token_len",
+                FunctionTransformer(reshape_data, validate=False),
+                "token_len",
+            ),
+        ]
+    )
 
 
 def train_regression_model(train_data, val_data):
@@ -173,10 +180,7 @@ def train_regression_model(train_data, val_data):
     val_df = create_dataframe(val_data)
     # Define transformers and model pipeline
     transformer = define_transformers()
-    model = Pipeline([
-        ("transformer", transformer),
-        ("ridge", Ridge(1.0))
-    ])
+    model = Pipeline([("transformer", transformer), ("ridge", Ridge(1.0))])
     # fit the model pipeline
     X_train, y_train = train_df.drop("y", axis=1), train_df["y"]
     model.fit(X_train, y_train)
@@ -229,6 +233,7 @@ def split_data(data, val_frac=0.1):
     train_data = data[:split_idx]
     val_data = data[split_idx:]
     return train_data, val_data
+
 
 #
 #
@@ -292,9 +297,9 @@ def split_data(data, val_frac=0.1):
 
 
 def build_dataset(
-        model_name: str,
-        task_prefix: str = TASK_PREFIX,
-        response_template: str = RESPONSE_TEMP
+    model_name: str,
+    task_prefix: str = TASK_PREFIX,
+    response_template: str = RESPONSE_TEMP,
 ):
     """
     Build dataset for training. This function filters out too short samples and then
@@ -323,9 +328,11 @@ def build_dataset(
             max_length=1024,
         )
         sample["input_ids"] = torch.tensor(input_ids)
-        sample["query"] = tokenizer.decode(sample["input_ids"],
-                                           skip_special_tokens=True,
-                                           clean_up_tokenization_spaces=True)
+        sample["query"] = tokenizer.decode(
+            sample["input_ids"],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+        )
 
         return sample
 
@@ -339,10 +346,7 @@ def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
-def evaluate_outputs(predictions,
-                     references,
-                     sources,
-                     all_metrics=False):
+def evaluate_outputs(predictions, references, sources, all_metrics=False):
     """
     Evaluate model predictions against references.
 
@@ -360,26 +364,35 @@ def evaluate_outputs(predictions,
     results = {}
 
     # compute ARI
-    results['ari'] = [compute_ari(p) for p in predictions]
+    results["ari"] = [compute_ari(p) for p in predictions]
 
     # compute BLEU scores
-    results['bleu'] = [bleu_metric.corpus_bleu([p], [[r]]).score for p, r in
-                       zip(predictions, references)]
+    results["bleu"] = [
+        bleu_metric.corpus_bleu([p], [[r]]).score
+        for p, r in zip(predictions, references)
+    ]
 
     if all_metrics:
         # compute SARI scores
-        sari_metric = load_metric('sari')
-        results['sari'] = np.mean([sari_metric.compute(predictions=[p],
-                                                       references=[r],
-                                                       sources=[s])['sari'] for p, r, s
-                                   in zip(predictions, references, sources)])
+        sari_metric = load_metric("sari")
+        results["sari"] = np.mean(
+            [
+                sari_metric.compute(predictions=[p], references=[r], sources=[s])[
+                    "sari"
+                ]
+                for p, r, s in zip(predictions, references, sources)
+            ]
+        )
 
         # compute ROUGE-L scores
-        rouge_metric = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
-        results['rougeL'] = [rouge_metric.score(p, r)['rougeL'].fmeasure for p, r in
-                             zip(predictions, references)]
+        rouge_metric = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+        results["rougeL"] = [
+            rouge_metric.score(p, r)["rougeL"].fmeasure
+            for p, r in zip(predictions, references)
+        ]
 
     return results
+
 
 # mt = MosesTokenizer(lang='en')
 # text = "This is an example sentence with CRISPR technology, and mRNA vaccines."
