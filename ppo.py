@@ -348,10 +348,11 @@ if __name__ == "__main__":
         batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
         # calculate and balance rewards
         rewards = compute_rewards(batch["response"])
-        rewards = [args.sent_len_reward_coef * r for r in rewards['sent_len_reward']] + [args.word_difficulty_reward_coef * r for r in rewards['word_difficulty_reward']]
+        rewards = [args.sent_len_reward_coef * sl + args.word_difficulty_reward_coef * wd for sl, wd in zip(rewards['sent_len_reward'], rewards['word_difficulty_reward'])]
+
         # ref rewards
         ref_rewards = compute_rewards(batch["ref_response"])
-        ref_rewards = [args.sent_len_reward_coef * r for r in ref_rewards['sent_len_reward']] + [args.word_difficulty_reward_coef * r for r in ref_rewards['word_difficulty_reward']]
+        ref_rewards = [args.sent_len_reward_coef * sl + args.word_difficulty_reward_coef * wd for sl, wd in zip(ref_rewards['sent_len_reward'], ref_rewards['word_difficulty_reward'])]
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
