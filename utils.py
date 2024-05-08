@@ -17,13 +17,15 @@ from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
+from nltk.tokenize import sent_tokenize
 
 # fixme
 BASELINE_MODEL = "haining/sas_baseline"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 TOP_P = 0.9
 SEED = 42
-PROJECT_NAME = "Scholarly_Abstract_Simplification"
+# PROJECT_NAME = "Scholarly_Abstract_Simplification"
+PROJECT_NAME = "Scholarly_Abstract_Simplification_Duo_Rewards"
 CLM_MODEL_NAME = "google/gemma-2b"
 SEQ2SEQ_MODEL_NAME = "google/flan-t5-xl"
 TASK_PREFIX = (
@@ -240,57 +242,57 @@ def split_data(data, val_frac=0.1):
     return train_data, val_data
 
 
-#
-#
-# # `is_punctuation` is adopted from
-# # github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
-# def is_punctuation(token):
-#     match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
-#     return match is not None
-#
-#
-# def compute_ari(text: str):
-#     """
-#     Compute the Automated Readability Index (ARI) for a given text.
-#     The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
-#     Incomplete sentences will be concluded with an artificial period to approximate the
-#     ARI score.
-#
-#     Args:
-#     text: A string of text to compute ARI.
-#
-#     Returns:
-#         A list of tensors containing the processed rewards.
-#     """
-#     # check if the last sentence is complete
-#     if not text.endswith((".", "?", "!")):
-#         # approximate the readability
-#         text += '.'
-#     mt = MosesTokenizer(lang='en')
-#     sentences = sent_tokenize(text)
-#     words = mt.tokenize(text)
-#     # remove punctuation marks
-#     words = [w for w in words if not is_punctuation(w)]
-#
-#     character_count = sum(len(word) for word in words)
-#     sentences_count = len(sentences)
-#     words_count = len(words)
-#
-#     # avoid division by zero
-#     if sentences_count == 0 or words_count == 0:
-#         return 0
-#
-#     # apply the ARI formula
-#     ari_score = (
-#             4.71 * (character_count / words_count)
-#             + 0.5 * (words_count / sentences_count)
-#             - 21.43
-#     )
-#
-#     # clip for stability (assuming a reasonable ARI range)
-#     ari_score = max(min(ari_score, 35.0), 2.0)
-#
-#     return ari_score
+
+
+# `is_punctuation` is adopted from
+# github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
+def is_punctuation(token):
+    match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
+    return match is not None
+
+
+def compute_ari(text: str):
+    """
+    Compute the Automated Readability Index (ARI) for a given text.
+    The ARI formula is: 4.71 * (characters/words) + 0.5 * (words/sentences) - 21.43
+    Incomplete sentences will be concluded with an artificial period to approximate the
+    ARI score.
+
+    Args:
+    text: A string of text to compute ARI.
+
+    Returns:
+        A list of tensors containing the processed rewards.
+    """
+    # check if the last sentence is complete
+    if not text.endswith((".", "?", "!")):
+        # approximate the readability
+        text += '.'
+    mt = MosesTokenizer(lang='en')
+    sentences = sent_tokenize(text)
+    words = mt.tokenize(text)
+    # remove punctuation marks
+    words = [w for w in words if not is_punctuation(w)]
+
+    character_count = sum(len(word) for word in words)
+    sentences_count = len(sentences)
+    words_count = len(words)
+
+    # avoid division by zero
+    if sentences_count == 0 or words_count == 0:
+        return 0
+
+    # apply the ARI formula
+    ari_score = (
+            4.71 * (character_count / words_count)
+            + 0.5 * (words_count / sentences_count)
+            - 21.43
+    )
+
+    # clip for stability (assuming a reasonable ARI range)
+    ari_score = max(min(ari_score, 35.0), 2.0)
+
+    return ari_score
 #
 #
 # def is_jargon(word):
