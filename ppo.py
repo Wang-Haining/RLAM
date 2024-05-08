@@ -363,7 +363,7 @@ if __name__ == "__main__":
             batch,
             rewards,
             columns_to_log=[
-                "step",  # fixme
+                # "step",  # fixme
                 "query",
                 "response",
                 "ref_response",
