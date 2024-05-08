@@ -274,7 +274,7 @@ if __name__ == "__main__":
     config_kwargs = vars(args).copy()
     keys_to_pop = [
         "sent_len_reward_coef",
-        "word_difficulty_reward_coef"
+        "word_difficulty_reward_coef",
         "eval_interval",
         "num_eval_samples",
         "save_folder",
