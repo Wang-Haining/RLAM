@@ -19,7 +19,7 @@ from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED, TOP_P,
                    WORD_DIFFICULTY_MODEL, WORD_FREQ_CSV, ByteNGramExtractor,
                    build_dataset, collator, compute_sent_len,
                    compute_token_difficulty, create_dataframe, custom_analyzer,
-                   define_transformers, read_token_frequencies, reshape_data)
+                   define_transformers, read_token_frequencies, reshape_data, compute_ari)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,8 +31,6 @@ token_freq = read_token_frequencies(WORD_FREQ_CSV)
 top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
-
-# compute_token_difficulty('good', top_100k_tokens, wd_model, total_tokens, token_freq)
 
 
 def save_checkpoint(model, step, eval_score, save_folder):
@@ -61,7 +59,7 @@ def save_checkpoint(model, step, eval_score, save_folder):
         saved_models = []
 
     current_ari_mean = np.mean(eval_score["ari"])
-    model.save_pretrained(last_model_path)  # Save the most recent model
+    model.save_pretrained(last_model_path)  # save the most recent model
     print(f"Saved the most recent model at step {step}.")
 
     save_path = os.path.join(
@@ -93,7 +91,7 @@ def save_checkpoint(model, step, eval_score, save_folder):
     np.savez(metadata_path, saved_models=saved_models)
 
 
-def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
+def evaluate_model(model, dataset, tokenizer, num_samples=64):
     """
     This function evaluates the model's performance (ARI and SacreBLEU) on a subset of
     the given dataset.
@@ -102,7 +100,6 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
         model: The policy model to be evaluated.
         dataset: The validation dataset to use for evaluation.
         tokenizer: The tokenizer used for the model.
-        compute_ari_func: A function that computes the ARI score from a string.
         num_samples: Number of samples to evaluate on. Defaults to 32.
 
     Returns:
@@ -119,6 +116,8 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
 
     ari_scores = []
     bleu_scores = []
+    avg_sent_len = []
+    avg_word_diff = []
     with torch.no_grad():
         for batch in tqdm(sampled_dataset):
             query_tensors = batch["input_ids"].to(device)
@@ -126,7 +125,7 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
             if query_tensors.dim() == 1:
                 query_tensors = query_tensors.unsqueeze(0)
             response_tensors = model.generate(
-                query_tensors, top_p=TOP_P, max_new_tokens=512, do_sample=True
+                query_tensors, top_p=TOP_P, max_new_tokens=300, do_sample=True  # fixme: TOP_P
             )
             responses = tokenizer.batch_decode(
                 response_tensors.cpu(),
@@ -136,12 +135,17 @@ def evaluate_model(model, dataset, tokenizer, compute_ari_func, num_samples=32):
             targets = [batch["target"]]
 
             for response, target in zip(responses, targets):
-                ari_scores.append(compute_ari_func(response))
+                ari_scores.append(compute_ari(response))
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
+                rewards = compute_rewards([response])
+                avg_sent_len.append(rewards['sent_len_reward'][0])
+                avg_word_diff.append(rewards['word_difficulty_reward'][0])
 
     return {
         "ari": ari_scores,
         "sacrebleu": bleu_scores,
+        "avg_sent_len": avg_sent_len,
+        "avg_word_difficulty": avg_word_diff
     }
 
 
@@ -154,7 +158,9 @@ def compute_rewards(responses: List[str],
                     token_freq=token_freq) -> (List[torch.Tensor], List[torch.Tensor]):
     """
     Calculate rewards for a batch of responses:
-    - Avg sentence length: Computed over all sentences in a response.
+    - Avg sentence length: Computed over all sentences in a response. (Note, because we
+        want average to be shorter, we need to negate sentence length in order to
+        maximize the rewards.)
     - Avg word difficulty: Defined as the negative logarithm of the token frequency
       per billion, based on its occurrences in the English Wikipedia corpus.
 
@@ -191,31 +197,33 @@ def compute_rewards(responses: List[str],
         word_difficulty_rewards.append(np.mean(word_difficulty_list))
     sent_len_reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in
                                sent_len_rewards]
-    word_difficulty_reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in
-                                      word_difficulty_rewards]
-    return sent_len_reward_tensors, word_difficulty_reward_tensors
+    # negate sentence length for intuitive reward maximization
+    word_difficulty_reward_tensors = [-1.0 * torch.tensor(r, dtype=torch.float32) for
+                                      r in word_difficulty_rewards]
+    return {"sent_len_reward": sent_len_reward_tensors,
+            "word_difficulty_reward": word_difficulty_reward_tensors}
 
 
-def get_max_new_tokens(step: int,
-                       start: int = 50,
-                       end: int = 240,
-                       curriculum_steps: int = 80) -> int:
-    """
-    Calculates the `max_new_tokens` for the current training step based on a linear
-    curriculum.
-
-    Args:
-        step: Current training step.
-        start: Initial `max_new_tokens` value.
-        end: Final `max_new_tokens` value.
-        curriculum_steps: Total number of steps when max_new_tokens plateaus.
-
-    Returns:
-        int: The calculated `max_new_tokens` for the current step.
-    """
-    if step >= curriculum_steps:
-        return end
-    return int(start + (end - start) * (step / curriculum_steps))
+# def get_max_new_tokens(step: int,
+#                        start: int = 50,
+#                        end: int = 240,
+#                        curriculum_steps: int = 80) -> int:
+#     """
+#     Calculates the `max_new_tokens` for the current training step based on a linear
+#     curriculum.
+#
+#     Args:
+#         step: Current training step.
+#         start: Initial `max_new_tokens` value.
+#         end: Final `max_new_tokens` value.
+#         curriculum_steps: Total number of steps when max_new_tokens plateaus.
+#
+#     Returns:
+#         int: The calculated `max_new_tokens` for the current step.
+#     """
+#     if step >= curriculum_steps:
+#         return end
+#     return int(start + (end - start) * (step / curriculum_steps))
 
 
 if __name__ == "__main__":
@@ -223,29 +231,43 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
     # fmt: off
-    # ppo relevant
-    parser.add_argument("--task_name", type=str, default=PROJECT_NAME, help="Experiment name for tracking")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Initial learning rate for optimizer")
+    # ppo_config relevant
     parser.add_argument("--steps", type=int, default=20000, help="Number of training steps")
-    parser.add_argument("--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates")
-    parser.add_argument("--ppo_epochs", type=int, default=2, help="Number of optimization rollouts per batch of samples during PPO training")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
+    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Adam learning rate")
+    # kl objective
+    # todo: adap_kl_ctrl
+    parser.add_argument("--adap_kl_ctrl", type=lambda x: (str(x).lower() == 'true'), default=True, help="Use adaptive KL control, otherwise linear")
+    parser.add_argument("--init_kl_coef", type=float, default=0.2, help="Initial KL penalty coefficient (used for adaptive and linear control). See formula (2) in https://arxiv.org/pdf/1909.08593")
+    parser.add_argument("--kl_penalty", type=str, choices=['kl', 'abs', 'mse', 'full'], default="kl", help="KL penalty options")
+    parser.add_argument("--target", type=float, default=6, help="Target KL value for adaptive KL control")
+    parser.add_argument("--horizon", type=float, default=10000, help="Horizon for adaptive KL control")
+    # ppo
+    parser.add_argument("--lam", type=float, default=0.95, help="Lambda parameter for advantage calculation")
+    parser.add_argument("--cliprange", type=float, default=0.2, help="Range for clipping in PPO policy gradient loss")
+    parser.add_argument("--cliprange_value", type=float, default=0.2, help="Range for clipping values in loss calculation")
+    parser.add_argument("--vf_coef", type=float, default=0.1, help="Scaling factor for value loss")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
-    parser.add_argument("--early_stopping", type=lambda x: (str(x).lower() == 'true'), default=False, help="Enable early stopping if KL divergence is too high")
-    parser.add_argument("--target_kl", type=float, default=1.0, help="Target KL divergence for early stopping")
+    parser.add_argument("--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
+    parser.add_argument("--ppo_epochs", type=int, default=2, help="Number of optimisation epochs per batch of samples")
+    parser.add_argument("--max_grad_norm", type=float, default=None, help="Maximum gradient norm for gradient clipping")
+    parser.add_argument("--early_stopping", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to stop the PPO optimization loop early if KL is too high")
+    parser.add_argument("--target_kl", type=float, default=1.0, help="Stop early if we exceed this value by over 50%")
+    parser.add_argument("--compare_steps", type=int, default=1, help="Number of steps between comparison of the current reward with the best seen so far")
+    parser.add_argument("--ratio_threshold", type=float, default=10.0, help="Skip mini-batches with high PPO ratios that can cause loss spikes")
+    # for rewards, following https://arxiv.org/pdf/1909.08593
     parser.add_argument("--use_score_scaling", action="store_true", help="Enable score scaling")
     parser.add_argument("--use_score_norm", action="store_true", help="Enable score normalization")
     parser.add_argument("--score_clip", type=float, default=None, help="Value to clip the scores, use 'None' to disable")
+    parser.add_argument("--whiten_rewards", action='store_true', help="Whiten the rewards before computing advantages")
     # misc
+    parser.add_argument("--sent_len_reward_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
+    parser.add_argument("--word_difficulty_reward_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
-    parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory" "of ckpts")
-    parser.add_argument("--normalize_reward", type=bool, default=False, help="Normalize rewards in z score")
+    parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
+    parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
     parser.add_argument("--max_new_tokens", type=int, default=300, help="Max rollout length")
-    # curriculum for the rollouts
-    parser.add_argument("--enable_curriculum", type=lambda x: (str(x).lower() == 'true'), default=False, help="Enable curriculum learning for rollout length")
-    parser.add_argument("--rollout_curriculum", nargs=3, type=int, default=[50, 240, 60], help="Tuple indicating the start, end, and steps for rollout curriculum")
     # fmt: on
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
@@ -254,26 +276,11 @@ if __name__ == "__main__":
         "eval_interval",
         "num_eval_samples",
         "save_folder",
-        "normalize_reward",
         "sft_ckpt_path",
         "max_new_tokens",
-        "enable_curriculum",
-        "rollout_curriculum"
     ]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
-    # config ppo
-    learning_rate = 7.07e-6
-    adap_kl_ctrl = True
-    init_kl_coef = 0.2  # double check
-    gamma = 1.0  # pretty sure
-    lam = todo
-    kl_penalty = 'kl'
-    target = 6
-    horizon = 10000
-    # no dropout
-
-
 
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
@@ -322,15 +329,15 @@ if __name__ == "__main__":
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-        # rollout curriculum
-        if args.enable_curriculum:
-            _max_new_tokens = get_max_new_tokens(step,
-                                                 start=args.rollout_curriculum[0],
-                                                 end=args.rollout_curriculum[1],
-                                                 curriculum_steps=args.rollout_curriculum[2])
-        else:
-            _max_new_tokens = args.max_new_tokens
-        rollout_kwargs["max_new_tokens"] = _max_new_tokens
+        # # rollout curriculum
+        # if args.enable_curriculum:
+        #     _max_new_tokens = get_max_new_tokens(step,
+        #                                          start=args.rollout_curriculum[0],
+        #                                          end=args.rollout_curriculum[1],
+        #                                          curriculum_steps=args.rollout_curriculum[2])
+        # else:
+        #     _max_new_tokens = args.max_new_tokens
+        # rollout_kwargs["max_new_tokens"] = _max_new_tokens
 
         query_tensors = batch["input_ids"]
 
@@ -343,12 +350,12 @@ if __name__ == "__main__":
 
         batch["response"] = tokenizer.batch_decode(response_tensors)
         batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
-
-        rewards = reward2tensor(batch["response"], compute_ari, args.normalize_reward)
+        # calculate and balance rewards
+        rewards = compute_rewards(batch["response"])
+        rewards = args.sent_len_reward_coef * rewards['sent_len_reward'] + args.word_difficulty_reward_coef * rewards['word_difficulty_reward']
         # ref rewards
-        ref_rewards = reward2tensor(
-            batch["ref_response"], compute_ari, args.normalize_reward
-        )
+        ref_rewards = compute_rewards(batch["ref_response"])
+        ref_rewards = args.sent_len_reward_coef * ref_rewards['sent_len_reward'] + args.word_difficulty_reward_coef * ref_rewards['word_difficulty_reward']
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -359,6 +366,7 @@ if __name__ == "__main__":
             batch,
             rewards,
             columns_to_log=[
+                "step",  # fixme
                 "query",
                 "response",
                 "ref_response",
@@ -374,12 +382,13 @@ if __name__ == "__main__":
                 model=policy_model,
                 dataset=dataset["validation"],
                 tokenizer=tokenizer,
-                compute_ari_func=compute_ari,
                 num_samples=args.num_eval_samples,
             )
             wandb.log(eval_score)
             print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
             print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
+            print(f"Step: {step}, Eval avg. sentence Length: {-1.0 * np.mean(eval_score['sent_len_reward']):.2f}")
+            print(f"Step: {step}, Eval avg. word difficulty: {np.mean(eval_score['word_difficulty_reward']):.2f}")
 
             # save top-3 checkpoints and the last one
             save_checkpoint(
