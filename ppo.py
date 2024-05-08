@@ -268,22 +268,16 @@ if __name__ == "__main__":
     parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
     parser.add_argument("--max_new_tokens", type=int, default=300, help="Max rollout length")
-    # fmt: on
+
     args = parser.parse_args()
     # ignore the extra args that are not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = [
-        "sent_len_reward_coef",
-        "word_difficulty_reward_coef",
-        "eval_interval",
-        "num_eval_samples",
-        "save_folder",
-        "sft_ckpt_path",
-        "max_new_tokens",
-    ]
+    keys_to_pop = ["sent_len_reward_coef", "word_difficulty_reward_coef",
+                   "eval_interval", "num_eval_samples", "save_folder", "sft_ckpt_path",
+                   "max_new_tokens"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
-
+    # fmt: on
     config = PPOConfig(log_with="wandb", **config_kwargs)
     # monitor with wandb
     run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
