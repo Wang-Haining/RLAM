@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_sft_gemma_on_sas
+#SBATCH --job-name=ppo_gemma_baseline
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
