@@ -383,8 +383,12 @@ if __name__ == "__main__":
             wandb.log(eval_score)
             print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
             print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
-            print(f"Step: {step}, Eval avg. sentence Length: {-1.0 * np.mean(eval_score['sent_len_reward']):.2f}")
-            print(f"Step: {step}, Eval avg. word difficulty: {np.mean(eval_score['word_difficulty_reward']):.2f}")
+            _sent_len_reward = -1.0 * np.mean(eval_score['sent_len_reward'])
+            _word_difficulty_reward = np.mean(eval_score['word_difficulty_reward'])
+            _total_reward = args.sent_len_reward_coef * _sent_len_reward + args.word_difficulty_reward_coef * _word_difficulty_reward
+            print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
+            print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
+            print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
 
             # save top-3 checkpoints and the last one
             save_checkpoint(
