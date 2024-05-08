@@ -1,11 +1,11 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_sft_flant5_with_rollout_curriculum
+#SBATCH --job-name=ppo_sft_gemma_on_sas
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-6:00:00
+#SBATCH --time=0-24:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -15,8 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo \
---save_folder ppo_flan-t5-xl_rollout_curriculum_50_240_200 \
---sft_ckpt_path ckpts/sft_flan-t5-xl/checkpoint-2220 \
---enable_curriculum true \
---rollout_curriculum 50 240 200
+python -m ppo --save_folder ppo_gemma-2b --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --early_stopping true --word_difficulty_reward_coef 0.5
