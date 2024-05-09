@@ -124,9 +124,11 @@ def evaluate_model(model, dataset, tokenizer, num_samples=64):
 
             if query_tensors.dim() == 1:
                 query_tensors = query_tensors.unsqueeze(0)
-            response_tensors = model.generate(
-                query_tensors, top_p=TOP_P, max_new_tokens=300, do_sample=True  # fixme: TOP_P
-            )
+            response_tensors = model.generate(query_tensors,
+                                              top_k=0.0,  # fixme: TOP_K
+                                              top_p=1.0,  # fixme: TOP_P
+                                              max_new_tokens=512,
+                                              do_sample=True)
             responses = tokenizer.batch_decode(
                 response_tensors.cpu(),
                 clean_up_tokenization_spaces=True,
@@ -164,6 +166,10 @@ def compute_rewards(responses: List[str],
     - Avg word difficulty: Defined as the negative logarithm of the token frequency
       per billion, based on its occurrences in the English Wikipedia corpus.
 
+    During pilot running, models cheat by spitting out only one eos token. So we
+    penalize both word difficulty and sentence length with reasonably large negative
+    feedback in such situations.
+
     Parameters:
         responses: A list of response strings to process.
         compute_sent_len: A function to compute the length of a sentence.
@@ -182,19 +188,23 @@ def compute_rewards(responses: List[str],
     word_difficulty_rewards = []
     mt = MosesTokenizer(lang='en')
     for response in responses:
-        sent_len_list = []
-        word_difficulty_list = []
-        sents = sent_tokenize(response)
-        for sent in sents:
-            sent_len_list.append(compute_sent_len(sent))
-            for token in mt.tokenize(sent):
-                word_difficulty_list.append(compute_token_difficulty(token,
-                                                                     top_100k_tokens,
-                                                                     wd_model,
-                                                                     total_tokens,
-                                                                     token_freq))
-        sent_len_rewards.append(np.mean(sent_len_list))
-        word_difficulty_rewards.append(np.mean(word_difficulty_list))
+        if response.strip() in ['<eos>', '</s>']:  # EOS of gemma and t5
+            sent_len_rewards.append(50.0)
+            word_difficulty_rewards.append(1.0)
+        else:
+            sent_len_list = []
+            word_difficulty_list = []
+            sents = sent_tokenize(response)
+            for sent in sents:
+                sent_len_list.append(compute_sent_len(sent))
+                for token in mt.tokenize(sent):
+                    word_difficulty_list.append(compute_token_difficulty(token,
+                                                                         top_100k_tokens,
+                                                                         wd_model,
+                                                                         total_tokens,
+                                                                         token_freq))
+            sent_len_rewards.append(np.mean(sent_len_list))
+            word_difficulty_rewards.append(np.mean(word_difficulty_list))
     # negate sentence length for intuitive reward maximization
     sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards]
     word_difficulty_rewards = [torch.tensor(r, dtype=torch.float32) for r in word_difficulty_rewards]
@@ -290,7 +300,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": 10,
+        "min_length": -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
@@ -314,11 +324,13 @@ if __name__ == "__main__":
         batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
         # calculate and balance rewards
         rewards = compute_rewards(batch["response"])
-        rewards = [args.sl_coef * sl + args.wd_coef * wd for sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
+        rewards = [args.sl_coef * sl + args.wd_coef * wd for
+                   sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
 
         # ref rewards
         ref_rewards = compute_rewards(batch["ref_response"])
-        ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for sl, wd in zip(ref_rewards['sl_reward'], ref_rewards['wd_reward'])]
+        ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for
+                       sl, wd in zip(ref_rewards['sl_reward'], ref_rewards['wd_reward'])]
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -328,13 +340,8 @@ if __name__ == "__main__":
             stats,
             batch,
             rewards,
-            columns_to_log=[
-                "query",
-                "response",
-                "ref_response",
-                "ref_rewards",
-                "advantage",
-            ],
+            columns_to_log=["query", "response", "ref_response",
+                            "ref_rewards", "advantage"],
         )
         wandb.log(rollout_kwargs)
 
@@ -349,7 +356,7 @@ if __name__ == "__main__":
             wandb.log(eval_score)
             print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
             print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
-            _sent_len_reward = -1.0 * np.mean(eval_score['avg_sent_len'])
+            _sent_len_reward = np.mean(eval_score['avg_sent_len'])
             _word_difficulty_reward = np.mean(eval_score['avg_word_difficulty'])
             _total_reward = args.sl_coef * _sent_len_reward + args.wd_coef * _word_difficulty_reward
             print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
