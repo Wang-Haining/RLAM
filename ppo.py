@@ -195,20 +195,17 @@ def compute_rewards(responses: List[str],
                                                                      token_freq))
         sent_len_rewards.append(np.mean(sent_len_list))
         word_difficulty_rewards.append(np.mean(word_difficulty_list))
-    sent_len_reward_tensors = [torch.tensor(r, dtype=torch.float32) for r in
-                               sent_len_rewards]
     # negate sentence length for intuitive reward maximization
-    word_difficulty_reward_tensors = [-1.0 * torch.tensor(r, dtype=torch.float32) for
-                                      r in word_difficulty_rewards]
-    return {"sent_len_reward": sent_len_reward_tensors,
-            "word_difficulty_reward": word_difficulty_reward_tensors}
+    sent_len_rewards = [-1.0 * r for r in sent_len_rewards]
+    return {"sl_reward": sent_len_rewards,
+            "wd_reward": word_difficulty_rewards}
 
 
 if __name__ == "__main__":
     torch.manual_seed(SEED + 6103)
 
-    parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
     # fmt: off
+    parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
     # ppo_config relevant
     parser.add_argument("--steps", type=int, default=20000, help="Number of training steps")
     parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
@@ -239,8 +236,8 @@ if __name__ == "__main__":
     parser.add_argument("--score_clip", type=float, default=None, help="Value to clip the scores, use 'None' to disable")
     parser.add_argument("--whiten_rewards", action='store_true', help="Whiten the rewards before computing advantages")
     # misc
-    parser.add_argument("--sent_len_reward_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
-    parser.add_argument("--word_difficulty_reward_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
+    parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
+    parser.add_argument("--wd_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
     parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
@@ -248,11 +245,10 @@ if __name__ == "__main__":
     parser.add_argument("--max_new_tokens", type=int, default=300, help="Max rollout length")
 
     args = parser.parse_args()
-    # ignore the extra args that are not for ppo
+    # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ["sent_len_reward_coef", "word_difficulty_reward_coef",
-                   "eval_interval", "num_eval_samples", "save_folder", "sft_ckpt_path",
-                   "max_new_tokens"]
+    keys_to_pop = ["sl_coef", "wd_coef", "eval_interval", "num_eval_samples",
+                   "save_folder", "sft_ckpt_path", "max_new_tokens"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -317,11 +313,11 @@ if __name__ == "__main__":
         batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
         # calculate and balance rewards
         rewards = compute_rewards(batch["response"])
-        rewards = [args.sent_len_reward_coef * sl + args.word_difficulty_reward_coef * wd for sl, wd in zip(rewards['sent_len_reward'], rewards['word_difficulty_reward'])]
+        rewards = [args.sl_coef * sl + args.wd_coef * wd for sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
 
         # ref rewards
         ref_rewards = compute_rewards(batch["ref_response"])
-        ref_rewards = [args.sent_len_reward_coef * sl + args.word_difficulty_reward_coef * wd for sl, wd in zip(ref_rewards['sent_len_reward'], ref_rewards['word_difficulty_reward'])]
+        ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for sl, wd in zip(ref_rewards['sl_reward'], ref_rewards['wd_reward'])]
         batch["ref_rewards"] = ref_rewards
         batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -359,12 +355,12 @@ if __name__ == "__main__":
             print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
             print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
             wandb.log({
-                "Step": step,
-                "Eval ARI": np.mean(eval_score['ari']),
-                "Eval BLEU": np.mean(eval_score['sacrebleu']),
-                "Eval avg. sentence Length": _sent_len_reward,
-                "Eval avg. word difficulty": _word_difficulty_reward,
-                "Eval total rewards": _total_reward
+                "Eval/Step": step,
+                "Eval/ARI": np.mean(eval_score['ari']),
+                "Eval/BLEU": np.mean(eval_score['sacrebleu']),
+                "Eval/avg. sentence Length": _sent_len_reward,
+                "Eval/avg. word difficulty": _word_difficulty_reward,
+                "Eval/total rewards": _total_reward
             })
             # save top-3 checkpoints and the last one
             save_checkpoint(
