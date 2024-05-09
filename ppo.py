@@ -138,8 +138,8 @@ def evaluate_model(model, dataset, tokenizer, num_samples=64):
                 ari_scores.append(compute_ari(response))
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
                 rewards = compute_rewards([response])
-                avg_sent_len.append(rewards['sent_len_reward'][0])
-                avg_word_diff.append(rewards['word_difficulty_reward'][0])
+                avg_sent_len.append(rewards['sl_reward'][0])
+                avg_word_diff.append(rewards['wd_reward'][0])
 
     return {
         "ari": ari_scores,
