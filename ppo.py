@@ -196,7 +196,8 @@ def compute_rewards(responses: List[str],
         sent_len_rewards.append(np.mean(sent_len_list))
         word_difficulty_rewards.append(np.mean(word_difficulty_list))
     # negate sentence length for intuitive reward maximization
-    sent_len_rewards = [-1.0 * r for r in sent_len_rewards]
+    sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards]
+    word_difficulty_rewards = [torch.tensor(r, dtype=torch.float32) for r in word_difficulty_rewards]
     return {"sl_reward": sent_len_rewards,
             "wd_reward": word_difficulty_rewards}
 
