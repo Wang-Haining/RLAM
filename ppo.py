@@ -2,7 +2,7 @@ import argparse
 import heapq
 import os
 import pickle
-from typing import Callable, List
+from typing import List
 
 import numpy as np
 import torch
@@ -17,9 +17,9 @@ from trl import (AutoModelForCausalLMWithValueHead,
 
 from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED, TOP_P,
                    WORD_DIFFICULTY_MODEL, WORD_FREQ_CSV, ByteNGramExtractor,
-                   build_dataset, collator, compute_sent_len,
+                   build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_difficulty, create_dataframe, custom_analyzer,
-                   define_transformers, read_token_frequencies, reshape_data, compute_ari)
+                   define_transformers, read_token_frequencies, reshape_data)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -204,28 +204,6 @@ def compute_rewards(responses: List[str],
             "word_difficulty_reward": word_difficulty_reward_tensors}
 
 
-# def get_max_new_tokens(step: int,
-#                        start: int = 50,
-#                        end: int = 240,
-#                        curriculum_steps: int = 80) -> int:
-#     """
-#     Calculates the `max_new_tokens` for the current training step based on a linear
-#     curriculum.
-#
-#     Args:
-#         step: Current training step.
-#         start: Initial `max_new_tokens` value.
-#         end: Final `max_new_tokens` value.
-#         curriculum_steps: Total number of steps when max_new_tokens plateaus.
-#
-#     Returns:
-#         int: The calculated `max_new_tokens` for the current step.
-#     """
-#     if step >= curriculum_steps:
-#         return end
-#     return int(start + (end - start) * (step / curriculum_steps))
-
-
 if __name__ == "__main__":
     torch.manual_seed(SEED + 6103)
 
@@ -233,7 +211,7 @@ if __name__ == "__main__":
     # fmt: off
     # ppo_config relevant
     parser.add_argument("--steps", type=int, default=20000, help="Number of training steps")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Adam learning rate")
+    parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
     # kl objective
     # todo: adap_kl_ctrl
     parser.add_argument("--adap_kl_ctrl", type=lambda x: (str(x).lower() == 'true'), default=True, help="Use adaptive KL control, otherwise linear")
@@ -325,15 +303,6 @@ if __name__ == "__main__":
     }
 
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-        # # rollout curriculum
-        # if args.enable_curriculum:
-        #     _max_new_tokens = get_max_new_tokens(step,
-        #                                          start=args.rollout_curriculum[0],
-        #                                          end=args.rollout_curriculum[1],
-        #                                          curriculum_steps=args.rollout_curriculum[2])
-        # else:
-        #     _max_new_tokens = args.max_new_tokens
-        # rollout_kwargs["max_new_tokens"] = _max_new_tokens
 
         query_tensors = batch["input_ids"]
 
@@ -363,7 +332,6 @@ if __name__ == "__main__":
             batch,
             rewards,
             columns_to_log=[
-                # "step",  # fixme
                 "query",
                 "response",
                 "ref_response",
@@ -390,7 +358,14 @@ if __name__ == "__main__":
             print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
             print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
             print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
-
+            wandb.log({
+                "Step": step,
+                "Eval ARI": np.mean(eval_score['ari']),
+                "Eval BLEU": np.mean(eval_score['sacrebleu']),
+                "Eval avg. sentence Length": _sent_len_reward,
+                "Eval avg. word difficulty": _word_difficulty_reward,
+                "Eval total rewards": _total_reward
+            })
             # save top-3 checkpoints and the last one
             save_checkpoint(
                 model=policy_model,
