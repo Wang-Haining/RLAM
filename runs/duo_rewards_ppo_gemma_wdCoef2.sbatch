@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo --save_folder ppo_gemma-2b --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --early_stopping true --word_difficulty_reward_coef 2.0
+python -m ppo --save_folder ppo_gemma_word_difficulty_reward_coef2 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --early_stopping true --word_difficulty_reward_coef 2.0
