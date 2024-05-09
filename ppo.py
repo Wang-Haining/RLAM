@@ -240,7 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
     parser.add_argument("--wd_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
+    parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
     parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
     parser.add_argument("--max_new_tokens", type=int, default=300, help="Max rollout length")
@@ -351,7 +351,7 @@ if __name__ == "__main__":
             print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
             _sent_len_reward = -1.0 * np.mean(eval_score['avg_sent_len'])
             _word_difficulty_reward = np.mean(eval_score['avg_word_difficulty'])
-            _total_reward = args.sent_len_reward_coef * _sent_len_reward + args.word_difficulty_reward_coef * _word_difficulty_reward
+            _total_reward = args.sl_coef * _sent_len_reward + args.wd_coef * _word_difficulty_reward
             print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
             print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
             print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
