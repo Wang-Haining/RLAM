@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo --save_folder ppo_gemma_wd_coef1 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --early_stopping true --wod_coef 1.0
+python -m ppo --save_folder ppo_gemma_wd_coef1 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 --early_stopping true --wd_coef 1.0
