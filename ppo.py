@@ -263,7 +263,7 @@ if __name__ == "__main__":
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
     keys_to_pop = ["sl_coef", "wd_coef", "eval_interval", "num_eval_samples",
-                   "save_folder", "sft_ckpt_path", "max_new_tokens"]
+                   "save_folder", "sft_ckpt_path", "max_new_tokens", "num_epochs"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
