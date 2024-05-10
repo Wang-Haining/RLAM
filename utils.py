@@ -20,12 +20,11 @@ from transformers import AutoTokenizer
 from nltk.tokenize import sent_tokenize
 
 # fixme
-BASELINE_MODEL = "haining/sas_baseline"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 TOP_P = 0.9
 SEED = 42
 # PROJECT_NAME = "Scholarly_Abstract_Simplification"
-PROJECT_NAME = "Scholarly_Abstract_Simplification_Duo_Rewards"
+PROJECT_NAME = "Scholarly_Abstract_Simplification_Duo_Rewards_New_Template"
 CLM_MODEL_NAME = "google/gemma-2b"
 SEQ2SEQ_MODEL_NAME = "google/flan-t5-xl"
 # TASK_PREFIX = (
@@ -404,12 +403,3 @@ def evaluate_outputs(predictions, references, sources, all_metrics=False):
 
     return results
 
-
-# mt = MosesTokenizer(lang='en')
-# text = "This is an example sentence with CRISPR technology, and mRNA vaccines."
-# tokens = mt.tokenize(text)
-#
-# # Filter and print only the tokens that are considered jargon and not punctuation
-# jargon_tokens = [token for token in tokens if not is_punctuation(token) and
-# is_jargon(token)]
-# print(jargon_tokens)
