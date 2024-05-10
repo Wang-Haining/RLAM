@@ -28,11 +28,15 @@ SEED = 42
 PROJECT_NAME = "Scholarly_Abstract_Simplification_Duo_Rewards"
 CLM_MODEL_NAME = "google/gemma-2b"
 SEQ2SEQ_MODEL_NAME = "google/flan-t5-xl"
+# TASK_PREFIX = (
+#     "Simplify the scholarly abstract so it is immediately understandable "
+#     "to a layperson: "
+# )
+# RESPONSE_TEMP = "\nA concise lay summary:"
 TASK_PREFIX = (
-    "Simplify the scholarly abstract so it is immediately understandable "
-    "to a layperson: "
+    "TL;DR: "
 )
-RESPONSE_TEMP = "\nA concise lay summary:"
+RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_DIFFICULTY_MODEL = "word_freq/model.pkl"
 
