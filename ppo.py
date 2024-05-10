@@ -198,16 +198,19 @@ def compute_rewards(responses: List[str],
             for sent in sents:
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):
-                    word_difficulty_list.append(compute_token_difficulty(token,
-                                                                         top_100k_tokens,
-                                                                         wd_model,
-                                                                         total_tokens,
-                                                                         token_freq))
+                    word_difficulty_list.append(
+                        compute_token_difficulty(token,
+                                                 top_100k_tokens,
+                                                 wd_model,
+                                                 total_tokens,
+                                                 token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
             word_difficulty_rewards.append(np.mean(word_difficulty_list))
     # negate sentence length for intuitive reward maximization
-    sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards]
-    word_difficulty_rewards = [torch.tensor(r, dtype=torch.float32) for r in word_difficulty_rewards]
+    sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
+                        r in sent_len_rewards]
+    word_difficulty_rewards = [torch.tensor(r, dtype=torch.float32) for
+                               r in word_difficulty_rewards]
     return {"sl_reward": sent_len_rewards,
             "wd_reward": word_difficulty_rewards}
 
@@ -218,7 +221,7 @@ if __name__ == "__main__":
     # fmt: off
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
     # ppo_config relevant
-    parser.add_argument("--steps", type=int, default=20000, help="Number of training steps")
+    parser.add_argument("--steps", type=int, default=2000000, help="Number of training steps. A upper bound of total training steps. See num_epochs for details.")
     parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
     # kl objective
     # todo: adap_kl_ctrl
@@ -247,6 +250,7 @@ if __name__ == "__main__":
     parser.add_argument("--score_clip", type=float, default=None, help="Value to clip the scores, use 'None' to disable")
     parser.add_argument("--whiten_rewards", action='store_true', help="Whiten the rewards before computing advantages")
     # misc
+    parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
     parser.add_argument("--wd_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
@@ -309,71 +313,73 @@ if __name__ == "__main__":
         "max_new_tokens": args.max_new_tokens,
     }
 
-    for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
+    for epoch in range(args.num_epochs):
+        for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
 
-        query_tensors = batch["input_ids"]
+            query_tensors = batch["input_ids"]
 
-        response_tensors, ref_response_tensors = ppo_trainer.generate(
-            query_tensors,
-            return_prompt=False,
-            generate_ref_response=True,
-            **rollout_kwargs,
-        )
-
-        batch["response"] = tokenizer.batch_decode(response_tensors)
-        batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
-        # calculate and balance rewards
-        rewards = compute_rewards(batch["response"])
-        rewards = [args.sl_coef * sl + args.wd_coef * wd for
-                   sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
-
-        # ref rewards
-        ref_rewards = compute_rewards(batch["ref_response"])
-        ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for
-                       sl, wd in zip(ref_rewards['sl_reward'], ref_rewards['wd_reward'])]
-        batch["ref_rewards"] = ref_rewards
-        batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
-
-        # execute a PPO step
-        stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-        ppo_trainer.log_stats(
-            stats,
-            batch,
-            rewards,
-            columns_to_log=["query", "response", "ref_response",
-                            "ref_rewards", "advantage"],
-        )
-        wandb.log(rollout_kwargs)
-
-        # evaluate on validation set after every n steps
-        if step % args.eval_interval == 0:
-            eval_score = evaluate_model(
-                model=policy_model,
-                dataset=dataset["validation"],
-                tokenizer=tokenizer,
-                num_samples=args.num_eval_samples,
+            response_tensors, ref_response_tensors = ppo_trainer.generate(
+                query_tensors,
+                return_prompt=False,
+                generate_ref_response=True,
+                **rollout_kwargs,
             )
-            wandb.log(eval_score)
-            print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
-            print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
-            _sent_len_reward = np.mean(eval_score['avg_sent_len'])
-            _word_difficulty_reward = np.mean(eval_score['avg_word_difficulty'])
-            _total_reward = args.sl_coef * _sent_len_reward + args.wd_coef * _word_difficulty_reward
-            print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
-            print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
-            print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
-            wandb.log({
-                "Eval/Step": step,
-                "Eval/ARI": np.mean(eval_score['ari']),
-                "Eval/BLEU": np.mean(eval_score['sacrebleu']),
-                "Eval/avg. sentence Length": _sent_len_reward,
-                "Eval/avg. word difficulty": _word_difficulty_reward,
-                "Eval/total rewards": _total_reward
-            })
-            # save top-3 checkpoints and the last one
-            save_checkpoint(
-                model=policy_model,
-                step=step,
-                eval_score=eval_score,
-                save_folder=args.save_folder,
+
+            batch["response"] = tokenizer.batch_decode(response_tensors)
+            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
+            # calculate and balance rewards
+            rewards = compute_rewards(batch["response"])
+            rewards = [args.sl_coef * sl + args.wd_coef * wd for
+                       sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
+
+            # ref rewards
+            ref_rewards = compute_rewards(batch["ref_response"])
+            ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for
+                           sl, wd in zip(ref_rewards['sl_reward'],
+                                         ref_rewards['wd_reward'])]
+            batch["ref_rewards"] = ref_rewards
+            batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
+
+            # execute a PPO step
+            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+            ppo_trainer.log_stats(
+                stats,
+                batch,
+                rewards,
+                columns_to_log=["query", "response", "ref_response",
+                                "ref_rewards", "advantage"],
             )
+            wandb.log(rollout_kwargs)
+
+            # evaluate on validation set after every n steps
+            if step % args.eval_interval == 0:
+                eval_score = evaluate_model(
+                    model=policy_model,
+                    dataset=dataset["validation"],
+                    tokenizer=tokenizer,
+                    num_samples=args.num_eval_samples,
+                )
+                wandb.log(eval_score)
+                print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
+                print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
+                _sent_len_reward = np.mean(eval_score['avg_sent_len'])
+                _word_difficulty_reward = np.mean(eval_score['avg_word_difficulty'])
+                _total_reward = args.sl_coef * _sent_len_reward + args.wd_coef * _word_difficulty_reward
+                print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
+                print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
+                print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
+                wandb.log({
+                    "Eval/Step": step,
+                    "Eval/ARI": np.mean(eval_score['ari']),
+                    "Eval/BLEU": np.mean(eval_score['sacrebleu']),
+                    "Eval/avg. sentence Length": _sent_len_reward,
+                    "Eval/avg. word difficulty": _word_difficulty_reward,
+                    "Eval/total rewards": _total_reward
+                })
+                # save top-3 checkpoints and the last one
+                save_checkpoint(
+                    model=policy_model,
+                    step=step,
+                    eval_score=eval_score,
+                    save_folder=args.save_folder,
+                )
