@@ -188,9 +188,9 @@ def compute_rewards(responses: List[str],
     word_difficulty_rewards = []
     mt = MosesTokenizer(lang='en')
     for response in responses:
-        if response.strip() in ['<eos>', '</s>']:  # EOS of gemma and t5
+        if (response.strip() in ['<eos>', '</s>']) or (len(response.strip()) <= 10):  # EOS of gemma and t5
             sent_len_rewards.append(50.0)
-            word_difficulty_rewards.append(1.0)
+            word_difficulty_rewards.append(2.0)
         else:
             sent_len_list = []
             word_difficulty_list = []

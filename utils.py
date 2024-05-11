@@ -76,8 +76,13 @@ def compute_token_difficulty(
     definition of the word difficulty score as the negative logarithm.
     We adopt this approach because it is natural for a reinforcement learning model to
     maximize the gain from making a word more accessible. For example, the difficulty
-    score for 'good' is 11.9, while for 'gnarly' it is 4.9. Our goal is to make 'gnarly'
-    less frequent by increasing its difficulty score.
+    score for 'big' is 11.8, while for 'colossal' it is 7.3. Our goal is to make words
+    like 'colossal' less frequent by increasing its difficulty score.
+
+    Note,
+        - We have to lowercase any token for its frequency.
+        - The least frequent top_100_token is 'binion' (725 times in English wikipedia)
+            or ~200/billion token.
 
     References:
         https://aclanthology.org/2021.ranlp-1.133/
@@ -96,7 +101,7 @@ def compute_token_difficulty(
     if token in top_100k_tokens:
         wiki_freq = token_freq[token]
     else:
-        df = pd.DataFrame({"tokens": [token], "token_len": [len(token)]})
+        df = pd.DataFrame({"tokens": [token.lower()], "token_len": [len(token)]})
         wiki_freq = np.exp(wd_model.predict(df)[0])
     freq_per_billion = wiki_freq / total_tokens * 1e9
     return np.log(freq_per_billion)
