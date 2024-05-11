@@ -255,6 +255,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
     parser.add_argument("--wa_coef", type=float, default=1.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
+    parser.add_argument("--max_new_token", type=int, default=300, help="Max new tokens in rollouts.")
     parser.add_argument("--skip_special_tokens", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to skip special tokens when decoding rollouts")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
@@ -264,8 +265,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "skip_special_tokens",
-                   "eval_interval", "num_eval_samples", "save_folder", "sft_ckpt_path"]
+    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_token",
+                   "skip_special_tokens", "eval_interval", "num_eval_samples",
+                   "save_folder", "sft_ckpt_path"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
