@@ -20,24 +20,16 @@ from transformers import AutoTokenizer
 from nltk.tokenize import sent_tokenize
 
 # fixme
+PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 TOP_P = 0.9
 SEED = 42
-# PROJECT_NAME = "Scholarly_Abstract_Simplification"
-PROJECT_NAME = "Scholarly_Abstract_Simplification_Duo_Rewards_New_Template"
 CLM_MODEL_NAME = "google/gemma-2b"
 SEQ2SEQ_MODEL_NAME = "google/flan-t5-xl"
-# TASK_PREFIX = (
-#     "Simplify the scholarly abstract so it is immediately understandable "
-#     "to a layperson: "
-# )
-# RESPONSE_TEMP = "\nA concise lay summary:"
-TASK_PREFIX = (
-    "TL;DR: "
-)
+TASK_PREFIX = "TL;DR: "
 RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
-WORD_DIFFICULTY_MODEL = "word_freq/model.pkl"
+WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 
 T5_MAX_INPUT_LEN = 512
 T5_MAX_OUTPUT_LEN = 256
@@ -65,19 +57,20 @@ def compute_sent_len(sent: str) -> int:
     return len([t for t in tokens if word_pattern.match(t)])
 
 
-def compute_token_difficulty(
+def compute_token_accessibility(
     token, top_100k_tokens, wd_model, total_tokens, token_freq
 ):
     """
-    Fetch a token's difficulty score if it is among the most frequent 100,000 tokens;
-    otherwise, estimate the difficulty using a machine learning model. The difficulty
-    score is defined as the logarithm of the token's frequency per billion, based on its
-    occurrences in the English Wikipedia corpus. This modifies the original authors'
-    definition of the word difficulty score as the negative logarithm.
+    Fetch a token's accessibility score if it is among the most frequent 100,000 types
+    in English Wikipedia; otherwise, estimate the accessibility using a ridge
+    regression model. The accessibility score is defined as the logarithm of the token's
+    frequency per billion, based on its occurrences in the English Wikipedia corpus.
+    This modifies the original authors' definition of the word inaccessibility score as
+    the negative logarithm.
     We adopt this approach because it is natural for a reinforcement learning model to
-    maximize the gain from making a word more accessible. For example, the difficulty
+    maximize the gain from making a word more accessible. For example, the accessibility
     score for 'big' is 11.8, while for 'colossal' it is 7.3. Our goal is to make words
-    like 'colossal' less frequent by increasing its difficulty score.
+    like 'colossal' less frequent by increasing its accessibility score.
 
     Note,
         - We have to lowercase any token for its frequency.
@@ -88,15 +81,16 @@ def compute_token_difficulty(
         https://aclanthology.org/2021.ranlp-1.133/
 
     Args:
-        token: The token for which the difficulty score is to be determined.
+        token: The **lowercased** token for which the accessibility score is to be
+            determined.
         top_100k_tokens: A set containing the most frequent 100,000 tokens.
-        wd_model: Trained machine learning model to estimate token difficulty.
+        wd_model: Trained machine learning model to estimate token accessibility.
         total_tokens: Total number of tokens in the corpus for normalization.
         token_freq: A dictionary containing the occurrence of each token in the English
             Wikipedia corpus.
 
     Returns:
-        The estimated difficulty score of the token.
+        The estimated accessibility score of the token.
     """
     if token in top_100k_tokens:
         wiki_freq = token_freq[token]

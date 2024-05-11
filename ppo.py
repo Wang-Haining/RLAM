@@ -1,3 +1,8 @@
+"""
+This module implements the Reinforcement Learning from Uncombined Accessibility Measures
+(RLUAM).
+"""
+
 import argparse
 import heapq
 import os
@@ -15,31 +20,31 @@ from transformers import AutoTokenizer
 from trl import (AutoModelForCausalLMWithValueHead,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer)
 
-from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED, TOP_P,
-                   WORD_DIFFICULTY_MODEL, WORD_FREQ_CSV, ByteNGramExtractor,
-                   build_dataset, collator, compute_ari, compute_sent_len,
-                   compute_token_difficulty, create_dataframe, custom_analyzer,
-                   define_transformers, read_token_frequencies, reshape_data)
+from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
+                   collator, compute_ari, compute_sent_len,
+                   compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-# get word frequencies and the model to predict relative rare word's difficulty
+# get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
 top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
-wd_model = pickle.load(open(WORD_DIFFICULTY_MODEL, 'rb'))
+# load for making predictions word accessibility
+wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
 
 
-def save_checkpoint(model, step, eval_score, save_folder):
+def save_checkpoint(model, epoch, step, eval_score, save_folder):
     """
-    Save model checkpoint if it's among the three with the lowest ARI scores and always
-    save the last model.
+    Save model checkpoint if it's among the three with the lowest ARI scores.
 
     Args:
         model: The policy model to be saved.
+        epoch: Current epoch number in the training loop.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
@@ -47,9 +52,7 @@ def save_checkpoint(model, step, eval_score, save_folder):
     save_dir = os.path.join("ckpts", save_folder)
     os.makedirs(save_dir, exist_ok=True)
 
-    # define the path for storing metadata about saved models and the last model
     metadata_path = os.path.join(save_dir, "metadata.npz")
-    last_model_path = os.path.join(save_dir, f"last_model_step_{step}.pt")
 
     # load or initialize metadata
     if os.path.exists(metadata_path):
@@ -59,35 +62,33 @@ def save_checkpoint(model, step, eval_score, save_folder):
         saved_models = []
 
     current_ari_mean = np.mean(eval_score["ari"])
-    model.save_pretrained(last_model_path)  # save the most recent model
-    print(f"Saved the most recent model at step {step}.")
-
     save_path = os.path.join(
         save_dir,
-        f"model_step_{step}_ari_{current_ari_mean:.2f}.pt",
+        f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt",
     )
 
-    if (len(saved_models) < 3 or current_ari_mean < max(saved_models,
-                                                        key=lambda x: x["ari_mean"])["ari_mean"]):
-        print(f"Saving model at step {step} with ARI mean {current_ari_mean:.2f}.")
+    # check if the current model should be saved
+    if len(saved_models) < 3 or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]:
         model.save_pretrained(save_path)
-        saved_models.append({"path": save_path, "ari_mean": current_ari_mean})
+        saved_models.append({"path": save_path, "ari_mean": current_ari_mean} |
+                            eval_score |
+                            {'epoch': epoch, 'step': step})
+        # keep only the three lowest ARI scores
+        saved_models = sorted(saved_models, key=lambda x: x["ari_mean"])[:3]
 
-        # remove the worst model if more than three are saved
-        if len(saved_models) > 3:
-            worst_model = max(saved_models, key=lambda x: x["ari_mean"])
-            saved_models.remove(worst_model)
-            if os.path.isfile(worst_model["path"]):
-                os.remove(worst_model["path"])
-                print(f"Removed model with ARI mean {worst_model['ari_mean']:.2f}.")
-            else:
-                print(f"Error: Attempted to remove a directory or non-existent file: "
-                      f"{worst_model['path']}")
+        # check for extra models to remove
+        while len(saved_models) > 3:
+            to_remove = saved_models.pop(-1)
+            try:
+                os.remove(to_remove['path'])
+                print(f"Removed model with ARI mean {to_remove['ari_mean']:.2f}.")
+            except OSError as e:
+                print(f"Error removing file {to_remove['path']}: {e}")
 
     else:
-        print(f"Model at step {step} with ARI mean {current_ari_mean:.2f} "
-              f"not saved as a top model.")
+        print(f"Model at epoch {epoch} step {step} with ARI mean {current_ari_mean:.2f} not saved as a top model.")
 
+    # save updated metadata
     np.savez(metadata_path, saved_models=saved_models)
 
 
@@ -103,7 +104,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples=64):
         num_samples: Number of samples to evaluate on. Defaults to 32.
 
     Returns:
-        A dictionary containing the average ARI score, its standard deviation, and the
+        A dictionary containing ARI scores, its standard deviation, and the
         average SacreBLEU score of the model on the dataset.
     """
     model.eval()
@@ -117,7 +118,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples=64):
     ari_scores = []
     bleu_scores = []
     avg_sent_len = []
-    avg_word_diff = []
+    avg_word_access = []
     with torch.no_grad():
         for batch in tqdm(sampled_dataset):
             query_tensors = batch["input_ids"].to(device)
@@ -141,21 +142,21 @@ def evaluate_model(model, dataset, tokenizer, num_samples=64):
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
                 rewards = compute_rewards([response])
                 avg_sent_len.append(rewards['sl_reward'][0])
-                avg_word_diff.append(rewards['wd_reward'][0])
+                avg_word_access.append(rewards['wa_reward'][0])
 
     return {
         "ari": ari_scores,
         "sacrebleu": bleu_scores,
         "avg_sent_len": avg_sent_len,
-        "avg_word_difficulty": avg_word_diff
+        "avg_word_accessibility": avg_word_access
     }
 
 
 def compute_rewards(responses: List[str],
                     compute_sent_len=compute_sent_len,
-                    compute_token_difficulty=compute_token_difficulty,
+                    compute_token_accessibility=compute_token_accessibility,
                     top_100k_tokens=top_100k_tokens,
-                    wd_model=wd_model,
+                    wa_model=wa_model,
                     total_tokens=total_tokens,
                     token_freq=token_freq) -> (List[torch.Tensor], List[torch.Tensor]):
     """
@@ -163,56 +164,57 @@ def compute_rewards(responses: List[str],
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
         want average to be shorter, we need to negate sentence length in order to
         maximize the rewards.)
-    - Avg word difficulty: Defined as the negative logarithm of the token frequency
+    - Avg word accessibility: Defined as the negative logarithm of the token frequency
       per billion, based on its occurrences in the English Wikipedia corpus.
 
     During pilot running, models cheat by spitting out only one eos token. So we
-    penalize both word difficulty and sentence length with reasonably large negative
+    penalize both word accessibility and sentence length with reasonably large negative
     feedback in such situations.
 
     Parameters:
         responses: A list of response strings to process.
         compute_sent_len: A function to compute the length of a sentence.
-        compute_token_difficulty: A function to compute the difficulty of a token.
+        compute_token_accessibility: A function to compute the accessibility of a token.
         top_100k_tokens: Set of the top 100k tokens based on frequency.
-        wd_model: The model used to estimate word difficulty.
+        wa_model: The model used to estimate word accessibility.
         total_tokens: Total number of tokens in the reference corpus.
         token_freq: Dictionary of token frequencies.
 
     Returns:
         A tuple containing two lists of tensors:
         - Sentence length rewards.
-        - Word difficulty rewards.
+        - Word accessibility rewards.
     """
     sent_len_rewards = []
-    word_difficulty_rewards = []
+    word_accessibility_rewards = []
     mt = MosesTokenizer(lang='en')
     for response in responses:
-        if (response.strip() in ['<eos>', '</s>']) or (len(response.strip()) <= 10):  # EOS of gemma and t5
+        # EOS tokens of gemma and t5
+        if (response.strip() in ['<eos>', '</s>']) or (len(response.strip()) <= 10):
             sent_len_rewards.append(50.0)
-            word_difficulty_rewards.append(2.0)
+            word_accessibility_rewards.append(2.0)
         else:
             sent_len_list = []
-            word_difficulty_list = []
+            word_accessibility_list = []
             sents = sent_tokenize(response)
             for sent in sents:
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):
-                    word_difficulty_list.append(
-                        compute_token_difficulty(token,
+                    word_accessibility_list.append(
+                        compute_token_accessibility(token,
                                                  top_100k_tokens,
-                                                 wd_model,
+                                                 wa_model,
                                                  total_tokens,
                                                  token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
-            word_difficulty_rewards.append(np.mean(word_difficulty_list))
+            word_accessibility_rewards.append(np.mean(word_accessibility_list))
     # negate sentence length for intuitive reward maximization
     sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
                         r in sent_len_rewards]
-    word_difficulty_rewards = [torch.tensor(r, dtype=torch.float32) for
-                               r in word_difficulty_rewards]
+    word_accessibility_rewards = [torch.tensor(r, dtype=torch.float32) for
+                               r in word_accessibility_rewards]
     return {"sl_reward": sent_len_rewards,
-            "wd_reward": word_difficulty_rewards}
+            "wa_reward": word_accessibility_rewards}
 
 
 if __name__ == "__main__":
@@ -252,18 +254,18 @@ if __name__ == "__main__":
     # misc
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
-    parser.add_argument("--wd_coef", type=float, default=1.0, help="Scaling factor for word difficulty reward (will vary it for an optimal value)")
+    parser.add_argument("--wa_coef", type=float, default=1.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
+    parser.add_argument("--skip_special_tokens", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to skip special tokens when decoding rollouts")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
     parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
-    parser.add_argument("--max_new_tokens", type=int, default=300, help="Max rollout length")
 
     args = parser.parse_args()
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ["sl_coef", "wd_coef", "eval_interval", "num_eval_samples",
-                   "save_folder", "sft_ckpt_path", "max_new_tokens", "num_epochs"]
+    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "skip_special_tokens",
+                   "eval_interval", "num_eval_samples", "save_folder", "sft_ckpt_path"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -309,7 +311,6 @@ if __name__ == "__main__":
         "top_p": 1.0,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
-        # fixed rollout length
         "max_new_tokens": args.max_new_tokens,
     }
 
@@ -325,18 +326,20 @@ if __name__ == "__main__":
                 **rollout_kwargs,
             )
 
-            batch["response"] = tokenizer.batch_decode(response_tensors)
-            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
+            batch["response"] = tokenizer.batch_decode(response_tensors,
+                                        skip_special_tokens=args.skip_special_tokens)
+            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
+                                        skip_special_tokens=args.skip_special_tokens)
             # calculate and balance rewards
             rewards = compute_rewards(batch["response"])
-            rewards = [args.sl_coef * sl + args.wd_coef * wd for
-                       sl, wd in zip(rewards['sl_reward'], rewards['wd_reward'])]
+            rewards = [args.sl_coef * sl + args.wa_coef * wa for
+                       sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
 
             # ref rewards
             ref_rewards = compute_rewards(batch["ref_response"])
-            ref_rewards = [args.sl_coef * sl + args.wd_coef * wd for
-                           sl, wd in zip(ref_rewards['sl_reward'],
-                                         ref_rewards['wd_reward'])]
+            ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
+                           sl, wa in zip(ref_rewards['sl_reward'],
+                                         ref_rewards['wa_reward'])]
             batch["ref_rewards"] = ref_rewards
             batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
 
@@ -360,25 +363,27 @@ if __name__ == "__main__":
                     num_samples=args.num_eval_samples,
                 )
                 wandb.log(eval_score)
-                print(f"Step: {step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
-                print(f"Step: {step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
                 _sent_len_reward = np.mean(eval_score['avg_sent_len'])
-                _word_difficulty_reward = np.mean(eval_score['avg_word_difficulty'])
-                _total_reward = args.sl_coef * _sent_len_reward + args.wd_coef * _word_difficulty_reward
-                print(f"Step: {step}, Eval avg. sentence Length: {_sent_len_reward:.2f}")
-                print(f"Step: {step}, Eval avg. word difficulty: {_word_difficulty_reward:.2f}")
-                print(f"Step: {step}, Eval total rewards: {_total_reward:.2f}")
+                _word_accessibility_reward = np.mean(eval_score['avg_word_accessibility'])
+                _total_reward = args.sl_coef * _sent_len_reward + args.wa_coef * _word_accessibility_reward
+                print(f"Epoch-Step: {epoch}-{step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
+                print(f"Epoch-Step: {epoch}-{step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
+                print(f"Epoch-Step: {epoch}-{step}, Eval avg. neg. sentence Length: {_sent_len_reward:.2f}")
+                print(f"Epoch-Step: {epoch}-{step}, Eval avg. word accessibility: {_word_accessibility_reward:.2f}")
+                print(f"Epoch-Step: {epoch}-{step}, Eval total rewards: {_total_reward:.2f}")
                 wandb.log({
+                    "Eval/Epoch": epoch,
                     "Eval/Step": step,
                     "Eval/ARI": np.mean(eval_score['ari']),
                     "Eval/BLEU": np.mean(eval_score['sacrebleu']),
-                    "Eval/avg. sentence Length": _sent_len_reward,
-                    "Eval/avg. word difficulty": _word_difficulty_reward,
+                    "Eval/avg. neg. sentence Length": _sent_len_reward,
+                    "Eval/avg. word accessibility": _word_accessibility_reward,
                     "Eval/total rewards": _total_reward
                 })
-                # save top-3 checkpoints and the last one
+                # save top-3 checkpoints wrt ARI and their metadata
                 save_checkpoint(
                     model=policy_model,
+                    epoch=epoch,
                     step=step,
                     eval_score=eval_score,
                     save_folder=args.save_folder,
