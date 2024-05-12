@@ -59,13 +59,18 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
         saved_models = list(metadata["saved_models"])
+        print("Loaded saved models:", saved_models)
     else:
         saved_models = []
 
     current_ari_mean = np.mean(eval_score["ari"])
-    save_path = os.path.join(save_dir, f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
+    save_path = os.path.join(save_dir,
+                    f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
+    print("Current ARI Mean:", current_ari_mean)
 
-    if len(saved_models) < num_saved_ckpts or current_ari_mean < max((m['ari_mean'] for m in saved_models), default=float('inf')):
+    if ((len(saved_models) < num_saved_ckpts) or
+            (current_ari_mean < max((m['ari_mean'] for m in saved_models),
+                                    default=float('inf')))):
         model.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
@@ -76,7 +81,9 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         saved_models.sort(key=lambda x: x["ari_mean"])
         saved_models = saved_models[:num_saved_ckpts]
         valid_paths = {model_info['path'] for model_info in saved_models}
-        all_files = [f for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f)) and f != "metadata.npz"]
+        print("Valid paths after update:", valid_paths)
+        all_files = [f for f in os.listdir(save_dir) if
+                     os.path.isfile(os.path.join(save_dir, f)) and f != "metadata.npz"]
 
         for model_file in all_files:
             full_path = os.path.join(save_dir, model_file)
@@ -87,7 +94,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                 except OSError as e:
                     print(f"Error removing file {full_path}: {e}")
     else:
-        print(f"Model at epoch {epoch} step {step} with ARI mean {current_ari_mean:.2f} not saved as a top model.")
+        print(f"Model at epoch {epoch} step {step} with ARI mean"
+              f" {current_ari_mean:.2f} not saved as a top model.")
     np.savez(metadata_path, saved_models=saved_models)
 
 
