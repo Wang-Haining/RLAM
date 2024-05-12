@@ -28,7 +28,9 @@ from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED,
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
-
+if device == "cuda":
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 # get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
@@ -64,30 +66,35 @@ def save_checkpoint(model, epoch, step, eval_score, save_folder):
     current_ari_mean = np.mean(eval_score["ari"])
     save_path = os.path.join(
         save_dir,
-        f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt",
+        f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt"
     )
 
     # check if the current model should be saved
     if len(saved_models) < 3 or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]:
         model.save_pretrained(save_path)
-        saved_models.append({"path": save_path, "ari_mean": current_ari_mean} |
-                            eval_score |
-                            {'epoch': epoch, 'step': step})
-        # keep only the three lowest ARI scores
+        saved_models.append({
+            "path": save_path,
+            "ari_mean": current_ari_mean,
+            "epoch": epoch,
+            "step": step
+        })
+        # keep only the three models with the lowest ARI scores
         saved_models = sorted(saved_models, key=lambda x: x["ari_mean"])[:3]
 
         # check for extra models to remove
-        while len(saved_models) > 3:
-            to_remove = saved_models.pop(-1)
-            try:
-                os.remove(to_remove['path'])
-                print(f"Removed model with ARI mean {to_remove['ari_mean']:.2f}.")
-            except OSError as e:
-                print(f"Error removing file {to_remove['path']}: {e}")
+        files_on_disk = set([model_info['path'] for model_info in saved_models])
+        for model_file in os.listdir(save_dir):
+            full_path = os.path.join(save_dir, model_file)
+            if full_path not in files_on_disk and 'model_epoch' in model_file:
+                try:
+                    os.remove(full_path)
+                    print(f"Removed stale model: {model_file}")
+                except OSError as e:
+                    print(f"Error removing file {full_path}: {e}")
 
     else:
-        print(f"Model at epoch {epoch} step {step} with ARI mean {current_ari_mean:.2f} not saved as a top model.")
-
+        print(f"Model at epoch {epoch} step {step} with ARI mean"
+              f" {current_ari_mean:.2f} not saved as a top model.")
     # save updated metadata
     np.savez(metadata_path, saved_models=saved_models)
 
@@ -219,6 +226,7 @@ def compute_rewards(responses: List[str],
 
 if __name__ == "__main__":
     torch.manual_seed(SEED + 6103)
+    torch.cuda.manual_seed_all(SEED + 6103)
 
     # fmt: off
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
