@@ -81,16 +81,21 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
             "epoch": epoch,
             "step": step
         })
+        print("Saved models before trimming:", saved_models)
         saved_models.sort(key=lambda x: x["ari_mean"])
         saved_models = saved_models[:num_saved_ckpts]
+        print("Saved models after trimming:", saved_models)
+
         valid_paths = {model_info['path'] for model_info in saved_models}
-        print("Valid paths after update:", valid_paths)
+        print("Paths that should remain:", valid_paths)
         all_files = [f for f in os.listdir(save_dir) if
                      os.path.isfile(os.path.join(save_dir, f)) and f != "metadata.npz"]
+        print("All files in directory:", all_files)
 
         for model_file in all_files:
             full_path = os.path.join(save_dir, model_file)
             if full_path not in valid_paths:
+                print(f"Attempting to remove {full_path}")
                 try:
                     os.remove(full_path)
                     print(f"Removed stale model: {model_file}")
