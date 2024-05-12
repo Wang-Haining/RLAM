@@ -76,7 +76,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         saved_models.sort(key=lambda x: x["ari_mean"])
         saved_models = saved_models[:num_saved_ckpts]
         valid_paths = {model_info['path'] for model_info in saved_models}
-        all_files = [f for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f))]
+        all_files = [f for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f)) and f != "metadata.npz"]
 
         for model_file in all_files:
             full_path = os.path.join(save_dir, model_file)
@@ -319,9 +319,7 @@ if __name__ == "__main__":
 
     for epoch in range(args.num_epochs):
         for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-
             query_tensors = batch["input_ids"]
-
             response_tensors, ref_response_tensors = ppo_trainer.generate(
                 query_tensors,
                 return_prompt=False,
