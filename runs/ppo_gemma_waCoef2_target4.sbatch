@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_gemma_word_difficulty_reward_coef2_target4
+#SBATCH --job-name=ppo_gemma_wa_coef2_target4
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m ppo --save_folder ppo_gemma_wd_coef2_target4 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1140 --early_stopping true --wa_coef 2.0 --target 4.0
+python -m ppo --save_folder ppo_gemma_wa_coef2_target4 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1140 --early_stopping true --wa_coef 2.0 --target 4.0
