@@ -70,7 +70,8 @@ def save_checkpoint(model, epoch, step, eval_score, save_folder):
     )
 
     # check if the current model should be saved
-    if len(saved_models) < 3 or current_ari_mean < max(saved_models, key=lambda x: x["ari_mean"])["ari_mean"]:
+    if len(saved_models) < 3 or current_ari_mean < max(saved_models,
+                                            key=lambda x: x["ari_mean"])["ari_mean"]:
         model.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
