@@ -40,22 +40,21 @@ wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
 
 
-def save_checkpoint(model, epoch, step, eval_score, save_folder):
+def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder):
     """
-    Save model checkpoint if it's among the three with the lowest ARI scores.
+    Save model checkpoint if it's among the ones with the lowest ARI scores.
 
     Args:
         model: The policy model to be saved.
         epoch: Current epoch number in the training loop.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
+        num_saved_ckpts: Number of saved best ckpts.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
     save_dir = os.path.join("ckpts", save_folder)
     os.makedirs(save_dir, exist_ok=True)
-
     metadata_path = os.path.join(save_dir, "metadata.npz")
-
     # load or initialize metadata
     if os.path.exists(metadata_path):
         metadata = np.load(metadata_path, allow_pickle=True)
@@ -68,10 +67,8 @@ def save_checkpoint(model, epoch, step, eval_score, save_folder):
         save_dir,
         f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt"
     )
-
     # check if the current model should be saved
-    if len(saved_models) < 3 or current_ari_mean < max(saved_models,
-                                            key=lambda x: x["ari_mean"])["ari_mean"]:
+    if len(saved_models) < num_saved_ckpts or current_ari_mean < max((m['ari_mean'] for m in saved_models), default=float('inf')):
         model.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
@@ -79,24 +76,23 @@ def save_checkpoint(model, epoch, step, eval_score, save_folder):
             "epoch": epoch,
             "step": step
         })
-        # keep only the three models with the lowest ARI scores
-        saved_models = sorted(saved_models, key=lambda x: x["ari_mean"])[:3]
+        # keep only `num_saved_ckpts` models with the lowest ARI scores
+        saved_models.sort(key=lambda x: x["ari_mean"])
+        saved_models = saved_models[:num_saved_ckpts]
 
-        # check for extra models to remove
-        files_on_disk = set([model_info['path'] for model_info in saved_models])
+        # remove inferior models
+        valid_paths = {model_info['path'] for model_info in saved_models}
         for model_file in os.listdir(save_dir):
             full_path = os.path.join(save_dir, model_file)
-            if full_path not in files_on_disk and 'model_epoch' in model_file:
+            if full_path not in valid_paths and 'model_epoch' in model_file:
                 try:
                     os.remove(full_path)
                     print(f"Removed stale model: {model_file}")
                 except OSError as e:
                     print(f"Error removing file {full_path}: {e}")
-
     else:
-        print(f"Model at epoch {epoch} step {step} with ARI mean"
-              f" {current_ari_mean:.2f} not saved as a top model.")
-    # save updated metadata
+        print(f"Model at epoch {epoch} step {step} with "
+              f"ARI mean {current_ari_mean:.2f} not saved as a top model.")
     np.savez(metadata_path, saved_models=saved_models)
 
 
@@ -268,6 +264,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_special_tokens", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to skip special tokens when decoding rollouts")
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
+    parser.add_argument("--num_saved_ckpts", type=int, default=3, help="Num of best ckpts to save")
     parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
 
@@ -276,7 +273,7 @@ if __name__ == "__main__":
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_tokens",
                    "skip_special_tokens", "eval_interval", "num_eval_samples",
-                   "save_folder", "sft_ckpt_path"]
+                   "num_saved_ckpts", "save_folder", "sft_ckpt_path"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -397,5 +394,6 @@ if __name__ == "__main__":
                     epoch=epoch,
                     step=step,
                     eval_score=eval_score,
+                    num_saved_ckpts=args.num_saved_ckpts,
                     save_folder=args.save_folder,
                 )
