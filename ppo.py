@@ -217,11 +217,12 @@ def compute_rewards(responses: List[str],
 
 
 if __name__ == "__main__":
-    set_seed(SEED + 610193)
+    set_seed(SEED)
 
     # fmt: off
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
     # ppo_config relevant
+    parser.add_argument("--seed", type=int, default=SEED, help="Batch size for training")
     parser.add_argument("--steps", type=int, default=2000000, help="Number of training steps. A upper bound of total training steps. See num_epochs for details.")
     parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
     # kl objective
