@@ -317,7 +317,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": -1,
+        "min_length": -1 if 'gemma' in args.sft_ckpt_path else 10,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,

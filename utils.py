@@ -31,9 +31,6 @@ RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 
-T5_MAX_INPUT_LEN = 512
-T5_MAX_OUTPUT_LEN = 256
-
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
     with open(filename, mode="r", encoding="utf-8") as file:
