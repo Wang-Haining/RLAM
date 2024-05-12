@@ -16,7 +16,7 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, set_seed
 from trl import (AutoModelForCausalLMWithValueHead,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer)
 
@@ -222,8 +222,7 @@ def compute_rewards(responses: List[str],
 
 
 if __name__ == "__main__":
-    torch.manual_seed(SEED + 6103)
-    torch.cuda.manual_seed_all(SEED + 6103)
+    set_seed(SEED + 610193)
 
     # fmt: off
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
