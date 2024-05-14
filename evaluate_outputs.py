@@ -8,11 +8,12 @@ import numpy as np
 import torch
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
+from trl import set_seed
 from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
 
 from utils import (CLM_MODEL_NAME, SEED, SEQ2SEQ_MODEL_NAME, TOP_P,
-                   build_dataset, compute_ari, set_seed)
+                   build_dataset, compute_ari)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
