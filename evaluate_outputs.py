@@ -95,8 +95,8 @@ if __name__ == "__main__":
             outputs = model.generate(
                 input_ids,
                 top_p=TOP_P,
-                max_length=678,
-                num_beams=8,
+                max_length=512,
+                num_beams=4,
                 length_penalty=args.length_penalty,
                 do_sample=True,
                 return_dict_in_generate=True,
