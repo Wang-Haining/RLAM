@@ -52,7 +52,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         epoch: Current epoch number in the training loop.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
-        num_saved_ckpts: Number of saved best ckpts.
+        num_saved_ckpts: Number of saved best checkpoints.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
     save_dir = os.path.join("ckpts", save_folder)
@@ -325,7 +325,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": -1 if 'gemma' in args.sft_ckpt_path else 10,
+        "min_length": -1 if 'gemma' in args.sft_ckpt_path else 2,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
@@ -404,5 +404,4 @@ if __name__ == "__main__":
                     step=step,
                     eval_score=eval_score,
                     num_saved_ckpts=args.num_saved_ckpts,
-                    save_folder=args.save_folder,
-                )
+                    save_folder=args.save_folder)
