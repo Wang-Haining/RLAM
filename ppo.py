@@ -18,12 +18,12 @@ from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import AutoTokenizer
-from trl import (AutoModelForCausalLMWithValueHead, set_seed,
-                 AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer)
+from trl import (AutoModelForCausalLMWithValueHead,
+                 AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer,
+                 set_seed)
 
-from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED,
-                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
-                   collator, compute_ari, compute_sent_len,
+from utils import (PROJECT_NAME, SEED, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -188,8 +188,8 @@ def compute_rewards(responses: List[str],
     word_accessibility_rewards = []
     mt = MosesTokenizer(lang='en')
     for response in responses:
-        # EOS tokens of gemma and t5
-        if (response.strip() in ['<eos>', '</s>']) or (len(response.strip()) <= 20):
+        # EOS tokens of gemma and olmo
+        if (response.strip() in ['<eos>', '<|endoftext|>']) or (len(response.strip()) <= 20):
             sent_len_rewards.append(50.0)
             word_accessibility_rewards.append(2.0)
         else:
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
     parser.add_argument("--num_saved_ckpts", type=int, default=3, help="Num of best ckpts to save")
-    parser.add_argument("--save_folder", type=str, default=f"ppo_{CLM_MODEL_NAME}", help="Experiment name for checkpointing, under the directory of ckpts")
+    parser.add_argument("--save_folder", type=str, help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
 
     args = parser.parse_args()
@@ -281,16 +281,10 @@ if __name__ == "__main__":
     dataset = build_dataset(model_name=args.sft_ckpt_path)
 
     # init SFT'ed models
-    if 'gemma' in args.sft_ckpt_path:
-        AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
-    elif 't5' in args.sft_ckpt_path:
-        AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
-    else:
-        raise ValueError(f"Unknown sft'ed ckpt path {args.sft_ckpt_path}")
-    policy_model = AutoModelForLMWithValueHead.from_pretrained(
+    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
-    ref_model = AutoModelForLMWithValueHead.from_pretrained(
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
@@ -309,7 +303,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": -1 if 'gemma' in args.sft_ckpt_path else 2,
+        "min_length": -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
