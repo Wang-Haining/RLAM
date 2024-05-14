@@ -84,8 +84,9 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         })
 
         saved_models.sort(key=lambda x: x["ari_mean"])
-        worst_model = saved_models.pop()
-        shutil.rmtree(worst_model["path"])
+        if len(saved_models) > num_saved_ckpts:
+            worst_model = saved_models.pop()
+            shutil.rmtree(worst_model["path"])
 
     np.savez(metadata_path, saved_models=saved_models)
 
