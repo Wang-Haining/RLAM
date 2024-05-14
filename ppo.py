@@ -7,6 +7,7 @@ import argparse
 import heapq
 import os
 import pickle
+import shutil
 from typing import List
 
 import numpy as np
@@ -84,7 +85,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
 
         saved_models.sort(key=lambda x: x["ari_mean"])
         worst_model = saved_models.pop()
-        os.remove(worst_model["path"])
+        shutil.rmtree(worst_model["path"])
 
     np.savez(metadata_path, saved_models=saved_models)
 
