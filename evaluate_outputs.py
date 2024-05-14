@@ -60,7 +60,8 @@ def calculate_metrics(
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
     # bertscore
     bertscore_result = metric_bertscore.compute(predictions=generated_texts,
-                                                references=target_texts, lang="en")
+                                                references=target_texts,
+                                                lang="en", device="cpu")
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
 
     return metrics_dict
