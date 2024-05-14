@@ -71,6 +71,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                     f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
+    # Save new model if it qualifies
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
         model.save_pretrained(save_path)
@@ -82,6 +83,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         })
         print("Saved models before trimming:", saved_models)
 
+        # Sort models by ARI mean and keep only the best `num_saved_ckpts`
         saved_models.sort(key=lambda x: x["ari_mean"])
         if len(saved_models) > num_saved_ckpts:
             # Remove the worst model (the last one in the sorted list)
@@ -111,8 +113,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                     print(f"Error removing file {full_path}: {e}")
     else:
         print(
-            f"Model at epoch {epoch} step {step} with ARI mean {current_ari_mean:.2f} "
-            f"not saved as a top model.")
+            f"Model at epoch {epoch} step {step} with ARI mean "
+            f"{current_ari_mean:.2f} not saved as a top model.")
 
     np.savez(metadata_path, saved_models=saved_models)
 
