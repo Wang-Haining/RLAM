@@ -8,9 +8,10 @@ import numpy as np
 import torch
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
 
-from utils import SEED, TOP_P, build_dataset, compute_ari, MODEL_NAME, RESPONSE_TEMP
+from utils import (SEED, TOP_P, build_dataset, compute_ari,
+                   CLM_MODEL_NAME, SEQ2SEQ_MODEL_NAME)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,26 +62,17 @@ def calculate_metrics(
 
 
 if __name__ == "__main__":
-    torch.manual_seed(SEED)
+    set_seed(SEED)
 
-    parser = argparse.ArgumentParser(
-        description="Evaluating sft and policy model outputs."
-    )
-    parser.add_argument(
-        "--ckpt_path",
-        type=str,
-        default=None,
-        help="path to sft or policy model checkpoint",
-    )
-    parser.add_argument("--output_file", type=str,
-                        help="dir to save evaluation results")
+    parser = argparse.ArgumentParser(description="Evaluating sft and policy model outputs.")
+    parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
+    parser.add_argument("--length_penalty", type=float, default=1.0, help="Exponential penalty to the length")
     args = parser.parse_args()
-
-    dataset = build_dataset()
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model_name = CLM_MODEL_NAME if 'gemma' in args.ckpt_path else SEQ2SEQ_MODEL_NAME
+    dataset = build_dataset(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(args.ckpt_path,
                                                  torch_dtype=torch.bfloat16)
-
     model.to(device)
     model.eval()
 
@@ -96,27 +88,19 @@ if __name__ == "__main__":
             outputs = model.generate(
                 input_ids,
                 top_p=TOP_P,
-                max_length=1024,
-                length_penalty=0.9,
+                max_length=512,
+                length_penalty=args.length_penalty,
                 do_sample=True,
                 return_dict_in_generate=True,
                 num_return_sequences=1,
             )
-
-            # Decode only the newly generated tokens
-            # Adjust the slicing as needed, here we skip the input tokens
+            # decode only the newly generated tokens
             gen_tokens = outputs.sequences[:, input_length:].squeeze()
             output = tokenizer.decode(
                 gen_tokens,
                 clean_up_tokenization_spaces=True,
                 skip_special_tokens=True
             )
-            # outputs = model.generate(
-            #     input_ids, top_p=TOP_P, max_length=1024, do_sample=True
-            # )
-            # output = tokenizer.decode(
-            #     outputs[0], clean_up_tokenization_spaces=True, skip_special_tokens=True
-            # )
             result = calculate_metrics(
                 generated_text=output,
                 target_text=example["target"],
