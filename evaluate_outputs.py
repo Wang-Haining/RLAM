@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     save_dir = "evaluation_results"
     os.makedirs(save_dir, exist_ok=True)
-    full_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2])
+    full_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + ".csv")
     with open(full_file_path, mode="w", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=results[0].keys())
         writer.writeheader()
