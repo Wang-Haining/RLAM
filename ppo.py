@@ -71,9 +71,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                     f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
-    if ((len(saved_models) < num_saved_ckpts) or
-            (current_ari_mean < max((m['ari_mean'] for m in saved_models),
-                                    default=float('inf')))):
+    if (len(saved_models) < num_saved_ckpts) or (
+            current_ari_mean < max(m['ari_mean'] for m in saved_models)):
         model.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
@@ -82,8 +81,17 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
             "step": step
         })
         print("Saved models before trimming:", saved_models)
+
         saved_models.sort(key=lambda x: x["ari_mean"])
-        saved_models = saved_models[:num_saved_ckpts]
+        if len(saved_models) > num_saved_ckpts:
+            # Remove the worst model (the last one in the sorted list)
+            worst_model = saved_models.pop()
+            try:
+                os.remove(worst_model["path"])
+                print(f"Removed stale model: {worst_model['path']}")
+            except OSError as e:
+                print(f"Error removing file {worst_model['path']}: {e}")
+
         print("Saved models after trimming:", saved_models)
 
         valid_paths = {model_info['path'] for model_info in saved_models}
@@ -102,8 +110,10 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                 except OSError as e:
                     print(f"Error removing file {full_path}: {e}")
     else:
-        print(f"Model at epoch {epoch} step {step} with ARI mean"
-              f" {current_ari_mean:.2f} not saved as a top model.")
+        print(
+            f"Model at epoch {epoch} step {step} with ARI mean {current_ari_mean:.2f} "
+            f"not saved as a top model.")
+
     np.savez(metadata_path, saved_models=saved_models)
 
 
