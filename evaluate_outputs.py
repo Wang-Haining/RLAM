@@ -18,6 +18,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
 metric_rouge = evaluate.load("rouge")
+metric_bertscore = evaluate.load("bertscore")
 
 
 def calculate_metrics(
@@ -57,6 +58,10 @@ def calculate_metrics(
     # rougeL
     _rouge = metric_rouge.compute(predictions=generated_texts, references=target_texts)
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
+    # bertscore
+    bertscore_result = metric_bertscore.compute(predictions=generated_texts,
+                                                references=target_texts, lang="en")
+    metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
 
     return metrics_dict
 
@@ -117,7 +122,7 @@ if __name__ == "__main__":
 
     save_dir = "evaluation_results"
     os.makedirs(save_dir, exist_ok=True)
-    full_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + ".csv")
+    full_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + f"_length_penalty{args.length_penalty}" ".csv")
     with open(full_file_path, mode="w", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=results[0].keys())
         writer.writeheader()
