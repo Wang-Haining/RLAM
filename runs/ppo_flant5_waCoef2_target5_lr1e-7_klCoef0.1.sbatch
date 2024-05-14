@@ -21,4 +21,4 @@ python -m ppo --save_folder ppo_flant5_wa_coef2_target5_lr1e-7_klCoef0.1 \
 --wa_coef 2.0 \
 --target 5.0 \
 --learning_rate 1e-7 \
---init_kl_coef
+--init_kl_coef 0.1
