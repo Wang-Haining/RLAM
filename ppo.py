@@ -71,7 +71,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                     f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
-    # Save new model if it qualifies
+    # save the first three and remove the worst when a good one comes alone
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
         model.save_pretrained(save_path)
@@ -81,45 +81,15 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
             "epoch": epoch,
             "step": step
         })
-        print("Saved models before trimming:", saved_models)
 
-        # Sort models by ARI mean and keep only the best `num_saved_ckpts`
         saved_models.sort(key=lambda x: x["ari_mean"])
-        if len(saved_models) > num_saved_ckpts:
-            # Remove the worst model (the last one in the sorted list)
-            worst_model = saved_models.pop()
-            try:
-                os.remove(worst_model["path"])
-                print(f"Removed stale model: {worst_model['path']}")
-            except OSError as e:
-                print(f"Error removing file {worst_model['path']}: {e}")
-
-        print("Saved models after trimming:", saved_models)
-
-        valid_paths = {model_info['path'] for model_info in saved_models}
-        print("Paths that should remain:", valid_paths)
-        all_files = [f for f in os.listdir(save_dir) if
-                     os.path.isfile(os.path.join(save_dir, f)) and f != "metadata.npz"]
-        print("All files in directory:", all_files)
-
-        for model_file in all_files:
-            full_path = os.path.join(save_dir, model_file)
-            if full_path not in valid_paths:
-                print(f"Attempting to remove {full_path}")
-                try:
-                    os.remove(full_path)
-                    print(f"Removed stale model: {model_file}")
-                except OSError as e:
-                    print(f"Error removing file {full_path}: {e}")
-    else:
-        print(
-            f"Model at epoch {epoch} step {step} with ARI mean "
-            f"{current_ari_mean:.2f} not saved as a top model.")
+        worst_model = saved_models.pop()
+        os.remove(worst_model["path"])
 
     np.savez(metadata_path, saved_models=saved_models)
 
 
-def evaluate_model(model, dataset, tokenizer, num_samples=64):
+def evaluate_model(model, dataset, tokenizer, num_samples=32):
     """
     This function evaluates the model's performance (ARI and SacreBLEU) on a subset of
     the given dataset.
