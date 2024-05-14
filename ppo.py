@@ -27,7 +27,7 @@ from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED,
                    compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
+# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
