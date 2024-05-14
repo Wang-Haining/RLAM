@@ -21,4 +21,4 @@ python -m ppo --save_folder ppo_gemma_wa_coef2_target5_lr5e-6_klCoef0.19 \
 --wa_coef 2.0 \
 --target 5.0 \
 --learning_rate 5e-6 \
-----init_kl_coef 0.19
+--init_kl_coef 0.19
