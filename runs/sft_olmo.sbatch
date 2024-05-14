@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=sft_gemma_on_sass
+#SBATCH --job-name=sft_olmo_on_sass
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model gemma
+python -m sft --model olmo
