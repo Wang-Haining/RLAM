@@ -17,8 +17,8 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer, set_seed
-from trl import (AutoModelForCausalLMWithValueHead,
+from transformers import AutoTokenizer
+from trl import (AutoModelForCausalLMWithValueHead, set_seed,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer)
 
 from utils import (CLM_MODEL_NAME, PROJECT_NAME, SEED,
