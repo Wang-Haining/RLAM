@@ -8,10 +8,11 @@ import numpy as np
 import torch
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
+from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
+                          AutoTokenizer)
 
-from utils import (SEED, TOP_P, build_dataset, compute_ari,
-                   CLM_MODEL_NAME, SEQ2SEQ_MODEL_NAME)
+from utils import (CLM_MODEL_NAME, SEED, SEQ2SEQ_MODEL_NAME, TOP_P,
+                   build_dataset, compute_ari, set_seed)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -77,8 +78,8 @@ if __name__ == "__main__":
     model_name = CLM_MODEL_NAME if 'gemma' in args.ckpt_path else SEQ2SEQ_MODEL_NAME
     dataset = build_dataset(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(args.ckpt_path,
-                                                 torch_dtype=torch.bfloat16)
+    AutoModel = AutoModelForCausalLM if 'gemma' in args.ckpt_path else AutoModelForSeq2SeqLM
+    model = AutoModel.from_pretrained(args.ckpt_path,torch_dtype=torch.bfloat16)
     model.to(device)
     model.eval()
 
