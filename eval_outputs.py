@@ -45,11 +45,11 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
     model.eval()
     with torch.no_grad():
         for start_idx in tqdm(range(0, len(dataset), 4)):
-            batch = {key: dataset[key][start_idx:start_idx + 4] for key in dataset.keys()}
+            batch = {key: dataset[key][start_idx:start_idx + 4] for key in dataset.features.keys()}
             print(f"Batch structure: {batch}")  # Debug print
 
             try:
-                input_ids = torch.stack(batch["input_ids"]).to(device)
+                input_ids = torch.stack([x for x in batch["input_ids"]]).to(device)
             except Exception as e:
                 print(f"Error in stacking input_ids: {e}")
                 print(f"Batch content: {batch}")
