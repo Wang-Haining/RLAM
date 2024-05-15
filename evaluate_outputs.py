@@ -24,34 +24,16 @@ metric_bertscore = evaluate.load("bertscore")
 
 
 def calculate_metrics(generated_text: str, target_text: str, source_text: str) -> Dict[str, float]:
-    """
-    Compute common evaluation metrics for a given generated text against reference
-    texts, including 'bleu', 'sari', 'rougeL', and 'bertscore'.
-
-    Args:
-        generated_text: The generated text to be evaluated.
-        target_text: The reference text.
-        source_text: The original source text.
-
-    Returns:
-        A dictionary where the keys are the metric names and the values are the
-        corresponding computed metric scores.
-    """
     metrics_dict = {}
     generated_texts = [generated_text.strip()]
     source_texts = [source_text.strip()]
     target_texts = [[target_text.strip()]]
 
-    # ari
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
-    # sacrebleu
     metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts, target_texts).score})
-    # sari
     metrics_dict.update(metric_sari.compute(sources=source_texts, predictions=generated_texts, references=target_texts))
-    # rougeL
     _rouge = metric_rouge.compute(predictions=generated_texts, references=target_texts)
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
-    # bertscore
     bertscore_result = metric_bertscore.compute(predictions=generated_texts, references=target_texts, lang="en", device="cpu")
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
 
@@ -64,6 +46,8 @@ def evaluate_model(model, dataset: List[Dict], tokenizer, generation_kwargs) -> 
     with torch.no_grad():
         for start_idx in tqdm(range(0, len(dataset), 4)):
             batch = dataset[start_idx:start_idx + 4]
+            print(f"Batch structure: {batch}")  # Debug print
+
             input_ids = torch.stack([example["input_ids"] for example in batch]).to(device)
 
             input_length = input_ids.size(1)
@@ -109,7 +93,7 @@ if __name__ == "__main__":
 
     # heuristic generation config
     heuristic_generation_kwargs = {
-        "top_p": .9,
+        "top_p": 0.9,
         "max_length": 768,
         "num_beams": 4,
         "length_penalty": args.length_penalty,
@@ -150,6 +134,7 @@ if __name__ == "__main__":
         if metric not in ["source", "target", "output"]
     }
     print("Heuristic average scores:", heuristic_avg_scores)
+
     basic_avg_scores = {
         metric: np.mean([x[metric] for x in basic_results])
         for metric in basic_results[0].keys()
