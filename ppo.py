@@ -24,7 +24,8 @@ from trl import (AutoModelForCausalLMWithValueHead,
 
 from utils import (PROJECT_NAME, SEED, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, collator, compute_ari, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies)
+                   compute_token_accessibility, read_token_frequencies,
+                   FLAN_T5_TASK_PREFIX, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
@@ -278,19 +279,28 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
-    dataset = build_dataset(model_name=args.sft_ckpt_path)
+    task_prefix = FLAN_T5_TASK_PREFIX if 't5' in args.sft_ckpt_path else TASK_PREFIX
+    dataset = build_dataset(model_name=args.sft_ckpt_path,
+                            task_prefix=task_prefix)
 
     # init SFT'ed models
-    policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+    if 'gemma' in args.sft_ckpt_path:
+        AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
+    elif 't5' in args.sft_ckpt_path:
+        AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
+    else:
+        raise ValueError(f"Unknown sft'ed ckpt path {args.sft_ckpt_path}")
+    policy_model = AutoModelForLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+    ref_model = AutoModelForLMWithValueHead.from_pretrained(
         args.sft_ckpt_path, torch_dtype=torch.bfloat16
     )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
     # init optimizer
-    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.AdamW(policy_model.parameters(),
+                                  lr=args.learning_rate)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -303,7 +313,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": -1,
+        "min_length": 2 if 't5' in args.sft_ckpt_path else -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
