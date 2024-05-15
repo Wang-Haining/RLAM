@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=evaluate_sft_flant5_on_sas
+#SBATCH --job-name=evaluate_sft_gemma_on_sas
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m evaluate_outputs --output_file sft.csv --ckpt_path ckpts/sft_flan-t5-xl/checkpoint-3940
+python -m eval_outputs --output_file sft.csv --ckpt_path ckpts/sft_gemma-2b/checkpoint-1140
