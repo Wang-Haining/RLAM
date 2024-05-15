@@ -1,5 +1,5 @@
 """
-This module performs supervised fine-tuning on the T5 v1.1-XL model (2.85B) using the
+This module performs supervised fine-tuning on the Flan-T5 XL (2.85B) using the
 Scientific Abstract-Significance Statement dataset (SASS).
 """
 
@@ -16,15 +16,16 @@ from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
                           Trainer, TrainingArguments)
 
-from utils import (T5, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
+from utils import (FLANT5, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
+                   FLAN_T5_TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-run_name = f'sft_{T5.split("/")[-1]}'
-tokenizer = AutoTokenizer.from_pretrained(T5, padding_side="right")
+run_name = f'sft_{FLANT5.split("/")[-1]}'
+tokenizer = AutoTokenizer.from_pretrained(FLANT5, padding_side="right")
 
 
 def preprocess_function(examples, tokenizer):
-    inputs = [TASK_PREFIX + text + RESPONSE_TEMP for text in examples["source"]]
+    inputs = [FLAN_T5_TASK_PREFIX + text + RESPONSE_TEMP for text in examples["source"]]
     targets = [text for text in examples["target"]]
 
     model_inputs = tokenizer(
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     val_dataset = dataset["validation"].map(
         lambda batch: preprocess_function(batch, tokenizer), batched=True)
 
-    model = AutoModelForSeq2SeqLM.from_pretrained(T5, torch_dtype=torch.bfloat16)
+    model = AutoModelForSeq2SeqLM.from_pretrained(FLANT5, torch_dtype=torch.bfloat16)
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
     training_args = TrainingArguments(
