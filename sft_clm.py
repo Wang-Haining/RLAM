@@ -52,10 +52,15 @@ if __name__ == "__main__":
     set_seed(SEED + 21)
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma 2B "
                                                  "OLMo 1B.")
-    parser.add_argument("--model", type=str, help="gemma, olmo, or t5")
+    parser.add_argument("--model", type=str, help="Either gemma or olmo")
     args = parser.parse_args()
 
-    model_name = GEMMA if 'gemma' in args.model else OLMO
+    if args.model == "gemma":
+        model_name = GEMMA
+    elif args.model == "olmo":
+        model_name = OLMO
+    else:
+        raise ValueError(f"Invalid model name: {args.model}")
     run_name = f'sft_{model_name.split("/")[-1]}'
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
