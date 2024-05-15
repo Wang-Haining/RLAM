@@ -91,6 +91,8 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown sft'ed ckpt path {args.ckpt_path}")
 
     dataset = build_dataset(model_name, task_prefix)
+    print(f"Dataset length: {len(dataset['test'])}")  # Debug print to check dataset length
+
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     model = AutoModelForGeneration.from_pretrained(args.ckpt_path, torch_dtype=torch.bfloat16)
@@ -117,6 +119,7 @@ if __name__ == "__main__":
 
     # evaluate with heuristic generation config
     heuristic_results = evaluate_model(model, dataset["test"], tokenizer, heuristic_generation_kwargs)
+    print(f"Heuristic results length: {len(heuristic_results)}")  # Debug print
 
     save_dir = "evaluation_results"
     os.makedirs(save_dir, exist_ok=True)
@@ -132,6 +135,7 @@ if __name__ == "__main__":
 
     # evaluate with basic generation config
     basic_results = evaluate_model(model, dataset["test"], tokenizer, basic_generation_kwargs)
+    print(f"Basic results length: {len(basic_results)}")  # Debug print
 
     if basic_results:
         basic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_basic.csv")
@@ -142,16 +146,18 @@ if __name__ == "__main__":
     else:
         print("No basic results to save.")
 
-    heuristic_avg_scores = {
-        metric: np.mean([x[metric] for x in heuristic_results])
-        for metric in heuristic_results[0].keys()
-        if metric not in ["source", "target", "output"]
-    }
-    print("Heuristic average scores:", heuristic_avg_scores)
+    if heuristic_results:
+        heuristic_avg_scores = {
+            metric: np.mean([x[metric] for x in heuristic_results])
+            for metric in heuristic_results[0].keys()
+            if metric not in ["source", "target", "output"]
+        }
+        print("Heuristic average scores:", heuristic_avg_scores)
 
-    basic_avg_scores = {
-        metric: np.mean([x[metric] for x in basic_results])
-        for metric in basic_results[0].keys()
-        if metric not in ["source", "target", "output"]
-    }
-    print("Basic average scores:", basic_avg_scores)
+    if basic_results:
+        basic_avg_scores = {
+            metric: np.mean([x[metric] for x in basic_results])
+            for metric in basic_results[0].keys()
+            if metric not in ["source", "target", "output"]
+        }
+        print("Basic average scores:", basic_avg_scores)
