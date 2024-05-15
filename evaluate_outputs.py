@@ -117,21 +117,30 @@ if __name__ == "__main__":
 
     # evaluate with heuristic generation config
     heuristic_results = evaluate_model(model, dataset["test"], tokenizer, heuristic_generation_kwargs)
+
     save_dir = "evaluation_results"
     os.makedirs(save_dir, exist_ok=True)
-    heuristic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_heuristic.csv")
-    with open(heuristic_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=heuristic_results[0].keys())
-        writer.writeheader()
-        writer.writerows(heuristic_results)
+
+    if heuristic_results:
+        heuristic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_heuristic.csv")
+        with open(heuristic_file_path, mode="w", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=heuristic_results[0].keys())
+            writer.writeheader()
+            writer.writerows(heuristic_results)
+    else:
+        print("No heuristic results to save.")
 
     # evaluate with basic generation config
     basic_results = evaluate_model(model, dataset["test"], tokenizer, basic_generation_kwargs)
-    basic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_basic.csv")
-    with open(basic_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=basic_results[0].keys())
-        writer.writeheader()
-        writer.writerows(basic_results)
+
+    if basic_results:
+        basic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_basic.csv")
+        with open(basic_file_path, mode="w", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=basic_results[0].keys())
+            writer.writeheader()
+            writer.writerows(basic_results)
+    else:
+        print("No basic results to save.")
 
     heuristic_avg_scores = {
         metric: np.mean([x[metric] for x in heuristic_results])
