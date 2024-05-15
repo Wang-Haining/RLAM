@@ -8,12 +8,12 @@ import numpy as np
 import torch
 from sacrebleu.metrics import BLEU
 from tqdm import tqdm
-from trl import set_seed
 from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
+from trl import set_seed
 
-from utils import (FLANT5, GEMMA, OLMO, SEED, TOP_P,
-                   build_dataset, compute_ari, FLAN_T5_TASK_PREFIX, TASK_PREFIX)
+from utils import (FLAN_T5_TASK_PREFIX, FLANT5, GEMMA, OLMO, SEED, TASK_PREFIX,
+                   build_dataset, compute_ari)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,19 +69,54 @@ def calculate_metrics(
     return metrics_dict
 
 
+def evaluate_model(model, dataset, tokenizer, generation_kwargs):
+    results = []
+    model.eval()
+    with torch.no_grad():
+        for start_idx in tqdm(range(0, len(dataset), 4)):
+            batch = dataset[start_idx:start_idx + 4]
+            input_ids = torch.stack([example["input_ids"] for example in batch]).to(device)
+
+            input_length = input_ids.size(1)
+            outputs = model.generate(
+                input_ids,
+                **generation_kwargs
+            )
+            gen_tokens = outputs[:, input_length:]
+            outputs = [tokenizer.decode(tokens,
+                                        clean_up_tokenization_spaces=True,
+                                        skip_special_tokens=True)
+                       for tokens in gen_tokens]
+
+            for example, output in zip(batch, outputs):
+                result = calculate_metrics(
+                    generated_text=output,
+                    target_text=example["target"],
+                    source_text=example["query"],
+                )
+                result.update(
+                    {
+                        "source": example["query"],
+                        "target": example["target"],
+                        "output": output.strip(),
+                    }
+                )
+                results.append(result)
+    return results
+
+
 if __name__ == "__main__":
     set_seed(SEED)
 
     parser = argparse.ArgumentParser(description="Evaluating sft and policy model outputs.")
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
-    parser.add_argument("--length_penalty", type=float, default=1.0, help="Exponential penalty to the length")
     args = parser.parse_args()
 
     if 'gemma' in args.ckpt_path:
         AutoModelForGeneration = AutoModelForCausalLM
         model_name = GEMMA
         task_prefix = TASK_PREFIX
-    elif 'olmo' in args.sft_ckpt_path.lower():
+    elif 'olmo' in args.ckpt_path.lower():
         AutoModelForGeneration = AutoModelForCausalLM
         model_name = OLMO
         task_prefix = TASK_PREFIX
@@ -91,66 +126,69 @@ if __name__ == "__main__":
         task_prefix = FLAN_T5_TASK_PREFIX
     else:
         raise ValueError(f"Unknown sft'ed ckpt path {args.ckpt_path}")
+
     dataset = build_dataset(model_name, task_prefix)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
                                                    torch_dtype=torch.bfloat16)
     model.to(device)
-    model.eval()
 
-    results = []
-    with torch.no_grad():
-        for example in tqdm(dataset["test"]):
-            input_ids = example["input_ids"].to(device)
-            if input_ids.dim() == 1:
-                input_ids = input_ids.unsqueeze(0)
-            # calculate the length of the input part
-            input_length = input_ids.size(1)
+    # heuristic generation config
+    heuristic_generation_kwargs = {
+        "top_p": .9,
+        "max_length": 1024,
+        "num_beams": 4,
+        "length_penalty": .9,
+        "do_sample": True,
+        "return_dict_in_generate": True,
+        "num_return_sequences": 1,
+    }
 
-            outputs = model.generate(
-                input_ids,
-                top_p=TOP_P,
-                max_length=768,
-                num_beams=4,
-                length_penalty=args.length_penalty,
-                do_sample=True,
-                return_dict_in_generate=True,
-                num_return_sequences=1,
-            )
-            # decode only the newly generated tokens
-            gen_tokens = outputs.sequences[:, input_length:].squeeze()
-            output = tokenizer.decode(
-                gen_tokens,
-                clean_up_tokenization_spaces=True,
-                skip_special_tokens=True
-            )
-            result = calculate_metrics(
-                generated_text=output,
-                target_text=example["target"],
-                source_text=example["query"],
-            )
-            result.update(
-                {
-                    "source": example["query"],
-                    "target": example["target"],
-                    "output": output.strip(),
-                }
-            )
-            results.append(result)
+    # basic generation config
+    plain_generation_kwargs = {
+        "max_length": 1024,
+        "do_sample": True,
+        "return_dict_in_generate": True,
+        "num_return_sequences": 1,
+    }
 
-    save_dir = "evaluation_results"
+    # evaluate with heuristic generation config
+    heuristic_results = evaluate_model(model, dataset["test"],
+                                       tokenizer,
+                                       heuristic_generation_kwargs)
+    save_dir = "eval_results"
     os.makedirs(save_dir, exist_ok=True)
-    full_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + f"_length_penalty{args.length_penalty}" ".csv")
-    with open(full_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=results[0].keys())
+    heuristic_file_path = os.path.join(save_dir,
+                                       args.ckpt_path.split("/")[-2] + "_heuristic.csv")
+    with open(heuristic_file_path, mode="w", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=heuristic_results[0].keys())
         writer.writeheader()
-        writer.writerows(results)
+        writer.writerows(heuristic_results)
 
-    # print average scores
-    avg_scores = {
-        metric: np.mean([x[metric] for x in results])
-        for metric in results[0].keys()
+    # evaluate with plain generation config
+    plain_results = evaluate_model(model, dataset["test"],
+                                   tokenizer,
+                                   plain_generation_kwargs)
+    plain_file_path = os.path.join(save_dir,
+                                   args.ckpt_path.split("/")[-2] + "_basic.csv")
+    with open(plain_file_path, mode="w", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=plain_results[0].keys())
+        writer.writeheader()
+        writer.writerows(plain_results)
+
+    # print average scores for heuristic generation config
+    heuristic_avg_scores = {
+        metric: np.mean([x[metric] for x in heuristic_results])
+        for metric in heuristic_results[0].keys()
         if metric not in ["source", "target", "output"]
     }
-    print(avg_scores)
+    print("Heuristic average scores:", heuristic_avg_scores)
+
+    # print average scores for plain generation config
+    plain_avg_scores = {
+        metric: np.mean([x[metric] for x in plain_results])
+        for metric in plain_results[0].keys()
+        if metric not in ["source", "target", "output"]
+    }
+    print("Basic average scores:", plain_avg_scores)
