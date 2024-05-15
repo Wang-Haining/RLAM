@@ -279,14 +279,14 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
-    task_prefix = FLAN_T5_TASK_PREFIX if 't5' in args.sft_ckpt_path else TASK_PREFIX
+    task_prefix = FLAN_T5_TASK_PREFIX if 'flant5' in args.sft_ckpt_path else TASK_PREFIX
     dataset = build_dataset(model_name=args.sft_ckpt_path,
                             task_prefix=task_prefix)
 
     # init SFT'ed models
     if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path.lower():
         AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
-    elif 't5' in args.sft_ckpt_path:
+    elif 'flant5' in args.sft_ckpt_path:
         AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
     else:
         raise ValueError(f"Unknown sft'ed ckpt path {args.sft_ckpt_path}")
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": 2 if 't5' in args.sft_ckpt_path else -1,
+        "min_length": 2 if 'flant5' in args.sft_ckpt_path else -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,

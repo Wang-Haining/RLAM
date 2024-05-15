@@ -84,7 +84,7 @@ if __name__ == "__main__":
         AutoModelForGeneration = AutoModelForCausalLM
         model_name = OLMO
         task_prefix = TASK_PREFIX
-    elif 't5' in args.ckpt_path:
+    elif 'flant5' in args.ckpt_path:
         AutoModelForGeneration = AutoModelForSeq2SeqLM
         model_name = FLANT5
         task_prefix = FLAN_T5_TASK_PREFIX
