@@ -284,7 +284,7 @@ if __name__ == "__main__":
                             task_prefix=task_prefix)
 
     # init SFT'ed models
-    if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path:
+    if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path.lower():
         AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
     elif 't5' in args.sft_ckpt_path:
         AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
