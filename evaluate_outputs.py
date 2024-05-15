@@ -12,8 +12,8 @@ from trl import set_seed
 from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
 
-from utils import (CLM_MODEL_NAME, SEED, SEQ2SEQ_MODEL_NAME, TOP_P,
-                   build_dataset, compute_ari)
+from utils import (FLANT5, GEMMA, OLMO, SEED, TOP_P,
+                   build_dataset, compute_ari, FLAN_T5_TASK_PREFIX, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,11 +76,26 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
     parser.add_argument("--length_penalty", type=float, default=1.0, help="Exponential penalty to the length")
     args = parser.parse_args()
-    model_name = CLM_MODEL_NAME if 'gemma' in args.ckpt_path else SEQ2SEQ_MODEL_NAME
-    dataset = build_dataset(model_name)
+
+    if 'gemma' in args.ckpt_path:
+        AutoModelForGeneration = AutoModelForCausalLM
+        model_name = GEMMA
+        task_prefix = TASK_PREFIX
+    elif 'olmo' in args.sft_ckpt_path.lower():
+        AutoModelForGeneration = AutoModelForCausalLM
+        model_name = OLMO
+        task_prefix = TASK_PREFIX
+    elif 't5' in args.ckpt_path:
+        AutoModelForGeneration = AutoModelForSeq2SeqLM
+        model_name = FLANT5
+        task_prefix = FLAN_T5_TASK_PREFIX
+    else:
+        raise ValueError(f"Unknown sft'ed ckpt path {args.ckpt_path}")
+    dataset = build_dataset(model_name, task_prefix)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    AutoModel = AutoModelForCausalLM if 'gemma' in args.ckpt_path else AutoModelForSeq2SeqLM
-    model = AutoModel.from_pretrained(args.ckpt_path,torch_dtype=torch.bfloat16)
+
+    model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
+                                                   torch_dtype=torch.bfloat16)
     model.to(device)
     model.eval()
 
