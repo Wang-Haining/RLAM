@@ -97,7 +97,7 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=1024,
         args=training_args,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
     trainer.train()
