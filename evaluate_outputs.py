@@ -64,6 +64,7 @@ def evaluate_model(model, dataset: List[Dict], tokenizer, generation_kwargs) -> 
                 result = calculate_metrics(generated_text=output, target_text=example["target"], source_text=example["query"])
                 result.update({"source": example["query"], "target": example["target"], "output": output.strip()})
                 results.append(result)
+                print(f"Result: {result}")  # Debug print
     return results
 
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     heuristic_results = evaluate_model(model, dataset["test"], tokenizer, heuristic_generation_kwargs)
     print(f"Heuristic results length: {len(heuristic_results)}")  # Debug print
 
-    save_dir = "evaluation_results"
+    save_dir = "eval_results"
     os.makedirs(save_dir, exist_ok=True)
 
     if heuristic_results:
