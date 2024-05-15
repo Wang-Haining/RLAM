@@ -48,7 +48,12 @@ def evaluate_model(model, dataset: List[Dict], tokenizer, generation_kwargs) -> 
             batch = dataset[start_idx:start_idx + 4]
             print(f"Batch structure: {batch}")  # Debug print
 
-            input_ids = torch.stack([example["input_ids"] for example in batch]).to(device)
+            try:
+                input_ids = torch.stack([example["input_ids"] for example in batch]).to(device)
+            except Exception as e:
+                print(f"Error in stacking input_ids: {e}")
+                print(f"Batch content: {batch}")
+                continue
 
             input_length = input_ids.size(1)
             outputs = model.generate(input_ids, **generation_kwargs)
