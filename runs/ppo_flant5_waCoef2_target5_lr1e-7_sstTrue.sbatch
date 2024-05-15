@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo --save_folder ppo_flant5_wa_coef2_target5_lr1e-7_sstTrue \
---sft_ckpt_path ckpts/sft_flan-t5-xl/checkpoint-3940 \
+--sft_ckpt_path ckpts/sft_flan-t5-xl/checkpoint-1580 \
 --early_stopping true \
 --wa_coef 2.0 \
 --target 5.0 \
