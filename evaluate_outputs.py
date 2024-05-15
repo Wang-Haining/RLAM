@@ -1,7 +1,7 @@
 import argparse
 import csv
 import os
-from typing import Dict
+from typing import Dict, List
 
 import evaluate
 import numpy as np
@@ -23,12 +23,10 @@ metric_rouge = evaluate.load("rouge")
 metric_bertscore = evaluate.load("bertscore")
 
 
-def calculate_metrics(
-    generated_text: str, target_text: str, source_text: str
-) -> Dict[str, float]:
+def calculate_metrics(generated_text: str, target_text: str, source_text: str) -> Dict[str, float]:
     """
     Compute common evaluation metrics for a given generated text against reference
-    texts,  including 'bleu', 'sari', and 'rougeL'.
+    texts, including 'bleu', 'sari', 'rougeL', and 'bertscore'.
 
     Args:
         generated_text: The generated text to be evaluated.
@@ -39,7 +37,6 @@ def calculate_metrics(
         A dictionary where the keys are the metric names and the values are the
         corresponding computed metric scores.
     """
-
     metrics_dict = {}
     generated_texts = [generated_text.strip()]
     source_texts = [source_text.strip()]
@@ -48,28 +45,20 @@ def calculate_metrics(
     # ari
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
     # sacrebleu
-    metrics_dict.update(
-        {"bleu": metric_bleu.corpus_score(generated_texts, target_texts).score}
-    )
+    metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts, target_texts).score})
     # sari
-    metrics_dict.update(
-        metric_sari.compute(
-            sources=source_texts, predictions=generated_texts, references=target_texts
-        )
-    )
+    metrics_dict.update(metric_sari.compute(sources=source_texts, predictions=generated_texts, references=target_texts))
     # rougeL
     _rouge = metric_rouge.compute(predictions=generated_texts, references=target_texts)
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
     # bertscore
-    bertscore_result = metric_bertscore.compute(predictions=generated_texts,
-                                                references=target_texts,
-                                                lang="en", device="cpu")
+    bertscore_result = metric_bertscore.compute(predictions=generated_texts, references=target_texts, lang="en", device="cpu")
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
 
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer, generation_kwargs):
+def evaluate_model(model, dataset: List[Dict], tokenizer, generation_kwargs) -> List[Dict]:
     results = []
     model.eval()
     with torch.no_grad():
@@ -78,29 +67,13 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs):
             input_ids = torch.stack([example["input_ids"] for example in batch]).to(device)
 
             input_length = input_ids.size(1)
-            outputs = model.generate(
-                input_ids,
-                **generation_kwargs
-            )
+            outputs = model.generate(input_ids, **generation_kwargs)
             gen_tokens = outputs[:, input_length:]
-            outputs = [tokenizer.decode(tokens,
-                                        clean_up_tokenization_spaces=True,
-                                        skip_special_tokens=True)
-                       for tokens in gen_tokens]
+            outputs = [tokenizer.decode(tokens, clean_up_tokenization_spaces=True, skip_special_tokens=True) for tokens in gen_tokens]
 
             for example, output in zip(batch, outputs):
-                result = calculate_metrics(
-                    generated_text=output,
-                    target_text=example["target"],
-                    source_text=example["query"],
-                )
-                result.update(
-                    {
-                        "source": example["query"],
-                        "target": example["target"],
-                        "output": output.strip(),
-                    }
-                )
+                result = calculate_metrics(generated_text=output, target_text=example["target"], source_text=example["query"])
+                result.update({"source": example["query"], "target": example["target"], "output": output.strip()})
                 results.append(result)
     return results
 
@@ -110,6 +83,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Evaluating sft and policy model outputs.")
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
+    parser.add_argument("--length_penalty", type=float, default=1.0, help="Exponential penalty to the length")
     args = parser.parse_args()
 
     if 'gemma' in args.ckpt_path:
@@ -130,65 +104,55 @@ if __name__ == "__main__":
     dataset = build_dataset(model_name, task_prefix)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
-                                                   torch_dtype=torch.bfloat16)
+    model = AutoModelForGeneration.from_pretrained(args.ckpt_path, torch_dtype=torch.bfloat16)
     model.to(device)
 
     # heuristic generation config
     heuristic_generation_kwargs = {
         "top_p": .9,
-        "max_length": 1024,
+        "max_length": 768,
         "num_beams": 4,
-        "length_penalty": .9,
+        "length_penalty": args.length_penalty,
         "do_sample": True,
         "return_dict_in_generate": True,
         "num_return_sequences": 1,
     }
 
     # basic generation config
-    plain_generation_kwargs = {
-        "max_length": 1024,
+    basic_generation_kwargs = {
+        "max_length": 768,
         "do_sample": True,
         "return_dict_in_generate": True,
         "num_return_sequences": 1,
     }
 
     # evaluate with heuristic generation config
-    heuristic_results = evaluate_model(model, dataset["test"],
-                                       tokenizer,
-                                       heuristic_generation_kwargs)
-    save_dir = "eval_results"
+    heuristic_results = evaluate_model(model, dataset["test"], tokenizer, heuristic_generation_kwargs)
+    save_dir = "evaluation_results"
     os.makedirs(save_dir, exist_ok=True)
-    heuristic_file_path = os.path.join(save_dir,
-                                       args.ckpt_path.split("/")[-2] + "_heuristic.csv")
+    heuristic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_heuristic.csv")
     with open(heuristic_file_path, mode="w", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=heuristic_results[0].keys())
         writer.writeheader()
         writer.writerows(heuristic_results)
 
-    # evaluate with plain generation config
-    plain_results = evaluate_model(model, dataset["test"],
-                                   tokenizer,
-                                   plain_generation_kwargs)
-    plain_file_path = os.path.join(save_dir,
-                                   args.ckpt_path.split("/")[-2] + "_basic.csv")
-    with open(plain_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=plain_results[0].keys())
+    # evaluate with basic generation config
+    basic_results = evaluate_model(model, dataset["test"], tokenizer, basic_generation_kwargs)
+    basic_file_path = os.path.join(save_dir, args.ckpt_path.split("/")[-2] + "_basic.csv")
+    with open(basic_file_path, mode="w", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=basic_results[0].keys())
         writer.writeheader()
-        writer.writerows(plain_results)
+        writer.writerows(basic_results)
 
-    # print average scores for heuristic generation config
     heuristic_avg_scores = {
         metric: np.mean([x[metric] for x in heuristic_results])
         for metric in heuristic_results[0].keys()
         if metric not in ["source", "target", "output"]
     }
     print("Heuristic average scores:", heuristic_avg_scores)
-
-    # print average scores for plain generation config
-    plain_avg_scores = {
-        metric: np.mean([x[metric] for x in plain_results])
-        for metric in plain_results[0].keys()
+    basic_avg_scores = {
+        metric: np.mean([x[metric] for x in basic_results])
+        for metric in basic_results[0].keys()
         if metric not in ["source", "target", "output"]
     }
-    print("Basic average scores:", plain_avg_scores)
+    print("Basic average scores:", basic_avg_scores)

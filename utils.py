@@ -22,7 +22,6 @@ from nltk.tokenize import sent_tokenize
 # fixme
 PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
-TOP_P = 0.9
 SEED = 42
 GEMMA = "google/gemma-2b"
 OLMO = "allenai/OLMo-1B-hf"
