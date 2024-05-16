@@ -165,18 +165,18 @@ if __name__ == "__main__":
 
     # print out results
     avg_scores = {
-        metric: np.mean([x[metric] for x in eval_results])
+        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
         for metric in eval_results[0].keys()
         if metric not in ["gen_text"]
     }
     print("Average scores:", avg_scores)
     std_scores = {
-        metric: np.std([x[metric] for x in eval_results])
+        f"std_{metric}": np.std([x[metric] for x in eval_results])
         for metric in eval_results[0].keys()
         if metric not in ["gen_text"]
     }
     # save the overview in jsonl format
     overview_path = os.path.join(save_dir, "overview.jsonl")
     with open(overview_path, mode='a', encoding='utf-8') as f:
-        json.dump(avg_scores | std_scores | {"ckpt_path": args.ckpt_path}, f)
+        json.dump({"ckpt_path": args.ckpt_path} | avg_scores | std_scores, f)
         f.write('\n')
