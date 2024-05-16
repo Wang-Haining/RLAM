@@ -69,7 +69,7 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
     results = []
     model.eval()
     with (torch.no_grad()):
-        for sample in tqdm(dataset):
+        for i, sample in tqdm(enumerate(dataset)):
             input_ids = sample['input_ids'].unsqueeze(0).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 **generation_kwargs)
@@ -80,7 +80,7 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
             result = calculate_metrics(gen_text,
                                        sample['target'],
                                        sample['source'])
-            results.append(result | dataset['source'] | dataset['target'])
+            results.append(result | {'gen_text': gen_text})
     return results
 
 
