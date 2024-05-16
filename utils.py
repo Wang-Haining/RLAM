@@ -324,29 +324,20 @@ def build_dataset(
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     ds = load_from_disk(DATASET_PATH)
-    # fixme
-    ds = ds.rename_columns({"source": "query"})
-
+    for split in ["train", "validation", "test"]:
+        ds[split] = ds[split].add_column("query", len(ds[split])*[''])
     def tokenize(sample):
-        # prepend the task-specific prefix
-        input_text = task_prefix + sample["query"] + response_template
+        # prepend the task-specific prefix and trailing template
+        sample["query"] = task_prefix + sample["source"] + response_template
         input_ids = tokenizer.encode(
-            input_text,
+            sample["query"],
             truncation=True,
-            max_length=1024,
+            max_length=512,
         )
         sample["input_ids"] = torch.tensor(input_ids)
-        sample["query"] = tokenizer.decode(
-            sample["input_ids"],
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True,
-        )
-
         return sample
-
     ds = ds.map(tokenize, batched=False)
     ds.set_format(type="torch")
-
     return ds
 
 
