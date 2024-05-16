@@ -73,7 +73,7 @@ def calculate_metrics(generated_text: str,
     source_texts = [source_text.strip()]
     target_texts = [[target_text.strip()]]
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
-    metrics_dict.update({"fk": compute_token_accessibility(generated_texts[0])})
+    metrics_dict.update({"fk": compute_flesch_kincaid(generated_texts[0])})
     metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
                                                           target_texts).score})
     metrics_dict.update(metric_sari.compute(sources=source_texts,
@@ -112,15 +112,6 @@ def calculate_metrics(generated_text: str,
     # VOA num/proportion
 
     return metrics_dict
-
-
-# def log_odds_ratio(p):
-#     if p == 0:
-#         return float('-inf')
-#     elif p == 1:
-#         return float('inf')
-#     else:
-#         return np.log(p / (1 - p))
 
 
 def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
