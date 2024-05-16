@@ -80,7 +80,7 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
             result = calculate_metrics(gen_text,
                                        sample['target'],
                                        sample['source'])
-            results.append(result|dataset)
+            results.append(result | dataset['source'] | dataset['target'])
     return results
 
 
