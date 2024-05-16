@@ -4,8 +4,10 @@ import re
 
 import numpy as np
 import pandas as pd
+import syllables
 import torch
 from datasets import load_dataset, load_from_disk, load_metric
+from nltk.tokenize import sent_tokenize
 from rouge_score import rouge_scorer
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
@@ -17,7 +19,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
-from nltk.tokenize import sent_tokenize
 
 # fixme
 PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
@@ -25,13 +26,13 @@ DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 42
 GEMMA = "google/gemma-2b"
 OLMO = "allenai/OLMo-1B-hf"
-# T5 = "google/t5-v1_1-xl"
 FLANT5 = "google/flan-t5-xl"
 FLAN_T5_TASK_PREFIX = "Please rewrite the following abstract into a lay summary suitable for middle school students, focusing on the main findings and their implications in simple language: "
 TASK_PREFIX = "TL;DR: "
 RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
+VOA1500 = 'word_freq/voa1500.json'
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
@@ -243,13 +244,50 @@ def split_data(data, val_frac=0.1):
     return train_data, val_data
 
 
-
-
 # `is_punctuation` is adopted from
 # github.com/cdimascio/py-readability-metrics/blob/master/readability/text/analyzer.py
 def is_punctuation(token):
     match = re.match('^[.,\/#!$%\'\^&\*;:{}=\-_`~()]$', token)
     return match is not None
+
+
+def compute_flesch_kincaid(text: str):
+    """
+    Compute the Flesch-Kincaid Grade Level for a given text.
+
+    The Flesch-Kincaid Grade Level formula is: 0.39 * (total words / total sentences)
+    + 11.8 * (total syllables / total words) - 15.59
+
+    Args:
+        text: The input text for which the Flesch-Kincaid Grade Level is computed.
+    Returns:
+        The Flesch-Kincaid Grade Level score for the input text.
+    """
+    # check if the last sentence is complete
+    if not text.endswith((".", "?", "!")):
+        # approximate the readability
+        text += '.'
+    mt = MosesTokenizer(lang='en')
+    sentences = sent_tokenize(text)
+    words = mt.tokenize(text)
+    # remove punctuation marks
+    words = [w for w in words if not is_punctuation(w)]
+    syllables_count = sum([syllables.estimate(word) for word in words])
+    sentences_count = len(sentences)
+    words_count = len(words)
+
+    # avoid division by zero
+    if sentences_count == 0 or words_count == 0:
+        raise RuntimeError(f'Zero sentences/words count found in {text}')
+
+    # apply Flesch Kincaid formula
+    fk_score = (
+            0.39 * (words_count / sentences_count)
+            + 11.8 * (syllables_count / words_count)
+            - 15.59
+    )
+
+    return fk_score
 
 
 def compute_ari(text: str):
@@ -260,10 +298,10 @@ def compute_ari(text: str):
     ARI score.
 
     Args:
-    text: A string of text to compute ARI.
+        text: A string of text to compute ARI.
 
     Returns:
-        A list of tensors containing the processed rewards.
+        The ARI score for the input text.
     """
     # check if the last sentence is complete
     if not text.endswith((".", "?", "!")):
@@ -281,7 +319,7 @@ def compute_ari(text: str):
 
     # avoid division by zero
     if sentences_count == 0 or words_count == 0:
-        return 0
+        raise RuntimeError(f'Zero sentences/words count found in {text}')
 
     # apply the ARI formula
     ari_score = (
@@ -290,18 +328,7 @@ def compute_ari(text: str):
             - 21.43
     )
 
-    # clip for stability (assuming a reasonable ARI range)
-    ari_score = max(min(ari_score, 35.0), 2.0)
-
     return ari_score
-#
-#
-# def is_jargon(word):
-#     # A lower frequency threshold means the word is less common and might be jargon
-#     # fixme
-#     threshold = 1e-6  # an arbitrary threshold
-#     frequency = word_frequency(word, 'en')
-#     return frequency < threshold
 
 
 def build_dataset(
