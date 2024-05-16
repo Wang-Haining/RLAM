@@ -171,6 +171,9 @@ def compute_rewards(responses: List[str],
     penalize both word accessibility and sentence length with reasonably large negative
     feedback in such situations.
 
+    Note, we intentionally preclude the calculation of EOS tokens as their inclusion
+    will lead to underestimated word accessibility and inflated sentence length.
+
     Parameters:
         responses: A list of response strings to process.
         compute_sent_len: A function to compute the length of a sentence.
