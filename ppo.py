@@ -25,7 +25,7 @@ from trl import (AutoModelForCausalLMWithValueHead,
 from utils import (PROJECT_NAME, SEED, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies,
-                   FLAN_T5_TASK_PREFIX, TASK_PREFIX)
+                   FLAN_T5_TASK_PREFIX, TASK_PREFIX, EOS_TOKENS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
@@ -190,14 +190,18 @@ def compute_rewards(responses: List[str],
     mt = MosesTokenizer(lang='en')
     for response in responses:
         # EOS tokens of gemma and olmo
-        if (response.strip() in ['<eos>', '<|endoftext|>']) or (len(response.strip()) <= 20):
-            sent_len_rewards.append(50.0)
+        if (response.strip() in EOS_TOKENS) or (len(response.strip()) <= 20):
+            sent_len_rewards.append(40.0)
             word_accessibility_rewards.append(2.0)
         else:
             sent_len_list = []
             word_accessibility_list = []
             sents = sent_tokenize(response)
             for sent in sents:
+                # prevent noise from artificial eos tokens
+                for eos_token in EOS_TOKENS:
+                    if sent.strip().endswith(eos_token):
+                        sent = sent.replace(eos_token, "").strip()
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):
                     word_accessibility_list.append(
@@ -227,7 +231,6 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=2000000, help="Number of training steps. A upper bound of total training steps. See num_epochs for details.")
     parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
     # kl objective
-    # todo: adap_kl_ctrl
     parser.add_argument("--adap_kl_ctrl", type=lambda x: (str(x).lower() == 'true'), default=True, help="Use adaptive KL control, otherwise linear")
     parser.add_argument("--init_kl_coef", type=float, default=0.2, help="Initial KL penalty coefficient (used for adaptive and linear control). See formula (2) in https://arxiv.org/pdf/1909.08593")
     parser.add_argument("--kl_penalty", type=str, choices=['kl', 'abs', 'mse', 'full'], default="kl", help="KL penalty options")
@@ -257,10 +260,9 @@ if __name__ == "__main__":
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
     parser.add_argument("--wa_coef", type=float, default=1.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
     parser.add_argument("--max_new_tokens", type=int, default=300, help="Max new tokens in rollouts.")
-    parser.add_argument("--skip_special_tokens", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to skip special tokens when decoding rollouts")
-    parser.add_argument("--eval_interval", type=int, default=10, help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=32, help="Num of samples for evaluation")
-    parser.add_argument("--num_saved_ckpts", type=int, default=3, help="Num of best ckpts to save")
+    parser.add_argument("--eval_interval", type=int, default=20, help="Interval between evaluations")
+    parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
+    parser.add_argument("--num_saved_ckpts", type=int, default=5, help="Num of best ckpts to save")
     parser.add_argument("--save_folder", type=str, help="Experiment name for checkpointing, under the directory of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
 
@@ -268,8 +270,8 @@ if __name__ == "__main__":
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_tokens",
-                   "skip_special_tokens", "eval_interval", "num_eval_samples",
-                   "num_saved_ckpts", "save_folder", "sft_ckpt_path"]
+                   "eval_interval", "num_eval_samples", "num_saved_ckpts",
+                   "save_folder", "sft_ckpt_path"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -313,7 +315,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": 2 if 'flant5' in args.sft_ckpt_path else -1,
+        "min_length": 5 if 'flant5' in args.sft_ckpt_path else -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
@@ -331,10 +333,8 @@ if __name__ == "__main__":
                 **rollout_kwargs,
             )
 
-            batch["response"] = tokenizer.batch_decode(response_tensors,
-                                        skip_special_tokens=args.skip_special_tokens)
-            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors,
-                                        skip_special_tokens=args.skip_special_tokens)
+            batch["response"] = tokenizer.batch_decode(response_tensors)
+            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             rewards = compute_rewards(batch["response"])
             rewards = [args.sl_coef * sl + args.wa_coef * wa for
