@@ -154,7 +154,7 @@ if __name__ == "__main__":
         else:
             model_name = OLMO
 
-    dataset = build_dataset(args.ckpt_path, task_prefix)
+    dataset = build_dataset(model_name, task_prefix)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
                                                    torch_dtype=torch.bfloat16)
