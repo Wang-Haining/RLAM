@@ -1,3 +1,9 @@
+"""
+This module implements evaluation functions for sft and policy models. By default, we
+evaluate with two generation settings.
+"""
+
+
 import argparse
 import csv
 import os
@@ -109,7 +115,7 @@ if __name__ == "__main__":
     model.to(device)
 
     # evaluate with heuristic generation config
-    heuristic_results = evaluate_model(model, dataset["test"],
+    heuristic_results = evaluate_model(model, dataset["test"][:4],
                                        tokenizer, heuristic_generation_kwargs)
 
     heuristic_file_path = os.path.join(save_dir,
@@ -120,7 +126,7 @@ if __name__ == "__main__":
         writer.writerows(heuristic_results)
 
     # evaluate with basic generation config
-    basic_results = evaluate_model(model, dataset["test"],
+    basic_results = evaluate_model(model, dataset["test"][:4],
                                    tokenizer, basic_generation_kwargs)
     basic_file_path = os.path.join(save_dir,
                                    args.ckpt_path.split("/")[-2] + "_basic.csv")
