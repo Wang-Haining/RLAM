@@ -25,7 +25,7 @@ from trl import set_seed
 from utils import (FLAN_T5_TASK_PREFIX, SEED, TASK_PREFIX, VOA1500,
                    WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
                    compute_ari, compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies, compute_flesch_kincaid)
+                   read_token_frequencies, compute_flesch_kincaid, OLMO, GEMMA, FLANT5)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -145,14 +145,17 @@ if __name__ == "__main__":
     if 'flant5' in args.ckpt_path:
         AutoModelForGeneration = AutoModelForCausalLM
         task_prefix = FLAN_T5_TASK_PREFIX
+        model_name = FLANT5
     else:
         AutoModelForGeneration = AutoModelForCausalLM
         task_prefix = TASK_PREFIX
+        if "gemma" in args.ckpt_path:
+            model_name = GEMMA
+        else:
+            model_name = OLMO
 
     dataset = build_dataset(args.ckpt_path, task_prefix)
-
-    tokenizer = AutoTokenizer.from_pretrained(args.ckpt_path)
-
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
                                                    torch_dtype=torch.bfloat16)
     model.to(device)
