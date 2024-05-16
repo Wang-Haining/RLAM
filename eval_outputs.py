@@ -10,7 +10,6 @@ import heapq
 import json
 import os
 import pickle
-import json
 from typing import Dict, List
 
 import evaluate
@@ -24,10 +23,11 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
 from trl import set_seed
 
-from utils import (FLAN_T5_TASK_PREFIX, SEED, TASK_PREFIX, VOA1500,
-                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
-                   compute_ari, compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies, compute_flesch_kincaid, OLMO, GEMMA, FLANT5)
+from utils import (FLAN_T5_TASK_PREFIX, FLANT5, GEMMA, OLMO, SEED, TASK_PREFIX,
+                   VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_dataset, compute_ari, compute_flesch_kincaid,
+                   compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
