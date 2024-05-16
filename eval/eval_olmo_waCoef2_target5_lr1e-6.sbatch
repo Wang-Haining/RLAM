@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --ckpt_path ckpts/ppo_olmo_wa_coef2_target5_lr1e-6/model_epoch_5_step_30_ari_13.09.pt
+python -m eval_outputs --ckpt_path ckpts/ppo_olmo_wa_coef2_target5_lr1e-6/model_epoch_5_step_80_ari_12.48.pt
