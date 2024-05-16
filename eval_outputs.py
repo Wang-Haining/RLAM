@@ -1,6 +1,7 @@
 """
-This module implements evaluation functions for sft and policy models. By default, we
-evaluate with two generation settings.
+This module implements evaluation functions for sft and policy models.
+It uses the same generation config as used in policy rolling out.
+A detailed csv as well as an overview of the results will be saved.
 """
 
 import argparse
@@ -9,6 +10,7 @@ import heapq
 import json
 import os
 import pickle
+import json
 from typing import Dict, List
 
 import evaluate
@@ -45,19 +47,8 @@ mt = MosesTokenizer(lang='en')
 # scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
 
-# heuristic generation config
-heuristic_generation_kwargs = {
-    "top_p": .9,
-    "max_new_tokens": 300,
-    "num_beams": 4,
-    "length_penalty": .9,
-    "do_sample": True,
-    "return_dict_in_generate": True,
-    "num_return_sequences": 1,
-}
-
-# basic generation config
-basic_generation_kwargs = {
+# generation config
+generation_kwargs = {
     "max_new_tokens": 300,
     "do_sample": True,
     "return_dict_in_generate": True,
@@ -161,39 +152,31 @@ if __name__ == "__main__":
                                                    torch_dtype=torch.bfloat16)
     model.to(device)
 
-    # evaluate with heuristic generation config
-    heuristic_results = evaluate_model(model, dataset["test"],
-                                       tokenizer, heuristic_generation_kwargs)
+    # evaluate with generation config
+    eval_results = evaluate_model(model, dataset["test"],
+                                   tokenizer, generation_kwargs)
+    file_path = os.path.join(save_dir,
+                                   args.ckpt_path.split("/")[-2] + ".csv")
 
-    heuristic_file_path = os.path.join(save_dir,
-                                       args.ckpt_path.split("/")[-2] + "_heuristic.csv")
-    with open(heuristic_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=heuristic_results[0].keys())
+    with open(file_path, mode="w", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
         writer.writeheader()
-        writer.writerows(heuristic_results)
-
-    # evaluate with basic generation config
-    basic_results = evaluate_model(model, dataset["test"],
-                                   tokenizer, basic_generation_kwargs)
-    basic_file_path = os.path.join(save_dir,
-                                   args.ckpt_path.split("/")[-2] + "_basic.csv")
-
-    with open(basic_file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=basic_results[0].keys())
-        writer.writeheader()
-        writer.writerows(basic_results)
+        writer.writerows(eval_results)
 
     # print out results
-    heuristic_avg_scores = {
-        metric: np.mean([x[metric] for x in heuristic_results])
-        for metric in heuristic_results[0].keys()
+    avg_scores = {
+        metric: np.mean([x[metric] for x in eval_results])
+        for metric in eval_results[0].keys()
         if metric not in ["gen_text"]
     }
-    print("Heuristic average scores:", heuristic_avg_scores)
-
-    basic_avg_scores = {
-        metric: np.mean([x[metric] for x in basic_results])
-        for metric in basic_results[0].keys()
+    print("Average scores:", avg_scores)
+    std_scores = {
+        metric: np.std([x[metric] for x in eval_results])
+        for metric in eval_results[0].keys()
         if metric not in ["gen_text"]
     }
-    print("Basic average scores:", basic_avg_scores)
+    # save the overview in jsonl format
+    overview_path = os.path.join(save_dir, "overview.jsonl")
+    with open(overview_path, mode='a', encoding='utf-8') as f:
+        json.dump(avg_scores | std_scores | {"ckpt_path": args.ckpt_path}, f)
+        f.write('\n')
