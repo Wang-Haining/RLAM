@@ -134,7 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
     args = parser.parse_args()
 
-    if 'flant5' in args.ckpt_path:
+    if 'flan-t5' in args.ckpt_path:
         AutoModelForGeneration = AutoModelForSeq2SeqLM
         task_prefix = FLAN_T5_TASK_PREFIX
         model_name = FLANT5
