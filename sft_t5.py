@@ -91,7 +91,8 @@ if __name__ == "__main__":
         eval_dataset=val_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=5,
+                                         early_stopping_threshold=0.01)],
     )
 
     trainer.train()
