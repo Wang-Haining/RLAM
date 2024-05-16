@@ -90,12 +90,14 @@ def calculate_metrics(generated_text: str,
     word_accessibility_list = []
     sent_len_list = []
     num_words = 0
+    num_chars = 0
     num_voa_words = 0
     sents = sent_tokenize(generated_text)
     for sent in sents:
         sent_len_list.append(compute_sent_len(sent))
         for token in mt.tokenize(sent):
             num_words += 1
+            num_chars += len(token)
             if token.lower() in voa1500:
                 num_voa_words += 1
             word_accessibility_list.append(compute_token_accessibility(token,
@@ -108,8 +110,7 @@ def calculate_metrics(generated_text: str,
     metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
     metrics_dict.update({'num_sents': len(sents)})
-
-    # VOA num/proportion
+    metrics_dict.update({'avg_word_len': num_chars/num_words})
 
     return metrics_dict
 
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if 'flant5' in args.ckpt_path:
-        AutoModelForGeneration = AutoModelForCausalLM
+        AutoModelForGeneration = AutoModelForSeq2SeqLM
         task_prefix = FLAN_T5_TASK_PREFIX
         model_name = FLANT5
     else:
