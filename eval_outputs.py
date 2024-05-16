@@ -140,13 +140,13 @@ if __name__ == "__main__":
     heuristic_avg_scores = {
         metric: np.mean([x[metric] for x in heuristic_results])
         for metric in heuristic_results[0].keys()
-        if metric not in ["source", "target", "output"]
+        if metric not in ["gen_text"]
     }
     print("Heuristic average scores:", heuristic_avg_scores)
 
     basic_avg_scores = {
         metric: np.mean([x[metric] for x in basic_results])
         for metric in basic_results[0].keys()
-        if metric not in ["source", "target", "output"]
+        if metric not in ["gen_text"]
     }
     print("Basic average scores:", basic_avg_scores)
