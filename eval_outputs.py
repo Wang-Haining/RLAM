@@ -3,23 +3,29 @@ This module implements evaluation functions for sft and policy models. By defaul
 evaluate with two generation settings.
 """
 
-
 import argparse
 import csv
+import heapq
+import json
 import os
+import pickle
 from typing import Dict, List
 
 import evaluate
 import numpy as np
 import torch
+from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
+from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
 from trl import set_seed
 
-from utils import (FLAN_T5_TASK_PREFIX, SEED, TASK_PREFIX, build_dataset,
-                   compute_ari)
+from utils import (FLAN_T5_TASK_PREFIX, SEED, TASK_PREFIX, VOA1500,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
+                   compute_ari, compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies, compute_flesch_kincaid)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,6 +33,17 @@ metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
 metric_rouge = evaluate.load("rouge")
 metric_bertscore = evaluate.load("bertscore")
+# get word frequencies and the model to predict relative rare word's accessibility
+token_freq = read_token_frequencies(WORD_FREQ_CSV)
+top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
+# load for making predictions word accessibility
+wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
+total_tokens = sum(token_freq.values())
+mt = MosesTokenizer(lang='en')
+# VOA Word Book, Section A-Z, Science programs, and Organs of the body (1517 in total)
+# from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
+# scraped on May 15, 2024
+voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
 
 # heuristic generation config
 heuristic_generation_kwargs = {
@@ -56,6 +73,7 @@ def calculate_metrics(generated_text: str,
     source_texts = [source_text.strip()]
     target_texts = [[target_text.strip()]]
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
+    metrics_dict.update({"fk": compute_token_accessibility(generated_texts[0])})
     metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
                                                           target_texts).score})
     metrics_dict.update(metric_sari.compute(sources=source_texts,
@@ -68,7 +86,41 @@ def calculate_metrics(generated_text: str,
                                                 references=target_texts,
                                                 lang="en", device="cpu")
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
+    # complexity measure
+    word_accessibility_list = []
+    sent_len_list = []
+    num_words = 0
+    num_voa_words = 0
+    sents = sent_tokenize(generated_text)
+    for sent in sents:
+        sent_len_list.append(compute_sent_len(sent))
+        for token in mt.tokenize(sent):
+            num_words += 1
+            if token.lower() in voa1500:
+                num_voa_words += 1
+            word_accessibility_list.append(compute_token_accessibility(token,
+                                                                       top_100k_tokens,
+                                                                       wa_model,
+                                                                       total_tokens,
+                                                                       token_freq))
+    p = num_voa_words / num_words
+    metrics_dict.update({"voa_log_ratio": np.log(p / (1 - p))})
+    metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
+    metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
+    metrics_dict.update({'num_sents': len(sents)})
+
+    # VOA num/proportion
+
     return metrics_dict
+
+
+# def log_odds_ratio(p):
+#     if p == 0:
+#         return float('-inf')
+#     elif p == 1:
+#         return float('inf')
+#     else:
+#         return np.log(p / (1 - p))
 
 
 def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
