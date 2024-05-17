@@ -31,6 +31,10 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
+if device == "cuda":
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
 
 # get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
@@ -220,7 +224,7 @@ def compute_rewards(responses: List[str],
 
 
 if __name__ == "__main__":
-    set_seed(SEED, deterministic=True)
+    set_seed(SEED)
 
     # fmt: off
     parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
