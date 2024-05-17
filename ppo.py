@@ -25,7 +25,7 @@ from trl import (AutoModelForCausalLMWithValueHead,
 from utils import (PROJECT_NAME, SEED, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies,
-                   FLAN_T5_TASK_PREFIX, TASK_PREFIX, EOS_TOKENS)
+                   FLAN_T5_TASK_PREFIX, TASK_PREFIX, EOS_TOKENS, MAX_NEW_TOKENS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
@@ -126,9 +126,9 @@ def evaluate_model(model, dataset, tokenizer, num_samples=32):
             if query_tensors.dim() == 1:
                 query_tensors = query_tensors.unsqueeze(0)
             response_tensors = model.generate(query_tensors,
-                                              top_k=0.0,  # fixme: TOP_K
-                                              top_p=1.0,  # fixme: TOP_P
-                                              max_new_tokens=512,
+                                              top_k=0.0,
+                                              top_p=1.0,
+                                              max_new_tokens=MAX_NEW_TOKENS,
                                               do_sample=True)
             responses = tokenizer.batch_decode(
                 response_tensors.cpu(),
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
     parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
     parser.add_argument("--wa_coef", type=float, default=1.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
-    parser.add_argument("--max_new_tokens", type=int, default=300, help="Max new tokens in rollouts.")
+    parser.add_argument("--max_new_tokens", type=int, default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
     parser.add_argument("--eval_interval", type=int, default=20, help="Interval between evaluations")
     parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
     parser.add_argument("--num_saved_ckpts", type=int, default=5, help="Num of best ckpts to save")

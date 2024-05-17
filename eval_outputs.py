@@ -27,7 +27,7 @@ from utils import (FLAN_T5_TASK_PREFIX, FLANT5, GEMMA, OLMO, SEED, TASK_PREFIX,
                    VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, compute_ari, compute_flesch_kincaid,
                    compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies)
+                   read_token_frequencies, MAX_NEW_TOKENS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,7 +49,9 @@ voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
 
 # generation config
 generation_kwargs = {
-    "max_new_tokens": 300,
+    "top_k": 0.0,
+    "top_p": 1.0,
+    "max_new_tokens": MAX_NEW_TOKENS,
     "do_sample": True,
     "return_dict_in_generate": True,
     "num_return_sequences": 1,

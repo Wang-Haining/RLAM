@@ -34,6 +34,7 @@ WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 EOS_TOKENS = ['<eos>', '<|endoftext|>', '<\s>']
+MAX_NEW_TOKENS = 512
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
