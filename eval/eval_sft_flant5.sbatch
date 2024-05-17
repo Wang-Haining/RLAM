@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --ckpt_path ckpts/sft_flan-t5-xl/checkpoint-2960
+python -m eval_outputs --ckpt_path ckpts/sft_flan-t5-xl/checkpoint-600
