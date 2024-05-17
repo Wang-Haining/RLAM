@@ -122,8 +122,9 @@ def evaluate_model(model, dataset, tokenizer,
             else:
                 gen_tokens = response_token_ids[0].squeeze()
             gen_text = tokenizer.decode(gen_tokens,
-                                              skip_special_tokens=True,
-                                              clean_up_tokenization_spaces=True).strip()
+                                        skip_special_tokens=True,
+                                        clean_up_tokenization_spaces=True).strip()
+            print(gen_text)
             result = calculate_metrics(gen_text,
                                        sample['target'],
                                        sample['source'])
