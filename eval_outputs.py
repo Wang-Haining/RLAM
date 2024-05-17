@@ -108,7 +108,8 @@ def calculate_metrics(generated_text: str,
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
+def evaluate_model(model, dataset, tokenizer,
+                   generation_kwargs, lm_type='clm') -> List[Dict]:
     results = []
     model.eval()
     with (torch.no_grad()):
@@ -116,7 +117,10 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
             input_ids = sample['input_ids'].unsqueeze(0).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 **generation_kwargs)
-            gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
+            if lm_type == 'clm':
+                gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
+            else:
+                gen_tokens = response_token_ids[0].squeeze()
             gen_text = tokenizer.decode(gen_tokens,
                                               skip_special_tokens=True,
                                               clean_up_tokenization_spaces=True).strip()
@@ -136,13 +140,15 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
     args = parser.parse_args()
 
-    if 'flan-t5' in args.ckpt_path:
+    if ('flan-t5' in args.ckpt_path) or ('flant5' in args.ckpt_path):
         AutoModelForGeneration = AutoModelForSeq2SeqLM
         task_prefix = FLAN_T5_TASK_PREFIX
         model_name = FLANT5
+        lm_type = 'seq2seq'
     else:
         AutoModelForGeneration = AutoModelForCausalLM
         task_prefix = TASK_PREFIX
+        lm_type = 'clm'
         if "gemma" in args.ckpt_path:
             model_name = GEMMA
         else:
@@ -156,7 +162,7 @@ if __name__ == "__main__":
 
     # evaluate with generation config
     eval_results = evaluate_model(model, dataset["test"],
-                                   tokenizer, generation_kwargs)
+                                   tokenizer, generation_kwargs, lm_type)
     file_path = os.path.join(save_dir,
                                    args.ckpt_path.split("/")[-2] + ".csv")
 
