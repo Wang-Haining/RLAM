@@ -124,7 +124,7 @@ def evaluate_model(model, dataset, tokenizer,
             gen_text = tokenizer.decode(gen_tokens,
                                         skip_special_tokens=True,
                                         clean_up_tokenization_spaces=True).strip()
-            print(gen_text)
+            print(f"{gen_text=}")
             result = calculate_metrics(gen_text,
                                        sample['target'],
                                        sample['source'])
