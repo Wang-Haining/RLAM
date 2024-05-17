@@ -104,7 +104,6 @@ def calculate_metrics(generated_text: str,
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
     metrics_dict.update({'num_sents': len(sents)})
     metrics_dict.update({'avg_word_len': num_chars/num_words})
-
     return metrics_dict
 
 
@@ -124,7 +123,6 @@ def evaluate_model(model, dataset, tokenizer,
             gen_text = tokenizer.decode(gen_tokens,
                                         skip_special_tokens=True,
                                         clean_up_tokenization_spaces=True).strip()
-            print(f"{gen_text=}")
             result = calculate_metrics(gen_text,
                                        sample['target'],
                                        sample['source'])
