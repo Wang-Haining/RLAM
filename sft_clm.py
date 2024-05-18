@@ -69,7 +69,7 @@ if __name__ == "__main__":
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
         overwrite_output_dir=False,
-        num_train_epochs=10.0,
+        num_train_epochs=5.0,
         do_train=True,
         do_eval=True,
         do_predict=True,
@@ -78,6 +78,8 @@ if __name__ == "__main__":
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
+        lr_scheduler_type='constant_with_warmup',
+        num_warmup_steps=50,
         weight_decay=1e-1,
         logging_steps=20,
         eval_steps=20,
