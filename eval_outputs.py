@@ -16,7 +16,7 @@ import evaluate
 import numpy as np
 import torch
 from nltk.tokenize import sent_tokenize
-from sacrebleu.metrics import BLEU
+# from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
@@ -31,9 +31,9 @@ from utils import (FLAN_T5_TASK_PREFIX, FLANT5, GEMMA, OLMO, SEED, TASK_PREFIX,
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-metric_bleu = BLEU()
+# metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
-metric_rouge = evaluate.load("rouge")
+# metric_rouge = evaluate.load("rouge")
 metric_bertscore = evaluate.load("bertscore")
 # get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
@@ -67,14 +67,14 @@ def calculate_metrics(generated_text: str,
     target_texts = [[target_text.strip()]]
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
     metrics_dict.update({"fk": compute_flesch_kincaid(generated_texts[0])})
-    metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
-                                                          target_texts).score})
+    # metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
+    #                                                       target_texts).score})
     metrics_dict.update(metric_sari.compute(sources=source_texts,
                                             predictions=generated_texts,
                                             references=target_texts))
-    _rouge = metric_rouge.compute(predictions=generated_texts,
-                                  references=target_texts)
-    metrics_dict.update({"rougeL": _rouge["rougeL"]})
+    # _rouge = metric_rouge.compute(predictions=generated_texts,
+    #                               references=target_texts)
+    # metrics_dict.update({"rougeL": _rouge["rougeL"]})
     bertscore_result = metric_bertscore.compute(predictions=generated_texts,
                                                 references=target_texts,
                                                 lang="en", device="cpu")
