@@ -79,7 +79,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
         lr_scheduler_type='constant_with_warmup',
-        num_warmup_steps=50,
+        warmup_steps=50,
         weight_decay=1e-1,
         logging_steps=20,
         eval_steps=20,
