@@ -8,7 +8,7 @@ import heapq
 import os
 import pickle
 import shutil
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -17,15 +17,16 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, get_constant_schedule_with_warmup
 from trl import (AutoModelForCausalLMWithValueHead,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
-from utils import (PROJECT_NAME, SEED, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_dataset, collator, compute_ari, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies,
-                   FLAN_T5_TASK_PREFIX, TASK_PREFIX, EOS_TOKENS, MAX_NEW_TOKENS)
+from utils import (EOS_TOKENS, FLAN_T5_TASK_PREFIX, MAX_NEW_TOKENS,
+                   PROJECT_NAME, SEED, TASK_PREFIX, WORD_ACCESSIBILITY_MODEL,
+                   WORD_FREQ_CSV, build_dataset, collator, compute_ari,
+                   compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -69,7 +70,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
 
     current_ari_mean = np.mean(eval_score["ari"])
     save_path = os.path.join(save_dir,
-                    f"model_epoch_{epoch}_step_{step}_ari_{current_ari_mean:.2f}.pt")
+                             f"model_epoch_{epoch}_step_{step}_ari_"
+                             f"{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
     # save the first three and remove the worst when a good one comes alone
@@ -91,7 +93,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
     np.savez(metadata_path, saved_models=saved_models)
 
 
-def evaluate_model(model, dataset, tokenizer, num_samples=32):
+def evaluate_model(model, dataset, tokenizer, num_samples):
     """
     This function evaluates the model's performance (ARI and SacreBLEU) on a subset of
     the given dataset.
@@ -100,7 +102,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples=32):
         model: The policy model to be evaluated.
         dataset: The validation dataset to use for evaluation.
         tokenizer: The tokenizer used for the model.
-        num_samples: Number of samples to evaluate on. Defaults to 32.
+        num_samples: Number of samples to evaluate on.
 
     Returns:
         A dictionary containing ARI scores, its standard deviation, and the
@@ -139,7 +141,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples=32):
             for response, target in zip(responses, targets):
                 ari_scores.append(compute_ari(response))
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
-                rewards = compute_rewards([response])
+                rewards = compute_uam_rewards([response])
                 avg_sent_len.append(rewards['sl_reward'][0])
                 avg_word_access.append(rewards['wa_reward'][0])
 
@@ -151,13 +153,13 @@ def evaluate_model(model, dataset, tokenizer, num_samples=32):
     }
 
 
-def compute_rewards(responses: List[str],
-                    compute_sent_len=compute_sent_len,
-                    compute_token_accessibility=compute_token_accessibility,
-                    top_100k_tokens=top_100k_tokens,
-                    wa_model=wa_model,
-                    total_tokens=total_tokens,
-                    token_freq=token_freq) -> (List[torch.Tensor], List[torch.Tensor]):
+def compute_uam_rewards(responses: List[str],
+                        compute_sent_len=compute_sent_len,
+                        compute_token_accessibility=compute_token_accessibility,
+                        top_100k_tokens=top_100k_tokens,
+                        wa_model=wa_model,
+                        total_tokens=total_tokens,
+                        token_freq=token_freq) -> Dict[str, List[torch.Tensor]]:
     """
     Calculate rewards for a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
@@ -183,7 +185,7 @@ def compute_rewards(responses: List[str],
         token_freq: Dictionary of token frequencies.
 
     Returns:
-        A tuple containing two lists of tensors:
+        A dict containing two lists of tensors:
         - Sentence length rewards.
         - Word accessibility rewards.
     """
@@ -208,72 +210,135 @@ def compute_rewards(responses: List[str],
                 for token in mt.tokenize(sent):
                     word_accessibility_list.append(
                         compute_token_accessibility(token,
-                                                 top_100k_tokens,
-                                                 wa_model,
-                                                 total_tokens,
-                                                 token_freq))
+                                                    top_100k_tokens,
+                                                    wa_model,
+                                                    total_tokens,
+                                                    token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
     # negate sentence length for intuitive reward maximization
     sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
                         r in sent_len_rewards]
     word_accessibility_rewards = [torch.tensor(r, dtype=torch.float32) for
-                               r in word_accessibility_rewards]
+                                  r in word_accessibility_rewards]
     return {"sl_reward": sent_len_rewards,
             "wa_reward": word_accessibility_rewards}
+
+
+def compute_ari_rewards(responses: List[str]) -> Dict[str, List[torch.Tensor]]:
+    """
+    Calculate ARI readability rewards for a batch of responses.
+
+    Parameters:
+        responses: A list of response strings to process.
+    Returns:
+        A dict containing a list of tensors.
+    """
+    reward = [torch.tensor(compute_ari(r) * (-1.0),
+                           dtype=torch.float32) for r in responses]
+    return {"ari_reward": reward}
 
 
 if __name__ == "__main__":
     set_seed(SEED)
 
     # fmt: off
-    parser = argparse.ArgumentParser(description="Rewriting complex scholarly abstracts to laymen.")
+    parser = argparse.ArgumentParser(
+        description="Rewriting complex scholarly abstracts to laymen.")
     # ppo_config relevant
-    parser.add_argument("--seed", type=int, default=SEED, help="Batch size for training")
-    parser.add_argument("--steps", type=int, default=2000000, help="Number of training steps. A upper bound of total training steps. See num_epochs for details.")
-    parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
+    parser.add_argument("--seed", type=int, default=SEED,
+                        help="Batch size for training")
+    parser.add_argument("--steps", type=int, default=1_000_000,
+                        help="Number of training steps. A upper bound of total "
+                             "training steps. See num_epochs for details.")
+    parser.add_argument("--learning_rate", type=float, default=3e-6,
+                        help="Adam learning rate")
     # kl objective
-    parser.add_argument("--adap_kl_ctrl", type=lambda x: (str(x).lower() == 'true'), default=True, help="Use adaptive KL control, otherwise linear")
-    parser.add_argument("--init_kl_coef", type=float, default=0.2, help="Initial KL penalty coefficient (used for adaptive and linear control). See formula (2) in https://arxiv.org/pdf/1909.08593")
-    parser.add_argument("--kl_penalty", type=str, choices=['kl', 'abs', 'mse', 'full'], default="kl", help="KL penalty options")
-    parser.add_argument("--target", type=float, default=6, help="Target KL value for adaptive KL control")
-    parser.add_argument("--horizon", type=float, default=10000, help="Horizon for adaptive KL control")
+    parser.add_argument("--adap_kl_ctrl",
+                        type=lambda x: (str(x).lower() == 'true'), default=True,
+                        help="Use adaptive KL control, otherwise linear")
+    parser.add_argument("--init_kl_coef", type=float, default=0.2,
+                        help="Initial KL penalty coefficient (used for adaptive and "
+                             "linear control). See formula (2) in "
+                             "https://arxiv.org/pdf/1909.08593")
+    parser.add_argument("--kl_penalty", type=str,
+                        choices=['kl', 'abs', 'mse', 'full'],
+                        default="kl", help="KL penalty options")
+    parser.add_argument("--target", type=float, default=6,
+                        help="Target KL value for adaptive KL control")
+    parser.add_argument("--horizon", type=float, default=10000,
+                        help="Horizon for adaptive KL control")
     # ppo
-    parser.add_argument("--lam", type=float, default=0.95, help="Lambda parameter for advantage calculation")
-    parser.add_argument("--cliprange", type=float, default=0.2, help="Range for clipping in PPO policy gradient loss")
-    parser.add_argument("--cliprange_value", type=float, default=0.2, help="Range for clipping values in loss calculation")
-    parser.add_argument("--vf_coef", type=float, default=0.1, help="Scaling factor for value loss")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
-    parser.add_argument("--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
-    parser.add_argument("--ppo_epochs", type=int, default=2, help="Number of optimisation epochs per batch of samples")
-    parser.add_argument("--max_grad_norm", type=float, default=None, help="Maximum gradient norm for gradient clipping")
-    parser.add_argument("--early_stopping", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to stop the PPO optimization loop early if KL is too high")
-    parser.add_argument("--target_kl", type=float, default=1.0, help="Stop early if we exceed this value by over 50%")
-    parser.add_argument("--compare_steps", type=int, default=1, help="Number of steps between comparison of the current reward with the best seen so far")
-    parser.add_argument("--ratio_threshold", type=float, default=10.0, help="Skip mini-batches with high PPO ratios that can cause loss spikes")
+    parser.add_argument("--lam", type=float, default=0.95,
+                        help="Lambda parameter for advantage calculation")
+    parser.add_argument("--cliprange", type=float, default=0.2,
+                        help="Range for clipping in PPO policy gradient loss")
+    parser.add_argument("--cliprange_value", type=float, default=0.2,
+                        help="Range for clipping values in loss calculation")
+    parser.add_argument("--vf_coef", type=float, default=0.1,
+                        help="Scaling factor for value loss")
+    parser.add_argument("--batch_size", type=int, default=16,
+                        help="Batch size for training")
+    parser.add_argument("--mini_batch_size", type=int, default=2,
+                        help="Mini batch size for PPO updates")
+    parser.add_argument("--gradient_accumulation_steps", type=int,
+                        default=1, help="Number of gradient accumulation steps")
+    parser.add_argument("--ppo_epochs", type=int, default=2,
+                        help="Number of optimisation epochs per batch of samples")
+    parser.add_argument("--max_grad_norm", type=float, default=None,
+                        help="Maximum gradient norm for gradient clipping")
+    parser.add_argument("--early_stopping",
+                        type=lambda x: (str(x).lower() == 'true'), default=False,
+                        help="Whether to stop the PPO optimization loop early if KL "
+                             "is too high")
+    parser.add_argument("--target_kl", type=float, default=1.0,
+                        help="Stop early if we exceed this value by over 50%")
+    parser.add_argument("--compare_steps", type=int, default=1,
+                        help="Number of steps between comparison of the current "
+                             "reward with the best seen so far")
+    parser.add_argument("--ratio_threshold", type=float, default=10.0,
+                        help="Skip mini-batches with high PPO ratios that can cause "
+                             "loss spikes")
     # for rewards, following https://arxiv.org/pdf/1909.08593
-    parser.add_argument("--use_score_scaling", action="store_true", help="Enable score scaling")
-    parser.add_argument("--use_score_norm", action="store_true", help="Enable score normalization")
-    parser.add_argument("--score_clip", type=float, default=None, help="Value to clip the scores, use 'None' to disable")
-    parser.add_argument("--whiten_rewards", action='store_true', help="Whiten the rewards before computing advantages")
+    parser.add_argument("--use_score_scaling", action="store_true",
+                        help="Enable score scaling")
+    parser.add_argument("--use_score_norm", action="store_true",
+                        help="Enable score normalization")
+    parser.add_argument("--score_clip", type=float, default=None,
+                        help="Value to clip the scores, use 'None' to disable")
+    parser.add_argument("--whiten_rewards", action='store_true',
+                        help="Whiten the rewards before computing advantages")
     # misc
-    parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
-    parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
-    parser.add_argument("--wa_coef", type=float, default=1.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
-    parser.add_argument("--max_new_tokens", type=int, default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
-    parser.add_argument("--eval_interval", type=int, default=20, help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
-    parser.add_argument("--num_saved_ckpts", type=int, default=5, help="Num of best ckpts to save")
-    parser.add_argument("--save_folder", type=str, help="Experiment name for checkpointing, under the directory of ckpts")
-    parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
+    parser.add_argument("--num_epochs", type=int, default=100,
+                        help="Number of total epochs")
+    parser.add_argument("--sl_coef", type=float, default=1.0,
+                        help="Scaling factor for sentence length reward (will keep "
+                             "this frozen as 1.0)")
+    parser.add_argument("--wa_coef", type=float, default=1.0,
+                        help="Scaling factor for word accessibility reward (will vary "
+                             "it for an optimal value)")
+    parser.add_argument("--max_new_tokens", type=int,
+                        default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
+    parser.add_argument("--eval_interval", type=int, default=20,
+                        help="Interval between evaluations")
+    parser.add_argument("--num_eval_samples", type=int, default=64,
+                        help="Num of samples for evaluation")
+    parser.add_argument("--num_saved_ckpts", type=int, default=5,
+                        help="Num of best ckpts to save")
+    parser.add_argument("--save_folder", type=str,
+                        help="Experiment name for checkpointing, under the directory "
+                             "of ckpts")
+    parser.add_argument("--sft_ckpt_path", type=str,
+                        help="Path to the SFT'ed model")
+    parser.add_argument("--reward_type", type=str, choices=['uam', 'ari'],
+                        default='uam', help="Reward for RL, either uam or ari")
 
     args = parser.parse_args()
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_tokens",
                    "eval_interval", "num_eval_samples", "num_saved_ckpts",
-                   "save_folder", "sft_ckpt_path"]
+                   "save_folder", "sft_ckpt_path", "reward_type"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -305,6 +370,7 @@ if __name__ == "__main__":
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
+    scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=10)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -338,18 +404,21 @@ if __name__ == "__main__":
             batch["response"] = tokenizer.batch_decode(response_tensors)
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
-            rewards = compute_rewards(batch["response"])
-            rewards = [args.sl_coef * sl + args.wa_coef * wa for
-                       sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
+            if args.reward_type == 'uam':
+                rewards = compute_uam_rewards(batch["response"])
+                rewards = [args.sl_coef * sl + args.wa_coef * wa for
+                           sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
 
-            # ref rewards
-            ref_rewards = compute_rewards(batch["ref_response"])
-            ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
-                           sl, wa in zip(ref_rewards['sl_reward'],
-                                         ref_rewards['wa_reward'])]
+                # ref rewards
+                ref_rewards = compute_uam_rewards(batch["ref_response"])
+                ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
+                               sl, wa in zip(ref_rewards['sl_reward'],
+                                             ref_rewards['wa_reward'])]
+            else:
+                rewards = compute_ari_rewards(batch["response"])
+                ref_rewards = compute_ari_rewards(batch["ref_response"])
             batch["ref_rewards"] = ref_rewards
             batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
-
             # execute a PPO step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
             ppo_trainer.log_stats(
@@ -361,7 +430,8 @@ if __name__ == "__main__":
             )
             wandb.log(rollout_kwargs)
 
-            # evaluate on validation set after every n steps
+            # fixme: accommodate ari rewards that most likely won't last 3 epochs
+            # evaluate on validation set after every n steps after the third epoch
             if step % args.eval_interval == 0:
                 eval_score = evaluate_model(
                     model=policy_model,
@@ -371,13 +441,13 @@ if __name__ == "__main__":
                 )
                 wandb.log(eval_score)
                 _sent_len_reward = np.mean(eval_score['avg_sent_len'])
-                _word_accessibility_reward = np.mean(eval_score['avg_word_accessibility'])
-                _total_reward = args.sl_coef * _sent_len_reward + args.wa_coef * _word_accessibility_reward
-                print(f"Epoch-Step: {epoch}-{step}, Eval ARI: {np.mean(eval_score['ari']):.2f}")
-                print(f"Epoch-Step: {epoch}-{step}, Eval BLEU: {np.mean(eval_score['sacrebleu']):.2f}")
-                print(f"Epoch-Step: {epoch}-{step}, Eval avg. neg. sentence Length: {_sent_len_reward:.2f}")
-                print(f"Epoch-Step: {epoch}-{step}, Eval avg. word accessibility: {_word_accessibility_reward:.2f}")
-                print(f"Epoch-Step: {epoch}-{step}, Eval total rewards: {_total_reward:.2f}")
+                _word_accessibility_reward = np.mean(
+                    eval_score['avg_word_accessibility'])
+                if args.reward_type == 'uam':
+                    _total_reward = (args.sl_coef * _sent_len_reward + args.wa_coef *
+                                     _word_accessibility_reward)
+                else:
+                    _total_reward = - np.mean(eval_score['ari'])
                 wandb.log({
                     "Eval/Epoch": epoch,
                     "Eval/Step": step,
