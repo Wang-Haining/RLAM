@@ -37,6 +37,13 @@ if device == "cuda":
     torch.backends.cudnn.benchmark = False
     torch.use_deterministic_algorithms(True)
 
+# get word frequencies and the model to predict rare words' accessibility
+token_freq = read_token_frequencies(WORD_FREQ_CSV)
+top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
+# load for making predictions word accessibility
+wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
+total_tokens = sum(token_freq.values())
+
 
 def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder):
     """
@@ -147,10 +154,10 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
 
 
 def compute_uam_rewards(responses: List[str],
-                        top_100k_tokens,
-                        wa_model,
-                        total_tokens,
-                        token_freq) -> Dict[str, List[torch.Tensor]]:
+                        top_100k_tokens=top_100k_tokens,
+                        wa_model=wa_model,
+                        total_tokens=total_tokens,
+                        token_freq=token_freq) -> Dict[str, List[torch.Tensor]]:
     """
     Calculate rewards for a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
@@ -340,14 +347,6 @@ if __name__ == "__main__":
     task_prefix = FLAN_T5_TASK_PREFIX if 'flant5' in args.sft_ckpt_path else TASK_PREFIX
     dataset = build_dataset(model_name=args.sft_ckpt_path,
                             task_prefix=task_prefix)
-    # choose reward
-    if args.reward == 'uam':
-        # get word frequencies and the model to predict rare words' accessibility
-        token_freq = read_token_frequencies(WORD_FREQ_CSV)
-        top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
-        # load for making predictions word accessibility
-        wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
-        total_tokens = sum(token_freq.values())
 
     # init SFT'ed models
     if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path.lower():
@@ -401,20 +400,12 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
-                rewards = compute_uam_rewards(batch["response"],
-                                              top_100k_tokens=top_100k_tokens,
-                                              wa_model=wa_model,
-                                              total_tokens=total_tokens,
-                                              token_freq=token_freq)
+                rewards = compute_uam_rewards(batch["response"])
                 rewards = [args.sl_coef * sl + args.wa_coef * wa for
                            sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
 
                 # ref rewards
-                ref_rewards = compute_uam_rewards(batch["ref_response"],
-                                                  top_100k_tokens=top_100k_tokens,
-                                                  wa_model=wa_model,
-                                                  total_tokens=total_tokens,
-                                                  token_freq=token_freq)
+                ref_rewards = compute_uam_rewards(batch["ref_response"])
                 ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
                                sl, wa in zip(ref_rewards['sl_reward'],
                                              ref_rewards['wa_reward'])]
@@ -434,7 +425,6 @@ if __name__ == "__main__":
             )
             wandb.log(rollout_kwargs)
 
-            # fixme: accommodate ari rewards that most likely won't last 3 epochs
             # evaluate on validation set after every n steps after the third epoch
             if step % args.eval_interval == 0:
                 eval_score = evaluate_model(
