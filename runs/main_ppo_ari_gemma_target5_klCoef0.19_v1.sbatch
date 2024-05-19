@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder main_ppo_uam_gemma_target5_lr5e-6_klCoef0.19_v1 \
+--save_folder main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1 \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
 --early_stopping true \
 --target 5.0 \
