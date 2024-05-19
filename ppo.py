@@ -147,10 +147,10 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
 
 
 def compute_uam_rewards(responses: List[str],
-                        top_100k_tokens=top_100k_tokens,
-                        wa_model=wa_model,
-                        total_tokens=total_tokens,
-                        token_freq=token_freq) -> Dict[str, List[torch.Tensor]]:
+                        top_100k_tokens,
+                        wa_model,
+                        total_tokens,
+                        token_freq) -> Dict[str, List[torch.Tensor]]:
     """
     Calculate rewards for a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1_000_000,
                         help="Number of training steps. A upper bound of total "
                              "training steps. See num_epochs for details.")
-    parser.add_argument("--learning_rate", type=float, default=3e-6,
+    parser.add_argument("--learning_rate", type=float, default=5e-6,
                         help="Adam learning rate")
     # kl objective
     parser.add_argument("--adap_kl_ctrl",
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     parser.add_argument("--kl_penalty", type=str,
                         choices=['kl', 'abs', 'mse', 'full'],
                         default="kl", help="KL penalty options")
-    parser.add_argument("--target", type=float, default=6,
+    parser.add_argument("--target", type=float, default=5.0,
                         help="Target KL value for adaptive KL control")
     parser.add_argument("--horizon", type=float, default=10000,
                         help="Horizon for adaptive KL control")
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     parser.add_argument("--sl_coef", type=float, default=1.0,
                         help="Scaling factor for sentence length reward (will keep "
                              "this frozen as 1.0)")
-    parser.add_argument("--wa_coef", type=float, default=1.0,
+    parser.add_argument("--wa_coef", type=float, default=2.0,
                         help="Scaling factor for word accessibility reward (will vary "
                              "it for an optimal value)")
     parser.add_argument("--max_new_tokens", type=int,
@@ -401,12 +401,20 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
-                rewards = compute_uam_rewards(batch["response"])
+                rewards = compute_uam_rewards(batch["response"],
+                                              top_100k_tokens=top_100k_tokens,
+                                              wa_model=wa_model,
+                                              total_tokens=total_tokens,
+                                              token_freq=token_freq)
                 rewards = [args.sl_coef * sl + args.wa_coef * wa for
                            sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
 
                 # ref rewards
-                ref_rewards = compute_uam_rewards(batch["ref_response"])
+                ref_rewards = compute_uam_rewards(batch["ref_response"],
+                                                  top_100k_tokens=top_100k_tokens,
+                                                  wa_model=wa_model,
+                                                  total_tokens=total_tokens,
+                                                  token_freq=token_freq)
                 ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
                                sl, wa in zip(ref_rewards['sl_reward'],
                                              ref_rewards['wa_reward'])]
