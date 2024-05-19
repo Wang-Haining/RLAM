@@ -16,4 +16,4 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m eval_outputs \
---ckpt_path ckpts/eval_main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1/model_epoch_0_step_60_ari_16.89.pt
+--ckpt_path ckpts/main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1/model_epoch_0_step_60_ari_16.89.pt
