@@ -17,7 +17,7 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer, get_constant_schedule_with_warmup
+from transformers import AutoTokenizer
 from trl import (AutoModelForCausalLMWithValueHead,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
@@ -370,7 +370,6 @@ if __name__ == "__main__":
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
-    scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=10)
 
     ppo_trainer = PPOTrainer(
         config=config,
