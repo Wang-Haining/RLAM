@@ -37,13 +37,6 @@ if device == "cuda":
     torch.backends.cudnn.benchmark = False
     torch.use_deterministic_algorithms(True)
 
-# get word frequencies and the model to predict relative rare word's accessibility
-token_freq = read_token_frequencies(WORD_FREQ_CSV)
-top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
-# load for making predictions word accessibility
-wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
-total_tokens = sum(token_freq.values())
-
 
 def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder):
     """
@@ -54,7 +47,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         epoch: Current epoch number in the training loop.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
-        num_saved_ckpts: Number of saved best checkpoints.
+        num_saved_ckpts: Number of the best checkpoints to save.
         save_folder: Directory for saving checkpoints, under directory `ckpts`.
     """
     save_dir = os.path.join("ckpts", save_folder)
@@ -154,8 +147,6 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
 
 
 def compute_uam_rewards(responses: List[str],
-                        compute_sent_len=compute_sent_len,
-                        compute_token_accessibility=compute_token_accessibility,
                         top_100k_tokens=top_100k_tokens,
                         wa_model=wa_model,
                         total_tokens=total_tokens,
@@ -177,8 +168,6 @@ def compute_uam_rewards(responses: List[str],
 
     Parameters:
         responses: A list of response strings to process.
-        compute_sent_len: A function to compute the length of a sentence.
-        compute_token_accessibility: A function to compute the accessibility of a token.
         top_100k_tokens: Set of the top 100k tokens based on frequency.
         wa_model: The model used to estimate word accessibility.
         total_tokens: Total number of tokens in the reference corpus.
@@ -330,7 +319,7 @@ if __name__ == "__main__":
                              "of ckpts")
     parser.add_argument("--sft_ckpt_path", type=str,
                         help="Path to the SFT'ed model")
-    parser.add_argument("--reward_type", type=str, choices=['uam', 'ari'],
+    parser.add_argument("--reward", type=str, choices=['uam', 'ari'],
                         default='uam', help="Reward for RL, either uam or ari")
 
     args = parser.parse_args()
@@ -338,7 +327,7 @@ if __name__ == "__main__":
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_tokens",
                    "eval_interval", "num_eval_samples", "num_saved_ckpts",
-                   "save_folder", "sft_ckpt_path", "reward_type"]
+                   "save_folder", "sft_ckpt_path", "reward"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -351,6 +340,14 @@ if __name__ == "__main__":
     task_prefix = FLAN_T5_TASK_PREFIX if 'flant5' in args.sft_ckpt_path else TASK_PREFIX
     dataset = build_dataset(model_name=args.sft_ckpt_path,
                             task_prefix=task_prefix)
+    # choose reward
+    if args.reward == 'uam':
+        # get word frequencies and the model to predict rare words' accessibility
+        token_freq = read_token_frequencies(WORD_FREQ_CSV)
+        top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
+        # load for making predictions word accessibility
+        wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
+        total_tokens = sum(token_freq.values())
 
     # init SFT'ed models
     if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path.lower():
@@ -403,7 +400,7 @@ if __name__ == "__main__":
             batch["response"] = tokenizer.batch_decode(response_tensors)
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
-            if args.reward_type == 'uam':
+            if args.reward == 'uam':
                 rewards = compute_uam_rewards(batch["response"])
                 rewards = [args.sl_coef * sl + args.wa_coef * wa for
                            sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
@@ -442,7 +439,7 @@ if __name__ == "__main__":
                 _sent_len_reward = np.mean(eval_score['avg_sent_len'])
                 _word_accessibility_reward = np.mean(
                     eval_score['avg_word_accessibility'])
-                if args.reward_type == 'uam':
+                if args.reward == 'uam':
                     _total_reward = (args.sl_coef * _sent_len_reward + args.wa_coef *
                                      _word_accessibility_reward)
                 else:
