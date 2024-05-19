@@ -410,8 +410,8 @@ if __name__ == "__main__":
                                sl, wa in zip(ref_rewards['sl_reward'],
                                              ref_rewards['wa_reward'])]
             else:
-                rewards = compute_ari_rewards(batch["response"])
-                ref_rewards = compute_ari_rewards(batch["ref_response"])
+                rewards = compute_ari_rewards(batch["response"])['ari_reward']
+                ref_rewards = compute_ari_rewards(batch["ref_response"])['ari_reward']
             batch["ref_rewards"] = ref_rewards
             batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
             # execute a PPO step
