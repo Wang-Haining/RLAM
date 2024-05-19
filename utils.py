@@ -21,7 +21,8 @@ from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
 # fixme
-PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
+# PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
+PROJECT_NAME = "RLUAM"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 42
 GEMMA = "google/gemma-2b"
