@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1
+#SBATCH --job-name=main_ppo_uam_olmo_waCoef2_target5_lr1e-6_klCoef0.19_v2
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,11 +16,12 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1 \
---sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
+--save_folder main_ppo_uam_olmo_waCoef2_target5_lr1e-6_klCoef0.19_v2 \
+--sft_ckpt_path ckpts/sft_OLMo-1B-hf/checkpoint-1100 \
 --early_stopping true \
 --target 5.0 \
---reward ari \
---learning_rate 5e-6 \
+--reward uam \
+--wa_coef 2.0 \
+--learning_rate 1e-6 \
 --init_kl_coef 0.19 \
---num_saved_ckpts 5
+--num_saved_ckpts 30
