@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=eval_eval_main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1
+#SBATCH --job-name=eval_main_ppo_ari_gemma_target5_lr5e-6_klCoef0.19_v1
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
