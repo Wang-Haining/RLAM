@@ -120,6 +120,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
     bleu_scores = []
     avg_sent_len = []
     avg_word_access = []
+    avg_sent_count = []
     with torch.no_grad():
         for batch in tqdm(sampled_dataset):
             query_tensors = batch["input_ids"].to(device)
@@ -141,19 +142,23 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
             for response, target in zip(responses, targets):
                 ari_scores.append(compute_ari(response))
                 bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
-                rewards = compute_uam_rewards([response])
+                rewards = compute_uam_rewards([response],
+                                              [len(sent_tokenize(target))])
                 avg_sent_len.append(rewards['sl_reward'][0])
                 avg_word_access.append(rewards['wa_reward'][0])
+                avg_sent_count.append(rewards['sc_reward'][0])
 
     return {
         "ari": ari_scores,
         "sacrebleu": bleu_scores,
         "avg_sent_len": avg_sent_len,
         "avg_word_accessibility": avg_word_access
+        "avg_sent_count": avg_sent_count
     }
 
 
 def compute_uam_rewards(responses: List[str],
+                        target_num_sents: List[int],
                         top_100k_tokens=top_100k_tokens,
                         wa_model=wa_model,
                         total_tokens=total_tokens,
@@ -165,6 +170,7 @@ def compute_uam_rewards(responses: List[str],
         maximize the rewards.)
     - Avg word accessibility: Defined as the negative logarithm of the token frequency
       per billion, based on its occurrences in the English Wikipedia corpus.
+    - Sentence count reward: Penalizes deviation from the target number of sentences.
 
     During pilot running, models cheat by spitting out only one eos token. So we
     penalize both word accessibility and sentence length with reasonably large negative
@@ -175,28 +181,38 @@ def compute_uam_rewards(responses: List[str],
 
     Parameters:
         responses: A list of response strings to process.
+        target_num_sents: A list of target number of sentences (number of sentences in
+            the corresponding significance statement).
         top_100k_tokens: Set of the top 100k tokens based on frequency.
         wa_model: The model used to estimate word accessibility.
         total_tokens: Total number of tokens in the reference corpus.
         token_freq: Dictionary of token frequencies.
 
     Returns:
-        A dict containing two lists of tensors:
-        - Sentence length rewards.
-        - Word accessibility rewards.
+        A dict containing three lists of tensors:
+        - Raw sentence length rewards.
+        - Raw word accessibility rewards.
+        - Raw sentence count rewards.
     """
     sent_len_rewards = []
     word_accessibility_rewards = []
+    sentence_count_rewards = []
     mt = MosesTokenizer(lang='en')
-    for response in responses:
+
+    for i, response in enumerate(responses):
         # EOS tokens of gemma and olmo
         if (response.strip() in EOS_TOKENS) or (len(response.strip()) <= 20):
             sent_len_rewards.append(40.0)
             word_accessibility_rewards.append(2.0)
+            sentence_count_rewards.append(abs(1 - target_num_sents[i]))
         else:
             sent_len_list = []
             word_accessibility_list = []
             sents = sent_tokenize(response)
+            num_sents = len(sents)
+            sentence_count_reward = abs(num_sents - target_num_sents[i])
+            sentence_count_rewards.append(sentence_count_reward)
+
             for sent in sents:
                 # prevent noise from artificial eos tokens
                 for eos_token in EOS_TOKENS:
@@ -212,13 +228,18 @@ def compute_uam_rewards(responses: List[str],
                                                     token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
-    # negate sentence length for intuitive reward maximization
+
+    # negate sentence length and count for intuitive reward maximization
     sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
                         r in sent_len_rewards]
     word_accessibility_rewards = [torch.tensor(r, dtype=torch.float32) for
                                   r in word_accessibility_rewards]
+    sentence_count_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
+                              r in sentence_count_rewards]
+
     return {"sl_reward": sent_len_rewards,
-            "wa_reward": word_accessibility_rewards}
+            "wa_reward": word_accessibility_rewards,
+            "sc_reward": sentence_count_rewards}
 
 
 def compute_ari_rewards(responses: List[str]) -> Dict[str, List[torch.Tensor]]:
@@ -230,9 +251,9 @@ def compute_ari_rewards(responses: List[str]) -> Dict[str, List[torch.Tensor]]:
     Returns:
         A dict containing a list of tensors.
     """
-    reward = [torch.tensor(compute_ari(r) * (-1.0),
-                           dtype=torch.float32) for r in responses]
-    return {"ari_reward": reward}
+
+    return {"ari_reward": [-1.0 * torch.tensor(compute_ari(r),
+                                               dtype=torch.float32) for r in responses]}
 
 
 if __name__ == "__main__":
@@ -313,6 +334,9 @@ if __name__ == "__main__":
     parser.add_argument("--wa_coef", type=float, default=2.0,
                         help="Scaling factor for word accessibility reward (will vary "
                              "it for an optimal value)")
+    parser.add_argument("--sc_coef", type=float, default=1.0,
+                        help="Penalty factor for deviation from target number of "
+                             "sentences.")
     parser.add_argument("--max_new_tokens", type=int,
                         default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
     parser.add_argument("--eval_interval", type=int, default=20,
@@ -332,7 +356,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
-    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "max_new_tokens",
+    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "sc_coef", "max_new_tokens",
                    "eval_interval", "num_eval_samples", "num_saved_ckpts",
                    "save_folder", "sft_ckpt_path", "reward"]
     for key in keys_to_pop:
@@ -384,6 +408,7 @@ if __name__ == "__main__":
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
         "max_new_tokens": args.max_new_tokens,
+        "eos_token_id": tokenizer.eos_token_id
     }
 
     for epoch in range(args.num_epochs):
@@ -400,15 +425,19 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
-                rewards = compute_uam_rewards(batch["response"])
-                rewards = [args.sl_coef * sl + args.wa_coef * wa for
-                           sl, wa in zip(rewards['sl_reward'], rewards['wa_reward'])]
+                target_num_sents = [len(sent_tokenize(s)) for s in batch["target"]]
+                rewards = compute_uam_rewards(batch["response"], target_num_sents)
+                rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
+                           for sl, wa, sc in zip(rewards['sl_reward'],
+                                                 rewards['wa_reward'],
+                                                 rewards['sc_reward'])]
 
                 # ref rewards
-                ref_rewards = compute_uam_rewards(batch["ref_response"])
-                ref_rewards = [args.sl_coef * sl + args.wa_coef * wa for
-                               sl, wa in zip(ref_rewards['sl_reward'],
-                                             ref_rewards['wa_reward'])]
+                ref_rewards = compute_uam_rewards(batch["ref_response"], target_num_sents)
+                ref_rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
+                               for sl, wa, sc in zip(ref_rewards['sl_reward'],
+                                                     ref_rewards['wa_reward'],
+                                                     ref_rewards['sc_reward'])]
             else:
                 rewards = compute_ari_rewards(batch["response"])['ari_reward']
                 ref_rewards = compute_ari_rewards(batch["ref_response"])['ari_reward']
@@ -437,9 +466,11 @@ if __name__ == "__main__":
                 _sent_len_reward = np.mean(eval_score['avg_sent_len'])
                 _word_accessibility_reward = np.mean(
                     eval_score['avg_word_accessibility'])
+                _sent_count_reward = np.mean(eval_score['avg_sent_count'])
                 if args.reward == 'uam':
-                    _total_reward = (args.sl_coef * _sent_len_reward + args.wa_coef *
-                                     _word_accessibility_reward)
+                    _total_reward = (args.sl_coef * _sent_len_reward +
+                                     args.wa_coef * _word_accessibility_reward +
+                                     args.sc_coef * _sent_count_reward)
                 else:
                     _total_reward = - np.mean(eval_score['ari'])
                 wandb.log({
@@ -447,8 +478,9 @@ if __name__ == "__main__":
                     "Eval/Step": step,
                     "Eval/ARI": np.mean(eval_score['ari']),
                     "Eval/BLEU": np.mean(eval_score['sacrebleu']),
-                    "Eval/avg. neg. sentence Length": _sent_len_reward,
+                    "Eval/avg. neg. sentence length": _sent_len_reward,
                     "Eval/avg. word accessibility": _word_accessibility_reward,
+                    "Eval/avg. neg. sentence count": _sent_count_reward,
                     "Eval/total rewards": _total_reward
                 })
                 # save top-3 checkpoints wrt ARI and their metadata
