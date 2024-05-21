@@ -362,7 +362,9 @@ if __name__ == "__main__":
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
-    config = PPOConfig(log_with="wandb", **config_kwargs)
+    config = PPOConfig(log_with="wandb",
+                       remove_unused_columns=False,
+                       **config_kwargs)
     # monitor with wandb
     run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
@@ -425,8 +427,8 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
-                print(f'{batch=}')
-                print(f'{list(batch)}')
+                # print(f'{batch=}')
+                # print(f'{list(batch)}')
                 target_num_sents = [len(sent_tokenize(s)) for s in batch["target"]]
                 rewards = compute_uam_rewards(batch["response"], target_num_sents)
                 rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
