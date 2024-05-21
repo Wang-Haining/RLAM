@@ -425,6 +425,7 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
+                print(f'{batch=}')
                 target_num_sents = [len(sent_tokenize(s)) for s in batch["target"]]
                 rewards = compute_uam_rewards(batch["response"], target_num_sents)
                 rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
