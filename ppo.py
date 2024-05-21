@@ -152,7 +152,7 @@ def evaluate_model(model, dataset, tokenizer, num_samples):
         "ari": ari_scores,
         "sacrebleu": bleu_scores,
         "avg_sent_len": avg_sent_len,
-        "avg_word_accessibility": avg_word_access
+        "avg_word_accessibility": avg_word_access,
         "avg_sent_count": avg_sent_count
     }
 
