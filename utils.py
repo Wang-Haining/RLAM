@@ -28,6 +28,7 @@ SEED = 42
 GEMMA = "google/gemma-2b"
 OLMO = "allenai/OLMo-1B-hf"
 FLANT5 = "google/flan-t5-xl"
+LLAMA = "meta-llama/Meta-Llama-3-8B"
 FLAN_T5_TASK_PREFIX = "Please rewrite the following abstract into a lay summary suitable for middle school students, focusing on the main findings and their implications in simple language: "
 TASK_PREFIX = "TL;DR: "
 RESPONSE_TEMP = "\nLay summary:"

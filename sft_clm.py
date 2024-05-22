@@ -51,8 +51,8 @@ def formatting_func(example: DatasetDict) -> List[str]:
 if __name__ == "__main__":
 
     set_seed(SEED + 21)
-    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma 2B "
-                                                 "OLMo 1B.")
+    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma-2B, "
+                                                 "OLMo-1B, or Llama3-8B.")
     parser.add_argument("--model", type=str,
                         help="Either gemma, olmo, or llama")
     args = parser.parse_args()
