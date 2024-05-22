@@ -18,8 +18,9 @@ from datasets import DatasetDict, load_from_disk
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
+from peft import LoraConfig, get_peft_model
 
-from utils import (DATASET_PATH, GEMMA, OLMO, PROJECT_NAME, RESPONSE_TEMP,
+from utils import (DATASET_PATH, GEMMA, OLMO, LLAMA, PROJECT_NAME, RESPONSE_TEMP,
                    SEED, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -52,19 +53,32 @@ if __name__ == "__main__":
     set_seed(SEED + 21)
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma 2B "
                                                  "OLMo 1B.")
-    parser.add_argument("--model", type=str, help="Either gemma or olmo")
+    parser.add_argument("--model", type=str,
+                        help="Either gemma, olmo, or llama")
     args = parser.parse_args()
 
     if args.model == "gemma":
         model_name = GEMMA
     elif args.model == "olmo":
         model_name = OLMO
+    elif args.model == "llama":
+        model_name = LLAMA
+        lora_config = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
     else:
         raise ValueError(f"Invalid model name: {args.model}")
     run_name = f'sft_{model_name.split("/")[-1]}'
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+
+    if model_name == LLAMA:
+        model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
@@ -89,6 +103,7 @@ if __name__ == "__main__":
         save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
+        peft_config=lora_config if model_name == LLAMA else None
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
