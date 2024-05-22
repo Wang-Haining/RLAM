@@ -64,6 +64,8 @@ if __name__ == "__main__":
     elif args.model == "llama":
         model_name = LLAMA
         lora_config = LoraConfig(
+            init_lora_weights="pissa",
+            target_modules=["q_proj", "k_proj", "v_proj", "out_proj"],
             r=16,
             lora_alpha=32,
             lora_dropout=0.05,
@@ -103,7 +105,6 @@ if __name__ == "__main__":
         save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
-        peft_config=lora_config if model_name == LLAMA else None
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
@@ -114,6 +115,7 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=1024,
         args=training_args,
+        peft_config=lora_config if model_name == LLAMA else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
