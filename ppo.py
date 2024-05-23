@@ -380,7 +380,6 @@ if __name__ == "__main__":
                             task_prefix=task_prefix)
 
     # init SFT'ed models
-    AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
     is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     if is_peft_model:
         lora_config = LoraConfig(
@@ -394,23 +393,23 @@ if __name__ == "__main__":
             task_type="CAUSAL_LM",
         )
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16,
             peft_config=lora_config,
+            load_in_8bit=True,
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16,
             peft_config=lora_config,
+            load_in_8bit=True,
         )
     else:
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16,
-            load_in_8bit=True if is_peft_model else False,
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16,
-            load_in_8bit=True if is_peft_model else False,
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16
         )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
