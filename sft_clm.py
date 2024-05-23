@@ -65,7 +65,8 @@ if __name__ == "__main__":
         model_name = LLAMA
         lora_config = LoraConfig(
             init_lora_weights="pissa",
-            target_modules=["q_proj", "k_proj", "v_proj", "out_proj"],
+            target_modules=["q_proj", "v_proj",],
+                            # "out_proj", "k_proj",],
             r=16,
             lora_alpha=32,
             lora_dropout=0.05,
