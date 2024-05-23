@@ -386,28 +386,14 @@ if __name__ == "__main__":
             bnb_8bit_use_double_quant=True,
             bnb_8bit_quant_type='nf8'
         ),
-        # lora_config = LoraConfig(
-        #     init_lora_weights="gaussian",
-        #     target_modules=["q_proj", "v_proj",
-        #                     "out_proj", "k_proj",],
-        #     r=16,
-        #     lora_alpha=32,
-        #     lora_dropout=0.05,
-        #     bias="none",
-        #     task_type="CAUSAL_LM",
-        # )
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            # peft_config=lora_config,
-            load_in_8bit=True,
             quantization_config=quantization_config
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            # peft_config=lora_config,
-            load_in_8bit=True,
             quantization_config=quantization_config
         )
     else:
