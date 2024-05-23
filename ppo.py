@@ -382,31 +382,26 @@ if __name__ == "__main__":
 
     # init SFT'ed models
     if is_peft_model:
-        # quantization_config = BitsAndBytesConfig(
-        #     load_in_8bit=True,
-        #     bnb_8bit_compute_dtype=torch.bfloat16,
-        #     bnb_8bit_use_double_quant=True,
-        #     bnb_8bit_quant_type='nf8')
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.float16,
             load_in_8bit=True,
             device_map={"": current_device},
-            # quantization_config=quantization_config
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.float16,
             load_in_8bit=True,
             device_map={"": current_device},
-            # quantization_config=quantization_config
         )
     else:
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16,
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16
         )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
@@ -429,7 +424,7 @@ if __name__ == "__main__":
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id,
+        "pad_token_id": tokenizer.pad_token_id if not is_peft_model else tokenizer.eos_token_id,
         "max_new_tokens": args.max_new_tokens,
         "eos_token_id": tokenizer.eos_token_id
     }
