@@ -381,8 +381,8 @@ if __name__ == "__main__":
 
     # init SFT'ed models
     AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
-    if 'llama' in args.sft_ckpt_path.lower():
-        is_peft_model = True
+    is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
+    if is_peft_model:
         lora_config = LoraConfig(
             init_lora_weights="gaussian",
             target_modules=["q_proj", "v_proj",
@@ -402,12 +402,15 @@ if __name__ == "__main__":
             peft_config=lora_config,
         )
     else:
-        is_peft_model = False
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16,
+            load_in_8bit=True if is_peft_model else False,
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            args.sft_ckpt_path, torch_dtype=torch.bfloat16
+            args.sft_ckpt_path,
+            torch_dtype=torch.bfloat16,
+            load_in_8bit=True if is_peft_model else False,
         )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
