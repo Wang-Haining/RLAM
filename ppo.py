@@ -17,12 +17,10 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, BitsAndBytesConfig
 from trl import (AutoModelForCausalLMWithValueHead,
-                 AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer,
+                 PPOConfig, PPOTrainer,
                  set_seed)
-
-from peft import LoraConfig, PeftModel
 
 from utils import (EOS_TOKENS, FLAN_T5_TASK_PREFIX, MAX_NEW_TOKENS,
                    PROJECT_NAME, SEED, TASK_PREFIX, WORD_ACCESSIBILITY_MODEL,
@@ -382,27 +380,35 @@ if __name__ == "__main__":
     # init SFT'ed models
     is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     if is_peft_model:
-        lora_config = LoraConfig(
-            init_lora_weights="gaussian",
-            target_modules=["q_proj", "v_proj",
-                            "out_proj", "k_proj",],
-            r=16,
-            lora_alpha=32,
-            lora_dropout=0.05,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            bnb_8bit_compute_dtype=torch.bfloat16,
+            bnb_8bit_use_double_quant=True,
+            bnb_8bit_quant_type='nf8'
+        ),
+        # lora_config = LoraConfig(
+        #     init_lora_weights="gaussian",
+        #     target_modules=["q_proj", "v_proj",
+        #                     "out_proj", "k_proj",],
+        #     r=16,
+        #     lora_alpha=32,
+        #     lora_dropout=0.05,
+        #     bias="none",
+        #     task_type="CAUSAL_LM",
+        # )
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            peft_config=lora_config,
+            # peft_config=lora_config,
             load_in_8bit=True,
+            quantization_config=quantization_config
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            peft_config=lora_config,
+            # peft_config=lora_config,
             load_in_8bit=True,
+            quantization_config=quantization_config
         )
     else:
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
