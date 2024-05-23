@@ -13,13 +13,13 @@ from typing import Dict, List
 import numpy as np
 import torch
 import wandb
+from accelerate import Accelerator
 from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import AutoTokenizer, BitsAndBytesConfig
-from trl import (AutoModelForCausalLMWithValueHead,
-                 PPOConfig, PPOTrainer,
+from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
 from utils import (EOS_TOKENS, FLAN_T5_TASK_PREFIX, MAX_NEW_TOKENS,
@@ -43,6 +43,7 @@ top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
+current_device = Accelerator().local_process_index
 
 
 def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder):
@@ -380,20 +381,24 @@ if __name__ == "__main__":
     # init SFT'ed models
     is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     if is_peft_model:
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            bnb_8bit_compute_dtype=torch.bfloat16,
-            bnb_8bit_use_double_quant=True,
-            bnb_8bit_quant_type='nf8')
+        # quantization_config = BitsAndBytesConfig(
+        #     load_in_8bit=True,
+        #     bnb_8bit_compute_dtype=torch.bfloat16,
+        #     bnb_8bit_use_double_quant=True,
+        #     bnb_8bit_quant_type='nf8')
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            quantization_config=quantization_config
+            load_in_8bit=True,
+            device_map={"": current_device},
+            # quantization_config=quantization_config
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
-            quantization_config=quantization_config
+            load_in_8bit=True,
+            device_map={"": current_device},
+            # quantization_config=quantization_config
         )
     else:
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
