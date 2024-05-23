@@ -71,8 +71,9 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
 
     current_ari_mean = np.mean(eval_score["ari"])
     save_path = os.path.join(save_dir,
-                             f"model_epoch_{epoch}_step_{step}_ari_"
-                             f"{current_ari_mean:.2f}.pt")
+                             f"model_epoch_{epoch}_step_{step}")
+                             # f"model_epoch_{epoch}_step_{step}_ari_"
+                             # f"{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
     # ensure the directory for save_path exists
