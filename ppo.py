@@ -71,9 +71,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
 
     current_ari_mean = np.mean(eval_score["ari"])
     save_path = os.path.join(save_dir,
-                             f"model_epoch_{epoch}_step_{step}")
-                             # f"model_epoch_{epoch}_step_{step}_ari_"
-                             # f"{current_ari_mean:.2f}.pt")
+                             f"model_epoch_{epoch}_step_{step}_ari_"
+                             f"{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
     # ensure the directory for save_path exists
@@ -82,6 +81,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
     # save the first three and remove the worst when a good one comes alone
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
+        # if not is_peft_model:
         model.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
@@ -94,6 +94,8 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         if len(saved_models) > num_saved_ckpts:
             worst_model = saved_models.pop()
             shutil.rmtree(worst_model["path"])
+        # else:
+        #     ppo_trainer.save_pretrained(save_path)
 
     np.savez(metadata_path, saved_models=saved_models)
 
@@ -508,10 +510,14 @@ if __name__ == "__main__":
                     "Eval/total rewards": _total_reward
                 })
                 # save top-3 checkpoints wrt ARI and their metadata
-                save_checkpoint(
-                    model=policy_model,
-                    epoch=epoch,
-                    step=step,
-                    eval_score=eval_score,
-                    num_saved_ckpts=args.num_saved_ckpts,
-                    save_folder=args.save_folder)
+                if not is_peft_model:
+                    save_checkpoint(
+                        model=policy_model,
+                        epoch=epoch,
+                        step=step,
+                        eval_score=eval_score,
+                        num_saved_ckpts=args.num_saved_ckpts,
+                        save_folder=args.save_folder)
+                else:
+                    save_path = os.path.join('ckpt', args.save_folder, f"model_epoch_{epoch}_step_{step}_ari_{np.mean(eval_score['ari']):.2f}.pt")
+                    ppo_trainer.save_pretrained(save_path)
