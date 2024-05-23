@@ -366,8 +366,10 @@ if __name__ == "__main__":
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
+    is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     config = PPOConfig(log_with="wandb",
                        remove_unused_columns=False,
+                       is_peft_model=is_peft_model,
                        **config_kwargs)
     # monitor with wandb
     run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
@@ -379,7 +381,6 @@ if __name__ == "__main__":
                             task_prefix=task_prefix)
 
     # init SFT'ed models
-    is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     if is_peft_model:
         # quantization_config = BitsAndBytesConfig(
         #     load_in_8bit=True,
@@ -421,7 +422,6 @@ if __name__ == "__main__":
         dataset=dataset["train"],
         data_collator=collator,
         optimizer=optimizer,
-        is_peft_model=is_peft_model,
     )
 
     rollout_kwargs = {
