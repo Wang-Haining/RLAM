@@ -384,8 +384,7 @@ if __name__ == "__main__":
             load_in_8bit=True,
             bnb_8bit_compute_dtype=torch.bfloat16,
             bnb_8bit_use_double_quant=True,
-            bnb_8bit_quant_type='nf8'
-        ),
+            bnb_8bit_quant_type='nf8')
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
