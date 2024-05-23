@@ -75,6 +75,9 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
                              f"{current_ari_mean:.2f}.pt")
     print("Current ARI Mean:", current_ari_mean)
 
+    # ensure the directory for save_path exists
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
     # save the first three and remove the worst when a good one comes alone
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
@@ -404,7 +407,9 @@ if __name__ == "__main__":
             torch_dtype=torch.bfloat16
         )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
-
+    # for llama
+    if getattr(tokenizer, "pad_token", None) is None:
+        tokenizer.pad_token = tokenizer.eos_token
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
