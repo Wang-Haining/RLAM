@@ -421,6 +421,7 @@ if __name__ == "__main__":
         dataset=dataset["train"],
         data_collator=collator,
         optimizer=optimizer,
+        is_peft_model=is_peft_model,
     )
 
     rollout_kwargs = {
@@ -440,7 +441,6 @@ if __name__ == "__main__":
                 query_tensors,
                 return_prompt=False,
                 generate_ref_response=True,
-                is_peft_model=is_peft_model,
                 **rollout_kwargs,
             )
 
