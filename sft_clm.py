@@ -64,7 +64,7 @@ if __name__ == "__main__":
     elif args.model == "llama":
         model_name = LLAMA
         lora_config = LoraConfig(
-            init_lora_weights="pissa",
+            init_lora_weights="gaussian",
             target_modules=["q_proj", "v_proj",],
                             # "out_proj", "k_proj",],
             r=16,
