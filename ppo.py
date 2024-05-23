@@ -22,6 +22,8 @@ from trl import (AutoModelForCausalLMWithValueHead,
                  AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
+from peft import LoraConfig, PeftModel
+
 from utils import (EOS_TOKENS, FLAN_T5_TASK_PREFIX, MAX_NEW_TOKENS,
                    PROJECT_NAME, SEED, TASK_PREFIX, WORD_ACCESSIBILITY_MODEL,
                    WORD_FREQ_CSV, build_dataset, collator, compute_ari,
@@ -352,13 +354,16 @@ if __name__ == "__main__":
                         help="Path to the SFT'ed model")
     parser.add_argument("--reward", type=str, choices=['uam', 'ari'],
                         default='uam', help="Reward for RL, either uam or ari")
+    parser.add_argument("--use_lora",
+                        type=lambda x: (str(x).lower() == 'true'), default=False,
+                        help="Whether to use LoRA for finetuning")
 
     args = parser.parse_args()
     # ignore the extra args not for ppo
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "sc_coef", "max_new_tokens",
                    "eval_interval", "num_eval_samples", "num_saved_ckpts",
-                   "save_folder", "sft_ckpt_path", "reward"]
+                   "save_folder", "sft_ckpt_path", "reward", "use_lora"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
@@ -375,18 +380,35 @@ if __name__ == "__main__":
                             task_prefix=task_prefix)
 
     # init SFT'ed models
-    if 'gemma' in args.sft_ckpt_path or 'olmo' in args.sft_ckpt_path.lower():
-        AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
-    elif 'flant5' in args.sft_ckpt_path:
-        AutoModelForLMWithValueHead = AutoModelForSeq2SeqLMWithValueHead
+    AutoModelForLMWithValueHead = AutoModelForCausalLMWithValueHead
+    if 'llama' in args.sft_ckpt_path.lower():
+        is_peft_model = True
+        lora_config = LoraConfig(
+            init_lora_weights="gaussian",
+            target_modules=["q_proj", "v_proj",
+                            "out_proj", "k_proj",],
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+        policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
+            peft_config=lora_config,
+        )
+        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16,
+            peft_config=lora_config,
+        )
     else:
-        raise ValueError(f"Unknown sft'ed ckpt path {args.sft_ckpt_path}")
-    policy_model = AutoModelForLMWithValueHead.from_pretrained(
-        args.sft_ckpt_path, torch_dtype=torch.bfloat16
-    )
-    ref_model = AutoModelForLMWithValueHead.from_pretrained(
-        args.sft_ckpt_path, torch_dtype=torch.bfloat16
-    )
+        is_peft_model = False
+        policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
+        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            args.sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
     tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
 
     # init optimizer
@@ -404,7 +426,7 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": 5 if 'flant5' in args.sft_ckpt_path else -1,
+        "min_length": -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
@@ -420,6 +442,7 @@ if __name__ == "__main__":
                 query_tensors,
                 return_prompt=False,
                 generate_ref_response=True,
+                is_peft_model=is_peft_model,
                 **rollout_kwargs,
             )
 
@@ -427,8 +450,6 @@ if __name__ == "__main__":
             batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
             # calculate and balance rewards
             if args.reward == 'uam':
-                # print(f'{batch=}')
-                # print(f'{list(batch)}')
                 target_num_sents = [len(sent_tokenize(s)) for s in batch["target"]]
                 rewards = compute_uam_rewards(batch["response"], target_num_sents)
                 rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
