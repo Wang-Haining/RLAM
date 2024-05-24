@@ -1,11 +1,11 @@
 #!/bin/sh
-#SBATCH --job-name=search_ppo_llama_waCoef2_target5_klCoef0.19_scCoef0
+#SBATCH --job-name=test_ckpt_peft_llama3-8b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=4-00:00:00
+#SBATCH --time=0-01:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder search_ppo_llama_waCoef2_target5_klCoef0.19_scCoef0 \
+--save_folder test_ckpt_peft_llama3-8b \
 --sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1840 \
 --early_stopping true \
 --target 5.0 \
@@ -25,5 +25,7 @@ python -m ppo \
 --sc_coef 0.0 \
 --learning_rate 5e-6 \
 --init_kl_coef 0.19 \
---is_peft_model \
---num_saved_ckpts 3
+--num_saved_ckpts 4 \
+--eval_interval 2 \
+--num_eval_samples 2 \
+--is_peft_model
