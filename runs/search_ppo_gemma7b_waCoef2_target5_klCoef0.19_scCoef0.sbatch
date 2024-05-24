@@ -26,4 +26,5 @@ python -m ppo \
 --learning_rate 5e-6 \
 --init_kl_coef 0.19 \
 --is_peft_model true \
+----mini_batch_size 1 \
 --num_saved_ckpts 30
