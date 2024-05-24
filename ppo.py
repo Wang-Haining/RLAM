@@ -22,7 +22,7 @@ from transformers import AutoTokenizer, BitsAndBytesConfig
 from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
-from utils import (EOS_TOKENS, FLAN_T5_TASK_PREFIX, MAX_NEW_TOKENS,
+from utils import (EOS_TOKENS, MAX_NEW_TOKENS,
                    PROJECT_NAME, SEED, TASK_PREFIX, WORD_ACCESSIBILITY_MODEL,
                    WORD_FREQ_CSV, build_dataset, collator, compute_ari,
                    compute_sent_len, compute_token_accessibility,
@@ -205,7 +205,7 @@ def compute_uam_rewards(responses: List[str],
     mt = MosesTokenizer(lang='en')
 
     for i, response in enumerate(responses):
-        # EOS tokens of gemma and olmo
+        # EOS tokens of gemma/olmo/llama
         if (response.strip() in EOS_TOKENS) or (len(response.strip()) <= 20):
             sent_len_rewards.append(40.0)
             word_accessibility_rewards.append(2.0)
@@ -379,9 +379,8 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=args)
 
     # build dataset
-    task_prefix = FLAN_T5_TASK_PREFIX if 'flant5' in args.sft_ckpt_path else TASK_PREFIX
     dataset = build_dataset(model_name=args.sft_ckpt_path,
-                            task_prefix=task_prefix)
+                            task_prefix=TASK_PREFIX)
 
     # init SFT'ed models
     if args.is_peft_model:
@@ -507,7 +506,6 @@ if __name__ == "__main__":
                     "Eval/total rewards": _total_reward
                 })
                 # save top-3 checkpoints wrt ARI and their metadata
-                # if not is_peft_model:
                 save_checkpoint(
                     ppo_trainer=ppo_trainer,
                     epoch=epoch,
@@ -515,9 +513,4 @@ if __name__ == "__main__":
                     eval_score=eval_score,
                     num_saved_ckpts=args.num_saved_ckpts,
                     save_folder=args.save_folder)
-                # else:
-                #     save_path = os.path.join('ckpts',
-                #                              args.save_folder,
-                #                              f"model_epoch_{epoch}_step_{step}_ari_"
-                #                              f"{np.mean(eval_score['ari']):.2f}.pt")
-                #     ppo_trainer.save_pretrained(save_path)
+
