@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=sft_flant5_on_sass
+#SBATCH --job-name=sft_gemma_2b_on_sass
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft_t5
+python -m sft_clm --model gemma-2b
