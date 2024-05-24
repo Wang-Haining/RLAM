@@ -357,7 +357,7 @@ if __name__ == "__main__":
                         help="Path to the SFT'ed model")
     parser.add_argument("--reward", type=str, choices=['uam', 'ari'],
                         default='uam', help="Reward for RL, either uam or ari")
-    parser.add_argument("--use_lora",
+    parser.add_argument("--is_peft_model",
                         type=lambda x: (str(x).lower() == 'true'), default=False,
                         help="Whether to use LoRA for finetuning")
 
@@ -366,14 +366,13 @@ if __name__ == "__main__":
     config_kwargs = vars(args).copy()
     keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "sc_coef", "max_new_tokens",
                    "eval_interval", "num_eval_samples", "num_saved_ckpts",
-                   "save_folder", "sft_ckpt_path", "reward", "use_lora"]
+                   "save_folder", "sft_ckpt_path", "reward", "is_peft_model"]
     for key in keys_to_pop:
         config_kwargs.pop(key, None)
     # fmt: on
-    is_peft_model = True if 'llama' in args.sft_ckpt_path.lower() else False
     config = PPOConfig(log_with="wandb",
                        remove_unused_columns=False,
-                       is_peft_model=is_peft_model,
+                       is_peft_model=args.is_peft_model,
                        **config_kwargs)
     # monitor with wandb
     run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
@@ -385,7 +384,7 @@ if __name__ == "__main__":
                             task_prefix=task_prefix)
 
     # init SFT'ed models
-    if is_peft_model:
+    if args.is_peft_model:
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
@@ -430,7 +429,7 @@ if __name__ == "__main__":
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id if not is_peft_model else tokenizer.eos_token_id,
+        "pad_token_id": tokenizer.pad_token_id if not args.is_peft_model else tokenizer.eos_token_id,
         "max_new_tokens": args.max_new_tokens,
         "eos_token_id": tokenizer.eos_token_id
     }
