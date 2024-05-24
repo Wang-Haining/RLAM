@@ -28,4 +28,4 @@ python -m ppo \
 --num_saved_ckpts 4 \
 --eval_interval 2 \
 --num_eval_samples 2 \
---is_peft_model
+--is_peft_model true
