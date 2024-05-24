@@ -388,13 +388,13 @@ if __name__ == "__main__":
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_4bit=True,
+            load_in_8bit=True,
             device_map={"": current_device},
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_4bit=True,
+            load_in_8bit=True,
             device_map={"": current_device},
         )
     else:
