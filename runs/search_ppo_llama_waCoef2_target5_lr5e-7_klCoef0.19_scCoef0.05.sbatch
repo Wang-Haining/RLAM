@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=search_ppo_llama_waCoef2_target5_klCoef0.19_scCoef0.05
+#SBATCH --job-name=search_ppo_llama_waCoef2_target5_lr5e-7_klCoef0.19_scCoef0.05
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder search_ppo_llama_waCoef2_target5_klCoef0.19_scCoef0.05 \
+--save_folder search_ppo_llama_waCoef2_target5_lr5e-7_klCoef0.19_scCoef0.05 \
 --sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1840 \
 --early_stopping true \
 --target 5.0 \
