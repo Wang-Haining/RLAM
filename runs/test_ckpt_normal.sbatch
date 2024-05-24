@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=test_ckpt_peft_gemma-2b
+#SBATCH --job-name=test_ckpt_bf16_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder test_ckpt_peft_gemma-2b \
+--save_folder test_ckpt_bf16_gemma-2b \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
 --early_stopping true \
 --target 5.0 \

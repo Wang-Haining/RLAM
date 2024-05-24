@@ -25,4 +25,4 @@ python -m ppo \
 --sc_coef 0.05 \
 --learning_rate 5e-6 \
 --init_kl_coef 0.19 \
---num_saved_ckpts 3
+--num_saved_ckpts 30

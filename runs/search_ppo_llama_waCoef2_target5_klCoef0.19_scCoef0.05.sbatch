@@ -25,5 +25,5 @@ python -m ppo \
 --sc_coef 0.05 \
 --learning_rate 5e-6 \
 --init_kl_coef 0.19 \
---is_peft_model \
---num_saved_ckpts 3
+--is_peft_model true \
+--num_saved_ckpts 30
