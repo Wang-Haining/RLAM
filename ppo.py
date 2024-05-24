@@ -46,12 +46,12 @@ total_tokens = sum(token_freq.values())
 current_device = Accelerator().local_process_index
 
 
-def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder):
+def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_folder):
     """
     Save model checkpoint if it's among the ones with the lowest ARI scores.
 
     Args:
-        model: The policy model to be saved.
+        ppo_trainer: The trainer whose model should be saved.
         epoch: Current epoch number in the training loop.
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
@@ -82,7 +82,7 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
         # if not is_peft_model:
-        model.save_pretrained(save_path)
+        ppo_trainer.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
             "ari_mean": current_ari_mean,
@@ -94,8 +94,6 @@ def save_checkpoint(model, epoch, step, eval_score, num_saved_ckpts, save_folder
         if len(saved_models) > num_saved_ckpts:
             worst_model = saved_models.pop()
             shutil.rmtree(worst_model["path"])
-        # else:
-        #     ppo_trainer.save_pretrained(save_path)
 
     np.savez(metadata_path, saved_models=saved_models)
 
@@ -391,13 +389,13 @@ if __name__ == "__main__":
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_8bit=True,
+            load_in_4bit=True,
             device_map={"": current_device},
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_8bit=True,
+            load_in_4bit=True,
             device_map={"": current_device},
         )
     else:
@@ -510,14 +508,17 @@ if __name__ == "__main__":
                     "Eval/total rewards": _total_reward
                 })
                 # save top-3 checkpoints wrt ARI and their metadata
-                if not is_peft_model:
-                    save_checkpoint(
-                        model=policy_model,
-                        epoch=epoch,
-                        step=step,
-                        eval_score=eval_score,
-                        num_saved_ckpts=args.num_saved_ckpts,
-                        save_folder=args.save_folder)
-                else:
-                    save_path = os.path.join('ckpt', args.save_folder, f"model_epoch_{epoch}_step_{step}_ari_{np.mean(eval_score['ari']):.2f}.pt")
-                    ppo_trainer.save_pretrained(save_path)
+                # if not is_peft_model:
+                save_checkpoint(
+                    ppo_trainer=ppo_trainer,
+                    epoch=epoch,
+                    step=step,
+                    eval_score=eval_score,
+                    num_saved_ckpts=args.num_saved_ckpts,
+                    save_folder=args.save_folder)
+                # else:
+                #     save_path = os.path.join('ckpts',
+                #                              args.save_folder,
+                #                              f"model_epoch_{epoch}_step_{step}_ari_"
+                #                              f"{np.mean(eval_score['ari']):.2f}.pt")
+                #     ppo_trainer.save_pretrained(save_path)
