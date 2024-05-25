@@ -81,7 +81,6 @@ def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_
     # save the first three and remove the worst when a good one comes alone
     if (len(saved_models) < num_saved_ckpts) or (
             current_ari_mean < max(m['ari_mean'] for m in saved_models)):
-        # if not is_peft_model:
         ppo_trainer.save_pretrained(save_path)
         saved_models.append({
             "path": save_path,
@@ -428,7 +427,7 @@ if __name__ == "__main__":
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id if not args.is_peft_model else tokenizer.eos_token_id,
+        "pad_token_id": tokenizer.pad_token_id if 'llama' not in args.sft_ckpt_path.lower() else tokenizer.eos_token_id,
         "max_new_tokens": args.max_new_tokens,
         "eos_token_id": tokenizer.eos_token_id
     }
@@ -455,7 +454,8 @@ if __name__ == "__main__":
                                                  rewards['sc_reward'])]
 
                 # ref rewards
-                ref_rewards = compute_uam_rewards(batch["ref_response"], target_num_sents)
+                ref_rewards = compute_uam_rewards(batch["ref_response"],
+                                                  target_num_sents)
                 ref_rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
                                for sl, wa, sc in zip(ref_rewards['sl_reward'],
                                                      ref_rewards['wa_reward'],
@@ -513,4 +513,3 @@ if __name__ == "__main__":
                     eval_score=eval_score,
                     num_saved_ckpts=args.num_saved_ckpts,
                     save_folder=args.save_folder)
-
