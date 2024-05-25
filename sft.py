@@ -89,7 +89,9 @@ if __name__ == "__main__":
     run_name = f'sft_{model_name.split("/")[-1]}'
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                 torch_dtype=torch.bfloat16,
+                                                 attn_implementation="flash_attention_2")
 
     if args.is_peft_model:
         model = get_peft_model(model, lora_config)
