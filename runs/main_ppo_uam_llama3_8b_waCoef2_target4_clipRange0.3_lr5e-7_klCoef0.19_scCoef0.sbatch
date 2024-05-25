@@ -20,7 +20,7 @@ python -m ppo \
 --sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1860 \
 --early_stopping true \
 --target 4.0 \
---clip_range 0.3 \
+--cliprange 0.3 \
 --reward uam \
 --wa_coef 2.0 \
 --sc_coef 0 \
