@@ -57,6 +57,9 @@ if __name__ == "__main__":
                         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b"],
                         help="Either gemma-2b, gemma-7b, olmo-1b, or llama3-8b")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--is_peft_model",
+                        type=lambda x: (str(x).lower() == 'true'), default=False,
+                        help="Whether to use LoRA for finetuning")
     args = parser.parse_args()
 
     if args.model == "gemma-2b":
@@ -71,8 +74,7 @@ if __name__ == "__main__":
         raise ValueError(f"Invalid model name: {args.model}")
 
     # lora config if necessary
-    if model_name in [GEMMA_7B, LLAMA3_8B]:
-        is_peft_model = True
+    if args.is_peft_model:
         lora_config = LoraConfig(
             init_lora_weights="gaussian",
             target_modules=["q_proj", "v_proj",
@@ -89,7 +91,7 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
 
-    if is_peft_model:
+    if args.is_peft_model:
         model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
@@ -125,7 +127,7 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=1024,
         args=training_args,
-        peft_config=lora_config if is_peft_model else None,
+        peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
