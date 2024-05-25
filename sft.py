@@ -1,5 +1,5 @@
 """
-This module performs supervised fine-tuning on the Gemma 2B and OLMo 1B using the
+This module performs supervised finetuning on the OLMo, Gemma, and LLama3 using the
 Scientific Abstract-Significance Statement dataset (SASS). It concatenates scientific
 abstracts with their simplified versions using a straightforward template.
 """
@@ -18,9 +18,10 @@ from datasets import DatasetDict, load_from_disk
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
+from peft import LoraConfig, get_peft_model
 
-from utils import (DATASET_PATH, GEMMA, OLMO, PROJECT_NAME, RESPONSE_TEMP,
-                   SEED, TASK_PREFIX)
+from utils import (DATASET_PATH, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B,
+                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -50,21 +51,51 @@ def formatting_func(example: DatasetDict) -> List[str]:
 if __name__ == "__main__":
 
     set_seed(SEED + 21)
-    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma 2B"
-                                                 " or OLMo 1B.")
-    parser.add_argument("--model", type=str, help="gemma or olmo")
+    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with "
+                                                 "Gemma-2B/7B, OLMo-1B, or Llama3-8B.")
+    parser.add_argument("--model", type=str,
+                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b"],
+                        help="Either gemma-2b, gemma-7b, olmo-1b, or llama3-8b")
+    parser.add_argument("--learning_rate", type=float, default=1e-5)
     args = parser.parse_args()
 
-    model_name = GEMMA if 'gemma' in args.model else OLMO
+    if args.model == "gemma-2b":
+        model_name = GEMMA_2B
+    elif args.model == "olmo-1b":
+        model_name = OLMO_1B
+    elif args.model == "gemma-7b":
+        model_name = GEMMA_7B
+    elif args.model == "llama3-8b":
+        model_name = LLAMA3_8B
+    else:
+        raise ValueError(f"Invalid model name: {args.model}")
+
+    # lora config if necessary
+    if model_name in [GEMMA_7B, LLAMA3_8B]:
+        is_peft_model = True
+        lora_config = LoraConfig(
+            init_lora_weights="gaussian",
+            target_modules=["q_proj", "v_proj",
+                            "out_proj", "k_proj",],
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+
     run_name = f'sft_{model_name.split("/")[-1]}'
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
 
+    if is_peft_model:
+        model = get_peft_model(model, lora_config)
+
     training_args = TrainingArguments(
         output_dir=f"ckpts/{run_name}",
         overwrite_output_dir=False,
-        num_train_epochs=10.0,
+        num_train_epochs=5.0,
         do_train=True,
         do_eval=True,
         do_predict=True,
@@ -73,6 +104,8 @@ if __name__ == "__main__":
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
+        lr_scheduler_type='constant_with_warmup',
+        warmup_steps=50,
         weight_decay=1e-1,
         logging_steps=20,
         eval_steps=20,
@@ -92,7 +125,8 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=1024,
         args=training_args,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        peft_config=lora_config if is_peft_model else None,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
     trainer.train()
