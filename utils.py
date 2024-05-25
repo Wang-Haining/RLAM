@@ -21,23 +21,22 @@ from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
 # fixme
-# PROJECT_NAME = "Reinforcement Learning from Uncombined Accessibility Measures"
-PROJECT_NAME = "RLUAM"
+PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures"
+# PROJECT_NAME = "RUAMEL"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 42
 GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
-FLANT5 = "google/flan-t5-xl"
 LLAMA3_8B = "meta-llama/Meta-Llama-3-8B"
-FLAN_T5_TASK_PREFIX = "Please rewrite the following abstract into a lay summary suitable for middle school students, focusing on the main findings and their implications in simple language: "
-TASK_PREFIX = "TL;DR: "
+TASK_PREFIX = "Please rewrite the following abstract into a lay summary suitable for middle school students, focusing on the main findings and their implications in simple language: "
+# TASK_PREFIX = "TL;DR: "
 RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 EOS_TOKENS = ['<eos>', '<|endoftext|>', '<\s>', '<|end_of_text|>']
-MAX_NEW_TOKENS = 300
+MAX_NEW_TOKENS = 256
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
