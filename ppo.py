@@ -338,7 +338,7 @@ if __name__ == "__main__":
     parser.add_argument("--wa_coef", type=float, default=2.0,
                         help="Scaling factor for word accessibility reward (will vary "
                              "it for an optimal value)")
-    parser.add_argument("--sc_coef", type=float, default=1.0,
+    parser.add_argument("--sc_coef", type=float, default=0.0,
                         help="Penalty factor for deviation from target number of "
                              "sentences.")
     parser.add_argument("--max_new_tokens", type=int,
