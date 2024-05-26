@@ -206,8 +206,8 @@ def compute_uam_rewards(responses: List[str],
     for i, response in enumerate(responses):
         # EOS tokens of gemma/olmo/llama
         if (response.strip() in SEP_TOKENS) or (len(response.strip()) <= 20):
-            sent_len_rewards.append(40.0)
-            word_accessibility_rewards.append(2.0)
+            sent_len_rewards.append(30.0)
+            word_accessibility_rewards.append(7.0)
             sentence_count_rewards.append(abs(1 - target_num_sents[i]))
         else:
             sent_len_list = []
@@ -386,13 +386,13 @@ if __name__ == "__main__":
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_4bit=True,
+            load_in_8bit=True,
             device_map={"": current_device},
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_4bit=True,
+            load_in_8bit=True,
             device_map={"": current_device},
         )
     else:
