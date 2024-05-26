@@ -20,16 +20,14 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
-# fixme
-PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures"
-# PROJECT_NAME = "RLUAM"
+PROJECT_NAME = "RLUAM"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
-SEED = 42
+SEED = 4230186
 GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 LLAMA3_8B = "meta-llama/Meta-Llama-3-8B"
-TASK_PREFIX = "Please rewrite the following abstract into a lay summary suitable for middle school students, focusing on the main findings and their implications in simple language: "
+TASK_PREFIX = "Rewrite this abstract in plain English for middle school students:"
 RESPONSE_TEMP = "\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
