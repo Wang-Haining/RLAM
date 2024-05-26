@@ -18,15 +18,15 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoTokenizer, BitsAndBytesConfig
+from transformers import (AutoTokenizer, BitsAndBytesConfig,
+                          get_constant_schedule_with_warmup)
 from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
-from utils import (EOS_TOKENS, MAX_NEW_TOKENS,
-                   PROJECT_NAME, SEED, TASK_PREFIX, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_dataset, collator, compute_ari,
-                   compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies)
+from utils import (EOS_TOKENS, MAX_NEW_TOKENS, PROJECT_NAME, SEED, TASK_PREFIX,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
+                   collator, compute_ari, compute_sent_len,
+                   compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -411,6 +411,7 @@ if __name__ == "__main__":
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
+    lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=20)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -420,6 +421,7 @@ if __name__ == "__main__":
         dataset=dataset["train"],
         data_collator=collator,
         optimizer=optimizer,
+        lr_scheduler=lr_scheduler
     )
 
     rollout_kwargs = {
