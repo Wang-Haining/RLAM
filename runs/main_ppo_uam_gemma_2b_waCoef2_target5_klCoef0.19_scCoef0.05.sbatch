@@ -23,6 +23,6 @@ python -m ppo \
 --reward uam \
 --wa_coef 2.0 \
 --sc_coef 0.05 \
---learning_rate 1e-6 \
+--learning_rate 3e-6 \
 --init_kl_coef 0.19 \
 --num_saved_ckpts 30
