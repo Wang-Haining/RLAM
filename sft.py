@@ -77,8 +77,7 @@ if __name__ == "__main__":
     if args.is_peft_model:
         lora_config = LoraConfig(
             init_lora_weights="gaussian",
-            target_modules=["q_proj", "v_proj",
-                            "out_proj", "k_proj",],
+            target_modules=["q_proj", "v_proj"],
             r=16,
             lora_alpha=32,
             lora_dropout=0.05,
@@ -126,7 +125,7 @@ if __name__ == "__main__":
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
         formatting_func=formatting_func,
-        max_seq_length=1024,
+        max_seq_length=768,
         args=training_args,
         peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],

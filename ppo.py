@@ -23,7 +23,7 @@ from transformers import (AutoTokenizer, BitsAndBytesConfig,
 from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
-from utils import (EOS_TOKENS, MAX_NEW_TOKENS, PROJECT_NAME, SEED, TASK_PREFIX,
+from utils import (SEP_TOKENS, MAX_NEW_TOKENS, PROJECT_NAME, SEED, TASK_PREFIX,
                    WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
                    collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
@@ -205,7 +205,7 @@ def compute_uam_rewards(responses: List[str],
 
     for i, response in enumerate(responses):
         # EOS tokens of gemma/olmo/llama
-        if (response.strip() in EOS_TOKENS) or (len(response.strip()) <= 20):
+        if (response.strip() in SEP_TOKENS) or (len(response.strip()) <= 20):
             sent_len_rewards.append(40.0)
             word_accessibility_rewards.append(2.0)
             sentence_count_rewards.append(abs(1 - target_num_sents[i]))
@@ -219,9 +219,9 @@ def compute_uam_rewards(responses: List[str],
 
             for sent in sents:
                 # prevent noise from artificial eos tokens
-                for eos_token in EOS_TOKENS:
-                    if sent.strip().endswith(eos_token):
-                        sent = sent.replace(eos_token, "").strip()
+                for t in SEP_TOKENS:
+                    if sent.strip().endswith(t):
+                        sent = sent.replace(t, "").strip()
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):
                     word_accessibility_list.append(
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1_000_000,
                         help="Number of training steps. A upper bound of total "
                              "training steps. See num_epochs for details.")
-    parser.add_argument("--learning_rate", type=float, default=5e-6,
+    parser.add_argument("--learning_rate", type=float, default=3e-6,
                         help="Adam learning rate")
     # kl objective
     parser.add_argument("--adap_kl_ctrl",
@@ -292,9 +292,9 @@ if __name__ == "__main__":
     # ppo
     parser.add_argument("--lam", type=float, default=0.95,
                         help="Lambda parameter for advantage calculation")
-    parser.add_argument("--cliprange", type=float, default=0.2,
+    parser.add_argument("--cliprange", type=float, default=0.25,
                         help="Range for clipping in PPO policy gradient loss")
-    parser.add_argument("--cliprange_value", type=float, default=0.2,
+    parser.add_argument("--cliprange_value", type=float, default=0.25,
                         help="Range for clipping values in loss calculation")
     parser.add_argument("--vf_coef", type=float, default=0.1,
                         help="Scaling factor for value loss")
@@ -386,13 +386,13 @@ if __name__ == "__main__":
         policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_8bit=True,
+            load_in_4bit=True,
             device_map={"": current_device},
         )
         ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
-            load_in_8bit=True,
+            load_in_4bit=True,
             device_map={"": current_device},
         )
     else:
