@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model gemma-7b --learning_rate 5e-6  --is_peft_model true
+python -m sft --model gemma-7b --learning_rate 5e-7  --is_peft_model true
