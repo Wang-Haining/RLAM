@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=main_ppo_uam_llama3_8b_waCoef2_target4_clipRange0.3_lr5e-7_klCoef0.19_scCoef0
+#SBATCH --job-name=main_ppo_uam_llama3_8b_waCoef2_target3_lr5e-7_klCoef0.4_scCoef0
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,15 +16,14 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder main_ppo_uam_llama3_8b_waCoef2_target5_lr5e-7_klCoef0.19_scCoef0.05 \
+--save_folder main_ppo_uam_llama3_8b_waCoef2_target3_lr5e-7_klCoef0.4_scCoef0 \
 --sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1840 \
 --early_stopping true \
---target 4.0 \
+--target 3.0 \
 --cliprange 0.3 \
 --reward uam \
 --wa_coef 2.0 \
---sc_coef 0 \
 --learning_rate 5e-7 \
---init_kl_coef 0.19 \
+--init_kl_coef 0.4 \
 --is_peft_model true \
 --num_saved_ckpts 30
