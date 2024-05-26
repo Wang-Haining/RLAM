@@ -408,6 +408,7 @@ if __name__ == "__main__":
     # for llama
     if getattr(tokenizer, "pad_token", None) is None:
         tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token_id = tokenizer.eos_token_id
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
