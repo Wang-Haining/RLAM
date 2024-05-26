@@ -507,7 +507,7 @@ if __name__ == "__main__":
                     "Eval/avg. neg. sentence count": _sent_count_reward,
                     "Eval/total rewards": _total_reward
                 })
-                # save top-3 checkpoints wrt ARI and their metadata
+                # save top checkpoints wrt ARI and their metadata
                 save_checkpoint(
                     ppo_trainer=ppo_trainer,
                     epoch=epoch,
