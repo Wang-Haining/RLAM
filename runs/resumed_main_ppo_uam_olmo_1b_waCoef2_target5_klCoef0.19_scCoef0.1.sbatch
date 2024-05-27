@@ -17,7 +17,7 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 python -m ppo \
 --save_folder main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0.1 \
---sft_ckpt_path ckpts/main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0.1/model_epoch_3_step_80_ari_17.62.pt \
+--sft_ckpt_path ckpts/main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0.1/model_epoch_1_step_160_ari_18.07.pt \
 --early_stopping true \
 --target 5.0 \
 --reward uam \
