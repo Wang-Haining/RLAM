@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0
+#SBATCH --job-name=main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0.1
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,13 +16,13 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0 \
+--save_folder main_ppo_olmo_1b_waCoef2_target5_klCoef0.19_scCoef0.1 \
 --sft_ckpt_path ckpts/sft_OLMo-1B-hf/checkpoint-1100 \
 --early_stopping true \
 --target 5.0 \
 --reward uam \
 --wa_coef 2.0 \
---sc_coef 0.05 \
+--sc_coef 0.1 \
 --learning_rate 1e-6 \
 --init_kl_coef 0.19 \
 --num_saved_ckpts 30
