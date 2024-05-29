@@ -23,9 +23,9 @@ from transformers import (AutoTokenizer, BitsAndBytesConfig,
 from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
                  set_seed)
 
-from utils import (SEP_TOKENS, MAX_NEW_TOKENS, PROJECT_NAME, SEED, TASK_PREFIX,
-                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_dataset,
-                   collator, compute_ari, compute_sent_len,
+from utils import (CKPTS_DIR, MAX_NEW_TOKENS, PROJECT_NAME, SEED, SEP_TOKENS,
+                   TASK_PREFIX, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -46,7 +46,8 @@ total_tokens = sum(token_freq.values())
 current_device = Accelerator().local_process_index
 
 
-def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_folder):
+def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_folder,
+                    ckpts_dir=CKPTS_DIR):
     """
     Save model checkpoint if it's among the ones with the lowest ARI scores.
 
@@ -56,9 +57,9 @@ def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_
         step: Current step number in the training loop.
         eval_score: Eval scores of the current evaluation.
         num_saved_ckpts: Number of the best checkpoints to save.
-        save_folder: Directory for saving checkpoints, under directory `ckpts`.
+        save_folder: Directory for saving checkpoints, under directory CKPTS_DIR.
     """
-    save_dir = os.path.join("ckpts", save_folder)
+    save_dir = os.path.join(ckpts_dir, save_folder)
     os.makedirs(save_dir, exist_ok=True)
     metadata_path = os.path.join(save_dir, "metadata.npz")
 
