@@ -17,7 +17,7 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 python -m ppo \
 --save_folder main_ppo_uam_llama3_8b_waCoef2_target3_lr5e-7_klCoef0.4_scCoef0 \
---sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1840 \
+--sft_ckpt_path ckpts/sft_Meta-Llama-3-8B/checkpoint-1880 \
 --early_stopping true \
 --target 3.0 \
 --cliprange 0.3 \
