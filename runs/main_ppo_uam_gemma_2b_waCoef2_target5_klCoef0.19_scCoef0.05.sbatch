@@ -25,4 +25,6 @@ python -m ppo \
 --sc_coef 0.05 \
 --learning_rate 4e-6 \
 --init_kl_coef 0.19 \
---num_saved_ckpts 30
+--num_saved_ckpts 30 \
+--eval_interval 100 \
+--num_eval_samples 100
