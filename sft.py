@@ -21,7 +21,7 @@ from trl import SFTTrainer, set_seed
 from peft import LoraConfig, get_peft_model
 
 from utils import (DATASET_PATH, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B,
-                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
+                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, CKPTS_DIR)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
         model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
-        output_dir=f"ckpts/{run_name}",
+        output_dir=f"{CKPTS_DIR}/{run_name}",
         overwrite_output_dir=False,
         num_train_epochs=5.0,
         do_train=True,
