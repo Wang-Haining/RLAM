@@ -20,13 +20,14 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
-PROJECT_NAME = "RLUAM_new_prompt"
+PROJECT_NAME = "RLUAM"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 4230186
 GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 LLAMA3_8B = "meta-llama/Meta-Llama-3-8B"
+FLANT5 =
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
 RESPONSE_TEMP = "\nSimplified version:"
 CKPTS_DIR = 'ckpts'
