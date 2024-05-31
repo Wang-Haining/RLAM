@@ -473,13 +473,14 @@ def train():
                         "Eval/avg. neg. sentence count": _sent_count_reward,
                         "Eval/total rewards": _total_reward
                     })
-                    save_checkpoint(
-                        ppo_trainer=ppo_trainer,
-                        epoch=epoch,
-                        step=step,
-                        eval_score=eval_score,
-                        num_saved_ckpts=args.num_saved_ckpts,
-                        save_folder=args.save_folder)
+                    if args.num_saved_ckpts:
+                        save_checkpoint(
+                            ppo_trainer=ppo_trainer,
+                            epoch=epoch,
+                            step=step,
+                            eval_score=eval_score,
+                            num_saved_ckpts=args.num_saved_ckpts,
+                            save_folder=args.save_folder)
 
                 # check for stability and stop early if unstable
                 if not check_stability(reward_history):

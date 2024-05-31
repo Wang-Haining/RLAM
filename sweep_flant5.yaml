@@ -5,14 +5,14 @@ metric:
   goal: maximize
 parameters:
   wa_coef:
-    min: 1.5
+    min: 1.7
     max: 3.0
   sc_coef:
     min: 0.0
-    max: 1.0
+    max: 0.8
   init_kl_coef:
     min: 0.19
-    max: 0.6
+    max: 0.5
   target:
     min: 3.0
     max: 6.0
@@ -23,9 +23,65 @@ parameters:
     min: 0.2
     max: 0.45
   learning_rate:
-    values: [1e-6, 5e-6, 1e-5]
+    value: 1e-6
   eval_interval:
-    values: [100]
+    value: 64
   num_eval_samples:
-    values: [100]
+    value: 32
+  seed:
+    value: 42
+  steps:
+    value: 1000000
+  adap_kl_ctrl:
+    value: true
+  kl_penalty:
+    value: kl
+  horizon:
+    value: 10000
+  lam:
+    value: 0.95
+  vf_coef:
+    value: 0.1
+  batch_size:
+    value: 16
+  mini_batch_size:
+    value: 2
+  gradient_accumulation_steps:
+    value: 1
+  ppo_epochs:
+    value: 2
+  max_grad_norm:
+    value: null
+  early_stopping:
+    value: true
+  target_kl:
+    value: 1.0
+  compare_steps:
+    value: 1
+  ratio_threshold:
+    value: 10.0
+  use_score_scaling:
+    choices: [false, true]
+  use_score_norm:
+    choices: [false, true]
+  score_clip:
+    value: null
+  whiten_rewards:
+    choices: [false, true]
+  num_epochs:
+    value: 100
+  sl_coef:
+    value: 1.0
+  max_new_tokens:
+    value: 256
+  num_saved_ckpts:
+    value: 0
+  save_folder:
+    value: "ckpts/sweep_flant5"
+  sft_ckpt_path:
+    value: "ckpts/sft_flan-t5-xl/checkpoint-3140"
+  reward:
+    value: uam
+  is_peft_model:
+    value: false
 run_cap: 100
