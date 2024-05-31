@@ -207,6 +207,11 @@ def check_stability(reward_history, window_size=100, threshold=20):
     return variance < threshold
 
 
+def parse_none_or_float(value):
+    if value.lower() == 'none':
+        return None
+    return float(value)
+
 def train():
     try:
         set_seed(SEED)
@@ -255,7 +260,8 @@ def train():
                             default=1, help="Number of gradient accumulation steps")
         parser.add_argument("--ppo_epochs", type=int, default=2,
                             help="Number of optimisation epochs per batch of samples")
-        parser.add_argument("--max_grad_norm", type=float, default=None,
+        parser.add_argument("--max_grad_norm", type=parse_none_or_float,
+                            default=None,
                             help="Maximum gradient norm for gradient clipping")
         parser.add_argument("--early_stopping",
                             type=lambda x: (str(x).lower() == 'true'), default=False,
@@ -279,7 +285,8 @@ def train():
         parser.add_argument("--whiten_rewards",
                             type=lambda x: (str(x).lower() == 'true'), default=False,
                             help="Whiten the rewards before computing advantages")
-        parser.add_argument("--score_clip", type=float, default=None,
+        parser.add_argument("--score_clip", type=parse_none_or_float,
+                            default=None,
                             help="Value to clip the scores, use 'None' to disable")
 
         # misc
