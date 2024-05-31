@@ -279,7 +279,7 @@ def train():
         parser.add_argument("--whiten_rewards", action='store_true',
                             help="Whiten the rewards before computing advantages")
         # misc
-        parser.add_argument("--num_epochs", type=int, default 100,
+        parser.add_argument("--num_epochs", type=int, default=100,
                             help="Number of total epochs")
         parser.add_argument("--sl_coef", type=float, default=1.0,
                             help="Scaling factor for sentence length reward (will keep "
