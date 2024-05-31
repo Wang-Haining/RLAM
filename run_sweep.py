@@ -210,7 +210,7 @@ def check_stability(reward_history, window_size=100, threshold=20):
 def train():
     try:
         set_seed(SEED)
-        wandb.init(project=PROJECT_NAME)
+        wandb.init(project='RLUAM_SWEEP')
         config = wandb.config
 
         parser = argparse.ArgumentParser(
