@@ -270,14 +270,18 @@ def train():
                             help="Skip mini-batches with high PPO ratios that can cause "
                                  "loss spikes")
         # for rewards, following https://arxiv.org/pdf/1909.08593
-        parser.add_argument("--use_score_scaling", action="store_true",
+        parser.add_argument("--use_score_scaling",
+                            type=lambda x: (str(x).lower() == 'true'), default=False,
                             help="Enable score scaling")
-        parser.add_argument("--use_score_norm", action="store_true",
+        parser.add_argument("--use_score_norm",
+                            type=lambda x: (str(x).lower() == 'true'), default=False,
                             help="Enable score normalization")
+        parser.add_argument("--whiten_rewards",
+                            type=lambda x: (str(x).lower() == 'true'), default=False,
+                            help="Whiten the rewards before computing advantages")
         parser.add_argument("--score_clip", type=float, default=None,
                             help="Value to clip the scores, use 'None' to disable")
-        parser.add_argument("--whiten_rewards", action='store_true',
-                            help="Whiten the rewards before computing advantages")
+
         # misc
         parser.add_argument("--num_epochs", type=int, default=100,
                             help="Number of total epochs")
