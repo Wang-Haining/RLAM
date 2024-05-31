@@ -20,8 +20,9 @@ from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import (AutoTokenizer, BitsAndBytesConfig,
                           get_constant_schedule_with_warmup)
-from trl import (AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer,
-                 set_seed)
+from trl import (AutoModelForCausalLMWithValueHead,
+                 AutoModelForSeq2SeqLMWithValueHead,
+                 PPOConfig, PPOTrainer, set_seed)
 
 from utils import (CKPTS_DIR, MAX_NEW_TOKENS, PROJECT_NAME, SEED, SEP_TOKENS,
                    TASK_PREFIX, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
@@ -381,27 +382,33 @@ if __name__ == "__main__":
     # build dataset
     dataset = build_dataset(model_name=args.sft_ckpt_path,
                             task_prefix=TASK_PREFIX)
+    # check model type
+    if any(model_name in args.sft_ckpt_path.lower() for model_name in
+           ['flant5', 'flan-t5']):
+        AutoModelValueHead = AutoModelForSeq2SeqLMWithValueHead
+    else:
+        AutoModelValueHead = AutoModelForCausalLMWithValueHead
 
     # init SFT'ed models
     if args.is_peft_model:
-        policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        policy_model = AutoModelValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
             load_in_8bit=True,
             device_map={"": current_device},
         )
-        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        ref_model = AutoModelValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.float16,
             load_in_8bit=True,
             device_map={"": current_device},
         )
     else:
-        policy_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        policy_model = AutoModelValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16,
         )
-        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        ref_model = AutoModelValueHead.from_pretrained(
             args.sft_ckpt_path,
             torch_dtype=torch.bfloat16
         )
@@ -413,7 +420,7 @@ if __name__ == "__main__":
     # init optimizer
     optimizer = torch.optim.AdamW(policy_model.parameters(),
                                   lr=args.learning_rate)
-    lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=20)
+    lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=100)
 
     ppo_trainer = PPOTrainer(
         config=config,
@@ -427,7 +434,8 @@ if __name__ == "__main__":
     )
 
     rollout_kwargs = {
-        "min_length": -1,
+        "min_length": 20 if any(model_name in args.sft_ckpt_path.lower() for model_name
+                               in ['flant5', 'flan-t5']) else -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
