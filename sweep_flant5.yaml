@@ -1,0 +1,31 @@
+program: run_sweep.py
+method: random
+metric:
+  name: ppo/mean_scores
+  goal: maximize
+parameters:
+  wa_coef:
+    min: 1.5
+    max: 3.0
+  sc_coef:
+    min: 0.0
+    max: 1.0
+  init_kl_coef:
+    min: 0.19
+    max: 0.6
+  target:
+    min: 3.0
+    max: 6.0
+  cliprange:
+    min: 0.2
+    max: 0.45
+  cliprange_value:
+    min: 0.2
+    max: 0.45
+  learning_rate:
+    values: [1e-6, 5e-6, 1e-5]
+  eval_interval:
+    values: [100]
+  num_eval_samples:
+    values: [100]
+run_cap: 100
