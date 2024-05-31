@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0
+#SBATCH --job-name=main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0_score_rewardNorm
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m ppo \
---save_folder main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0 \
+--save_folder main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0_score_rewardNorm \
 --sft_ckpt_path ckpts/sft_gemma-2b/checkpoint-1120 \
 --early_stopping true \
 --target 5.0 \
