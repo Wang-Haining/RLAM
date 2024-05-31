@@ -64,7 +64,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
     training_args = TrainingArguments(
-        output_dir=f"CKPTS_DIR/{run_name}",
+        output_dir=f"{CKPTS_DIR}/{run_name}",
         overwrite_output_dir=False,
         num_train_epochs=50.0,
         do_train=True,
