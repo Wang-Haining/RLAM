@@ -265,9 +265,11 @@ def train():
         args = parser.parse_args()
 
         # Add the missing attributes to config
-        config.sl_coef = args.sl_coef
-        config.wa_coef = args.wa_coef
-        config.sc_coef = args.sc_coef
+        wandb.config.update({
+            "sl_coef": args.sl_coef,
+            "wa_coef": args.wa_coef,
+            "sc_coef": args.sc_coef,
+        })
 
         config = PPOConfig(
             log_with="wandb",
