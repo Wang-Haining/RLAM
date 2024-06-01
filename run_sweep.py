@@ -221,105 +221,53 @@ def train():
         parser = argparse.ArgumentParser(
             description="Rewriting complex scholarly abstracts to laymen.")
         # ppo_config relevant
-        parser.add_argument("--seed", type=int, default=SEED,
-                            help="Batch size for training")
-        parser.add_argument("--steps", type=int, default=1_000_000,
-                            help="Number of training steps. A upper bound of total "
-                                 "training steps. See num_epochs for details.")
-        parser.add_argument("--learning_rate", type=float, default=3e-6,
-                            help="Adam learning rate")
+        parser.add_argument("--seed", type=int, default=SEED, help="Batch size for training")
+        parser.add_argument("--steps", type=int, default=1_000_000, help="Number of training steps. A upper bound of total training steps. See num_epochs for details.")
+        parser.add_argument("--learning_rate", type=float, default=3e-6, help="Adam learning rate")
         # kl objective
-        parser.add_argument("--adap_kl_ctrl",
-                            type=lambda x: (str(x).lower() == 'true'), default=True,
-                            help="Use adaptive KL control, otherwise linear")
-        parser.add_argument("--init_kl_coef", type=float, default=0.2,
-                            help="Initial KL penalty coefficient (used for adaptive and "
-                                 "linear control). See formula (2) in "
-                                 "https://arxiv.org/pdf/1909.08593")
-        parser.add_argument("--kl_penalty", type=str,
-                            choices=['kl', 'abs', 'mse', 'full'],
-                            default="kl", help="KL penalty options")
-        parser.add_argument("--target", type=float, default=5.0,
-                            help="Target KL value for adaptive KL control")
-        parser.add_argument("--horizon", type=float, default=10000,
-                            help="Horizon for adaptive KL control")
+        parser.add_argument("--adap_kl_ctrl", type=lambda x: (str(x).lower() == 'true'), default=True, help="Use adaptive KL control, otherwise linear")
+        parser.add_argument("--init_kl_coef", type=float, default=0.2, help="Initial KL penalty coefficient (used for adaptive and linear control). See formula (2) in https://arxiv.org/pdf/1909.08593")
+        parser.add_argument("--kl_penalty", type=str, choices=['kl', 'abs', 'mse', 'full'], default="kl", help="KL penalty options")
+        parser.add_argument("--target", type=float, default=5.0, help="Target KL value for adaptive KL control")
+        parser.add_argument("--horizon", type=float, default=10000, help="Horizon for adaptive KL control")
         # ppo
-        parser.add_argument("--lam", type=float, default=0.95,
-                            help="Lambda parameter for advantage calculation")
-        parser.add_argument("--cliprange", type=float, default=0.25,
-                            help="Range for clipping in PPO policy gradient loss")
-        parser.add_argument("--cliprange_value", type=float, default=0.25,
-                            help="Range for clipping values in loss calculation")
-        parser.add_argument("--vf_coef", type=float, default=0.1,
-                            help="Scaling factor for value loss")
-        parser.add_argument("--batch_size", type=int, default=16,
-                            help="Batch size for training")
-        parser.add_argument("--mini_batch_size", type=int, default=2,
-                            help="Mini batch size for PPO updates")
-        parser.add_argument("--gradient_accumulation_steps", type=int,
-                            default=1, help="Number of gradient accumulation steps")
-        parser.add_argument("--ppo_epochs", type=int, default=2,
-                            help="Number of optimisation epochs per batch of samples")
-        parser.add_argument("--max_grad_norm", type=parse_none_or_float,
-                            default=None,
-                            help="Maximum gradient norm for gradient clipping")
-        parser.add_argument("--early_stopping",
-                            type=lambda x: (str(x).lower() == 'true'), default=False,
-                            help="Whether to stop the PPO optimization loop early if KL "
-                                 "is too high")
-        parser.add_argument("--target_kl", type=float, default=1.0,
-                            help="Stop early if we exceed this value by over 50%")
-        parser.add_argument("--compare_steps", type=int, default=1,
-                            help="Number of steps between comparison of the current "
-                                 "reward with the best seen so far")
-        parser.add_argument("--ratio_threshold", type=float, default=10.0,
-                            help="Skip mini-batches with high PPO ratios that can cause "
-                                 "loss spikes")
+        parser.add_argument("--lam", type=float, default=0.95, help="Lambda parameter for advantage calculation")
+        parser.add_argument("--cliprange", type=float, default=0.25, help="Range for clipping in PPO policy gradient loss")
+        parser.add_argument("--cliprange_value", type=float, default=0.25, help="Range for clipping values in loss calculation")
+        parser.add_argument("--vf_coef", type=float, default=0.1, help="Scaling factor for value loss")
+        parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
+        parser.add_argument("--mini_batch_size", type=int, default=2, help="Mini batch size for PPO updates")
+        parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
+        parser.add_argument("--ppo_epochs", type=int, default=2, help="Number of optimisation epochs per batch of samples")
+        parser.add_argument("--max_grad_norm", type=parse_none_or_float, default=None, help="Maximum gradient norm for gradient clipping")
+        parser.add_argument("--early_stopping", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to stop the PPO optimization loop early if KL is too high")
+        parser.add_argument("--target_kl", type=float, default=1.0, help="Stop early if we exceed this value by over 50%")
+        parser.add_argument("--compare_steps", type=int, default=1, help="Number of steps between comparison of the current reward with the best seen so far")
+        parser.add_argument("--ratio_threshold", type=float, default=10.0, help="Skip mini-batches with high PPO ratios that can cause loss spikes")
         # for rewards, following https://arxiv.org/pdf/1909.08593
-        parser.add_argument("--use_score_scaling",
-                            type=lambda x: (str(x).lower() == 'true'), default=False,
-                            help="Enable score scaling")
-        parser.add_argument("--use_score_norm",
-                            type=lambda x: (str(x).lower() == 'true'), default=False,
-                            help="Enable score normalization")
-        parser.add_argument("--whiten_rewards",
-                            type=lambda x: (str(x).lower() == 'true'), default=False,
-                            help="Whiten the rewards before computing advantages")
-        parser.add_argument("--score_clip", type=parse_none_or_float,
-                            default=None,
-                            help="Value to clip the scores, use 'None' to disable")
-
+        parser.add_argument("--use_score_scaling", type=lambda x: (str(x).lower() == 'true'), default=False, help="Enable score scaling")
+        parser.add_argument("--use_score_norm", type=lambda x: (str(x).lower() == 'true'), default=False, help="Enable score normalization")
+        parser.add_argument("--whiten_rewards", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whiten the rewards before computing advantages")
+        parser.add_argument("--score_clip", type=parse_none_or_float, default=None, help="Value to clip the scores, use 'None' to disable")
         # misc
-        parser.add_argument("--num_epochs", type=int, default=100,
-                            help="Number of total epochs")
-        parser.add_argument("--sl_coef", type=float, default=1.0,
-                            help="Scaling factor for sentence length reward (will keep "
-                                 "this frozen as 1.0)")
-        parser.add_argument("--wa_coef", type=float, default=2.0,
-                            help="Scaling factor for word accessibility reward (will vary "
-                                 "it for an optimal value)")
-        parser.add_argument("--sc_coef", type=float, default=0.0,
-                            help="Penalty factor for deviation from target number of "
-                                 "sentences.")
-        parser.add_argument("--max_new_tokens", type=int,
-                            default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
-        parser.add_argument("--eval_interval", type=int, default=20,
-                            help="Interval between evaluations")
-        parser.add_argument("--num_eval_samples", type=int, default=64,
-                            help="Num of samples for evaluation")
-        parser.add_argument("--num_saved_ckpts", type=int, default=5,
-                            help="Num of best ckpts to save")
-        parser.add_argument("--save_folder", type=str,
-                            help="Experiment name for checkpointing, under the directory "
-                                 "of ckpts")
-        parser.add_argument("--sft_ckpt_path", type=str,
-                            help="Path to the SFT'ed model")
-        parser.add_argument("--reward", type=str, choices=['uam', 'ari'],
-                            default='uam', help="Reward for RL, either uam or ari")
-        parser.add_argument("--is_peft_model",
-                            type=lambda x: (str(x).lower() == 'true'), default=False,
-                            help="Whether to use LoRA for finetuning")
+        parser.add_argument("--num_epochs", type=int, default=100, help="Number of total epochs")
+        parser.add_argument("--sl_coef", type=float, default=1.0, help="Scaling factor for sentence length reward (will keep this frozen as 1.0)")
+        parser.add_argument("--wa_coef", type=float, default=2.0, help="Scaling factor for word accessibility reward (will vary it for an optimal value)")
+        parser.add_argument("--sc_coef", type=float, default=0.0, help="Penalty factor for deviation from target number of sentences.")
+        parser.add_argument("--max_new_tokens", type=int, default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
+        parser.add_argument("--eval_interval", type=int, default=20, help="Interval between evaluations")
+        parser.add_argument("--num_eval_samples", type=int, default=64, help="Num of samples for evaluation")
+        parser.add_argument("--num_saved_ckpts", type=int, default=5, help="Num of best ckpts to save")
+        parser.add_argument("--save_folder", type=str, help="Experiment name for checkpointing, under the directory of ckpts")
+        parser.add_argument("--sft_ckpt_path", type=str, help="Path to the SFT'ed model")
+        parser.add_argument("--reward", type=str, choices=['uam', 'ari'], default='uam', help="Reward for RL, either uam or ari")
+        parser.add_argument("--is_peft_model", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to use LoRA for finetuning")
         args = parser.parse_args()
+
+        # Add the missing attributes to config
+        config.sl_coef = args.sl_coef
+        config.wa_coef = args.wa_coef
+        config.sc_coef = args.sc_coef
 
         config = PPOConfig(
             log_with="wandb",
@@ -350,8 +298,7 @@ def train():
 
         dataset = build_dataset(model_name=args.sft_ckpt_path, task_prefix=TASK_PREFIX)
 
-        if any(model_name in args.sft_ckpt_path.lower() for model_name in
-               ['flant5', 'flan-t5']):
+        if any(model_name in args.sft_ckpt_path.lower() for model_name in ['flant5', 'flan-t5']):
             AutoModelValueHead = AutoModelForSeq2SeqLMWithValueHead
         else:
             AutoModelValueHead = AutoModelForCausalLMWithValueHead
@@ -399,9 +346,7 @@ def train():
         )
 
         rollout_kwargs = {
-            "min_length": 20 if any(
-                model_name in args.sft_ckpt_path.lower() for model_name in
-                ['flant5', 'flan-t5']) else -1,
+            "min_length": 20 if any(model_name in args.sft_ckpt_path.lower() for model_name in ['flant5', 'flan-t5']) else -1,
             "top_k": 0.0,
             "top_p": 1.0,
             "do_sample": True,
@@ -428,16 +373,11 @@ def train():
                     rewards = compute_uam_rewards(batch["response"], target_num_sents)
                     rewards = [
                         config.sl_coef * sl + config.wa_coef * wa + config.sc_coef * sc
-                        for sl, wa, sc in zip(rewards['sl_reward'],
-                                              rewards['wa_reward'],
-                                              rewards['sc_reward'])]
-                    ref_rewards = compute_uam_rewards(batch["ref_response"],
-                                                      target_num_sents)
+                        for sl, wa, sc in zip(rewards['sl_reward'], rewards['wa_reward'], rewards['sc_reward'])]
+                    ref_rewards = compute_uam_rewards(batch["ref_response"], target_num_sents)
                     ref_rewards = [
                         config.sl_coef * sl + config.wa_coef * wa + config.sc_coef * sc
-                        for sl, wa, sc in zip(ref_rewards['sl_reward'],
-                                              ref_rewards['wa_reward'],
-                                              ref_rewards['sc_reward'])]
+                        for sl, wa, sc in zip(ref_rewards['sl_reward'], ref_rewards['wa_reward'], ref_rewards['sc_reward'])]
                 else:
                     rewards = compute_ari_rewards(batch["response"])['ari_reward']
                     ref_rewards = compute_ari_rewards(batch["ref_response"])['ari_reward']
@@ -448,8 +388,7 @@ def train():
                     stats,
                     batch,
                     rewards,
-                    columns_to_log=["query", "response", "ref_response",
-                                    "ref_rewards", "advantage"],
+                    columns_to_log=["query", "response", "ref_response", "ref_rewards", "advantage"],
                 )
                 wandb.log(rollout_kwargs)
 
@@ -465,8 +404,7 @@ def train():
                     )
                     wandb.log(eval_score)
                     _sent_len_reward = np.mean(eval_score['avg_sent_len'])
-                    _word_accessibility_reward = np.mean(
-                        eval_score['avg_word_accessibility'])
+                    _word_accessibility_reward = np.mean(eval_score['avg_word_accessibility'])
                     _sent_count_reward = np.mean(eval_score['avg_sent_count'])
                     if args.reward == 'uam':
                         _total_reward = (config.sl_coef * _sent_len_reward +
