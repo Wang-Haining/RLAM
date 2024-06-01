@@ -215,7 +215,7 @@ def parse_none_or_float(value):
 def train():
     try:
         set_seed(SEED)
-        wandb.init(project='RLUAM_SWEEP')
+        # wandb.init(project='RLUAM_SWEEP')
         config = wandb.config
 
         parser = argparse.ArgumentParser(
@@ -264,14 +264,7 @@ def train():
         parser.add_argument("--is_peft_model", type=lambda x: (str(x).lower() == 'true'), default=False, help="Whether to use LoRA for finetuning")
         args = parser.parse_args()
 
-        # Add the missing attributes to config
-        wandb.config.update({
-            "sl_coef": args.sl_coef,
-            "wa_coef": args.wa_coef,
-            "sc_coef": args.sc_coef,
-        })
-
-        config = PPOConfig(
+        ppo_config = PPOConfig(
             log_with="wandb",
             remove_unused_columns=False,
             is_peft_model=args.is_peft_model,
@@ -305,30 +298,30 @@ def train():
         else:
             AutoModelValueHead = AutoModelForCausalLMWithValueHead
 
-        if args.is_peft_model:
+        if config.is_peft_model:
             policy_model = AutoModelValueHead.from_pretrained(
-                args.sft_ckpt_path,
+                config.sft_ckpt_path,
                 torch_dtype=torch.float16,
                 load_in_8bit=True,
                 device_map={"": current_device},
             )
             ref_model = AutoModelValueHead.from_pretrained(
-                args.sft_ckpt_path,
+                config.sft_ckpt_path,
                 torch_dtype=torch.float16,
                 load_in_8bit=True,
                 device_map={"": current_device},
             )
         else:
             policy_model = AutoModelValueHead.from_pretrained(
-                args.sft_ckpt_path,
+                config.sft_ckpt_path,
                 torch_dtype=torch.bfloat16,
             )
             ref_model = AutoModelValueHead.from_pretrained(
-                args.sft_ckpt_path,
+                config.sft_ckpt_path,
                 torch_dtype=torch.bfloat16
             )
 
-        tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
+        tokenizer = AutoTokenizer.from_pretrained(config.sft_ckpt_path)
         if getattr(tokenizer, "pad_token", None) is None:
             tokenizer.pad_token = tokenizer.eos_token
             tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -337,7 +330,7 @@ def train():
         lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=100)
 
         ppo_trainer = PPOTrainer(
-            config=config,
+            config=ppo_config,
             model=policy_model,
             ref_model=ref_model,
             tokenizer=tokenizer,
