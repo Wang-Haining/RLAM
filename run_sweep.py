@@ -215,7 +215,7 @@ def parse_none_or_float(value):
 def train():
     try:
         set_seed(SEED)
-        # wandb.init(project='RLUAM_SWEEP')
+        wandb.init()
         config = wandb.config
 
         parser = argparse.ArgumentParser(
