@@ -156,7 +156,7 @@ def compute_uam_rewards(responses: List[str],
 
             for sent in sents:
                 for t in SEP_TOKENS:
-                    if sent.strip().endswith(t):
+                    if sent.strip().endswith(t) or sent.strip().startswith(t):
                         sent = sent.replace(t, "").strip()
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):

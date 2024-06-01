@@ -206,7 +206,7 @@ def compute_uam_rewards(responses: List[str],
     mt = MosesTokenizer(lang='en')
 
     for i, response in enumerate(responses):
-        # EOS tokens of gemma/olmo/llama
+        # EOS tokens of gemma/olmo/llama/flant5
         if (response.strip() in SEP_TOKENS) or (len(response.strip()) <= 20):
             sent_len_rewards.append(30.0)
             word_accessibility_rewards.append(7.0)
@@ -222,7 +222,7 @@ def compute_uam_rewards(responses: List[str],
             for sent in sents:
                 # prevent noise from artificial eos tokens
                 for t in SEP_TOKENS:
-                    if sent.strip().endswith(t):
+                    if sent.strip().endswith(t) or sent.strip().startswith(t):
                         sent = sent.replace(t, "").strip()
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent):
