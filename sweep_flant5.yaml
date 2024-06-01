@@ -45,7 +45,7 @@ parameters:
   batch_size:
     value: 16
   mini_batch_size:
-    value: 2
+    value: 1
   gradient_accumulation_steps:
     value: 1
   ppo_epochs:
