@@ -16,4 +16,4 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m eval_outputs \
---ckpt_path ckpts/ckpts/main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0/model_epoch_9_step_0_ari_13.16.pt
+--ckpt_path ckpts/main_ppo_gemma_2b_waCoef2_target5_klCoef0.19_scCoef0/model_epoch_9_step_0_ari_13.16.pt
