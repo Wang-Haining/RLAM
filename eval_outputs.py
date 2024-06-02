@@ -23,7 +23,7 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           AutoTokenizer)
 from trl import set_seed
 
-from utils import (FLAN_T5_TASK_PREFIX, FLANT5, GEMMA, OLMO, SEED, TASK_PREFIX,
+from utils import (FLANT5_XL, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B, SEED, TASK_PREFIX,
                    VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, compute_ari, compute_flesch_kincaid,
                    compute_sent_len, compute_token_accessibility,
@@ -139,21 +139,25 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
     args = parser.parse_args()
 
-    if ('flan-t5' in args.ckpt_path) or ('flant5' in args.ckpt_path):
+    if 'flan' in args.ckpt_path.lower():
         AutoModelForGeneration = AutoModelForSeq2SeqLM
-        task_prefix = FLAN_T5_TASK_PREFIX
-        model_name = FLANT5
+        model_name = FLANT5_XL
         lm_type = 'seq2seq'
     else:
         AutoModelForGeneration = AutoModelForCausalLM
-        task_prefix = TASK_PREFIX
         lm_type = 'clm'
-        if "gemma" in args.ckpt_path:
-            model_name = GEMMA
+        if "gemma" in args.ckpt_path.lower():
+            if "2b" in args.ckpt_path.lower():
+                model_name = GEMMA_2B
+            elif "7b" in args.ckpt_path.lower():
+                model_name = GEMMA_7B
+        elif "olmo" in args.ckpt_path.lower():
+            model_name = OLMO_1B
+        elif 'llama' in args.ckpt_path.lower():
+            model_name = LLAMA3_8B
         else:
-            model_name = OLMO
-
-    dataset = build_dataset(model_name, task_prefix)
+            raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
+    dataset = build_dataset(model_name, TASK_PREFIX)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
                                                    torch_dtype=torch.bfloat16)
