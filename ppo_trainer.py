@@ -125,23 +125,23 @@ def compute_uam_score(responses: List[str],
     return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
 
 
-@dataclass
-class OnpolicyRuntimeConfig:
-    # various batch sizes
-    world_size: Optional[int] = None
-    """The number of processes (GPUs) to use"""
-    num_updates: Optional[int] = None
-    """The number of updates to train"""
-    micro_batch_size: Optional[int] = None
-    """The micro batch size across devices (HF's `per_device_train_batch_size` * `world_size`)"""
-    local_batch_size: Optional[int] = None
-    """The batch size per GPU (HF's `per_device_train_batch_size` * `gradient_accumulation_steps`)"""
-    batch_size: Optional[int] = None
-    """The batch size across devices (HF's `per_device_train_batch_size` * `world_size` * `gradient_accumulation_steps`)"""
-    local_mini_batch_size: Optional[int] = None
-    """the mini batch size per GPU"""
-    mini_batch_size: Optional[int] = None
-    """the mini batch size across GPUs"""
+# @dataclass
+# class OnpolicyRuntimeConfig:
+#     # various batch sizes
+#     world_size: Optional[int] = None
+#     """The number of processes (GPUs) to use"""
+#     num_updates: Optional[int] = None
+#     """The number of updates to train"""
+#     micro_batch_size: Optional[int] = None
+#     """The micro batch size across devices (HF's `per_device_train_batch_size` * `world_size`)"""
+#     local_batch_size: Optional[int] = None
+#     """The batch size per GPU (HF's `per_device_train_batch_size` * `gradient_accumulation_steps`)"""
+#     batch_size: Optional[int] = None
+#     """The batch size across devices (HF's `per_device_train_batch_size` * `world_size` * `gradient_accumulation_steps`)"""
+#     local_mini_batch_size: Optional[int] = None
+#     """the mini batch size per GPU"""
+#     mini_batch_size: Optional[int] = None
+#     """the mini batch size across GPUs"""
 
 @dataclass
 class PPOConfig(TrainingArguments):
@@ -291,6 +291,7 @@ class PPOTrainer(Trainer):
             args.total_episodes = args.num_train_epochs * self.train_dataset_len
         accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
         self.accelerator = accelerator
+        accelerator.print(f"{accelerator.num_processes=}")
         args.world_size = accelerator.num_processes
         args.local_batch_size = (
             args.per_device_train_batch_size * args.gradient_accumulation_steps * args.num_mini_batches
