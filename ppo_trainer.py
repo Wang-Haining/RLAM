@@ -289,8 +289,8 @@ class PPOTrainer(Trainer):
         args.local_batch_size = (
             args.per_device_train_batch_size * args.gradient_accumulation_steps * args.num_mini_batches
         )
-        args.micro_batch_size = int(args.per_device_train_batch_size * args.accelerator.num_processes)
-        args.batch_size = int(args.local_batch_size * args.accelerator.num_processes)
+        args.micro_batch_size = int(args.per_device_train_batch_size * accelerator.num_processes)
+        args.batch_size = int(args.local_batch_size * accelerator.num_processes)
         args.mini_batch_size = exact_div(
             args.batch_size, args.num_mini_batches, "`batch_size` must be a multiple of `num_mini_batches`"
         )
