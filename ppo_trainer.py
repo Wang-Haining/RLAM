@@ -216,7 +216,7 @@ class PPOConfig(TrainingArguments):
     logging_steps: int = 2
     save_steps: int = 10
     eval_steps: int = 10
-    evaluation_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
+    eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
     save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts'
@@ -260,7 +260,7 @@ class PPOTrainer(Trainer):
         ref_policy: nn.Module,
         train_dataset: Dataset,
         value_model: Optional[nn.Module] = None,
-        # data_collator: Optional[DataCollatorWithPadding] = None,
+        data_collator: Optional[DataCollatorWithPadding] = None,
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
         # less commonly used
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
@@ -808,6 +808,6 @@ if __name__ == "__main__":
                              ref_policy=ref_policy,
                              train_dataset=train_dataset,
                              value_model=value_model,
-                             # data_collator=DataCollatorWithPadding,
+                             data_collator=DataCollatorWithPadding,
                              eval_dataset=eval_dataset)
     ppo_trainer.train()
