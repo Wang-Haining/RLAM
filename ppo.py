@@ -541,7 +541,7 @@ if __name__ == "__main__":
     writer.add_histogram = lambda x, y, z: None
     if accelerator.is_main_process:
         wandb.init(
-            settings=wandb.Settings(start_method="fork"),
+            # settings=wandb.Settings(start_method="fork"),
             project=args.project_name,
             # entity=args.wandb_entity,
             # sync_tensorboard=True,
