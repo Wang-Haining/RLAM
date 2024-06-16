@@ -6,8 +6,8 @@ import os
 import pickle
 import time
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Dict, List, Literal, Optional, Tuple, Union, Any
 
 import nltk
 import numpy as np
@@ -223,14 +223,13 @@ class PPOConfig(TrainingArguments):
     overwrite_output_dir: bool = False
 
 
-def parse_args():
+def parse_args() -> Any:
     parser = argparse.ArgumentParser(description="Training script for PPO")
     parser.add_argument("--config_path", type=str, required=True, help="Path to the configuration file")
     args = parser.parse_args()
     return args
 
-
-def load_config(json_file):
+def load_config(json_file: str) -> Any:
     with open(json_file, "r") as file:
         config_dict = json.load(file)
     return PPOConfig(**config_dict)
@@ -791,7 +790,7 @@ if __name__ == "__main__":
     config = load_config(args.config_path)
 
     # build dataset
-    dataset = build_dataset(model_name=args.sft_model_path,
+    dataset = build_dataset(model_name=config.sft_model_path,
                             task_prefix=TASK_PREFIX)
     train_dataset = dataset['train']
     eval_dataset = dataset['validation']
@@ -800,7 +799,7 @@ if __name__ == "__main__":
     tokenizer = PreTrainedTokenizer.from_pretrained(config.base_model)
     value_model = AutoModelForSequenceClassification.from_pretrained(config.sft_model_path, num_labels=1, torch_dtype=torch.bfloat16)
     ref_policy = AutoModelForCausalLM.from_pretrained(config.sft_model_path, torch_dtype=torch.bfloat16)
-    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, torch_dtype=torch.bfloat16)
+    policy = AutoModelForCausalLM.from_pretrained(config.sft_model_path, torch_dtype=torch.bfloat16)
 
     # training Loop
     ppo_trainer = PPOTrainer(config=config,
