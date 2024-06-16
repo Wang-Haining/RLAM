@@ -1,13 +1,13 @@
+import argparse
 import gc
 import heapq
+import json
 import os
 import pickle
-import argparse
 import time
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Tuple, Union
-import json
 
 import nltk
 import numpy as np
@@ -21,16 +21,13 @@ from datasets import Dataset
 from nltk.tokenize import sent_tokenize
 from sacremoses import MosesTokenizer
 from torch.utils.data import DataLoader
-from transformers import (DataCollatorWithPadding, GenerationConfig,
+from transformers import (AutoModelForCausalLM,
+                          AutoModelForSequenceClassification,
+                          DataCollatorWithPadding, GenerationConfig,
                           PreTrainedTokenizer, Trainer, TrainerCallback,
-                          TrainerControl, TrainerState, TrainingArguments,
-                          AutoModelForCausalLM, AutoModelForSequenceClassification)
+                          TrainerControl, TrainerState, TrainingArguments)
 from transformers.integrations import get_reporting_integration_callbacks
 from transformers.trainer_callback import CallbackHandler, DefaultFlowCallback
-
-# from trl import (AutoModelForCausalLMWithValueHead,
-#                  AutoModelForSeq2SeqLMWithValueHead,
-#                  PPOConfig, PPOTrainer, set_seed)
 
 from ppo_utils import (disable_dropout_in_model, exact_div, first_true_indices,
                        forward, generate, get_reward, masked_mean,
@@ -40,6 +37,11 @@ from utils import (CKPTS_DIR, MAX_NEW_TOKENS, PROJECT_NAME, SEED, SEP_TOKENS,
                    TASK_PREFIX, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_dataset, collator, compute_ari, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
+
+# from trl import (AutoModelForCausalLMWithValueHead,
+#                  AutoModelForSeq2SeqLMWithValueHead,
+#                  PPOConfig, PPOTrainer, set_seed)
+
 
 nltk.download('punkt')
 INVALID_LOGPROB = 1.0
@@ -147,7 +149,7 @@ class PPOConfig(TrainingArguments):
     # see https://huggingface.co/docs/transformers/v4.41.3/en/main_classes/trainer#transformers.TrainingArguments
     # for common arguments controlling saving/checkpointing/logging/eval
     # common config
-    exp_name: str = os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = 'RLUAM'
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""
@@ -205,10 +207,20 @@ class PPOConfig(TrainingArguments):
     """the KL coefficient"""
 
     # uncombined accessibility measure related
-    sl_coef: float = 1.0,
+    sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.0,
+    wa_coef: float = 2.0
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
+
+    # logging and evaluation intervals (directly inherited from TrainingArguments)
+    logging_steps: int = 2
+    save_steps: int = 10
+    eval_steps: int = 10
+    evaluation_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
+    save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
+    save_total_limit: Optional[int] = 3
+    output_dir: str = 'ckpts'
+    overwrite_output_dir: bool = False
 
 
 def parse_args():

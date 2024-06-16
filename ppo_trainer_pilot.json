@@ -20,5 +20,12 @@
     "whiten_rewards": false,
     "kl_coef": 0.2,
     "sl_coef": 1.0,
-    "wa_coef": 2.0
+    "wa_coef": 2.0,
+    "sft_model_path": "ckpts/sft_gemma-2b/checkpoint-1120",
+    "logging_steps": 2,
+    "save_steps": 10,
+    "eval_steps": 10,
+    "evaluation_strategy": "steps",
+    "save_strategy": "steps",
+    "save_total_limit": 3
 }
