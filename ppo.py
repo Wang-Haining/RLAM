@@ -203,14 +203,14 @@ class Args:
     base_model: str = "google/gemma-2b"
     """the name of the pretrained model to use"""
     # fixme: modify
-    query_dataset: str = "vwxyzjn/summarize_from_feedback_tldr_3_filtered_oai_preprocessing_1706381144"
-    """the query dataset"""
+    # query_dataset: str = "vwxyzjn/summarize_from_feedback_tldr_3_filtered_oai_preprocessing_1706381144"
+    # """the query dataset"""
     response_length: int = 256
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
     # fixme: modify
-    truncate_token_id: Optional[int] = None  # 1 for gemma
+    truncate_token_id: Optional[int] = 1  # 1 for gemma
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -462,7 +462,10 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             queries = data["query_token"]
             # reference_response_token = data["reference_response_token"]
             context_length = queries.shape[1]
-            # query_reference_responses = torch.cat((data["query_token"], data["reference_response_token"]), dim=1)
+            query_reference_responses = tokenizer.batch_decode(torch.cat((data["query_token"], data["reference_response_token"]), dim=1),
+                                                     skip_special_tokens=True,
+                                                     clean_up_tokenization_spaces=True)
+
             uam_score = compute_uam_score(data['response'])
             reference_score = sl_coef * uam_score['sl_score'] + wa_coef * uam_score['wa_score']
 
