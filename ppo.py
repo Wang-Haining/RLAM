@@ -466,7 +466,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
 
-            uam_score = compute_uam_score(data['response'])
+            uam_score = compute_uam_score(query_reference_responses)
             reference_score = sl_coef * uam_score['sl_score'] + wa_coef * uam_score['wa_score']
 
             query_responses, _ = generate(
@@ -483,7 +483,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             score = compute_uam_score(generated_texts)
 
             eval_storage["query_token"].extend(queries)
-            eval_storage["reference_response_token"].extend(data['response'])
+            eval_storage["reference_response_token"].extend(query_reference_responses)
             eval_storage["reference_score"].append(reference_score)
             eval_storage["postprocessed_reference_response_token"].extend(postprocessed_responses)
             eval_storage["score"].append(score)
