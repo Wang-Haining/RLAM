@@ -290,12 +290,14 @@ class PPOTrainer(Trainer):
         #########
         if args.total_episodes is None:  # allow the users to define episodes in terms of epochs.
             args.total_episodes = args.num_train_epochs * self.train_dataset_len
-        self.accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
-        args.world_size = self.accelerator.num_processes
+        accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
+        self.accelerator = accelerator
+        args.world_size = accelerator.num_processes
         args.local_batch_size = (
             args.per_device_train_batch_size * args.gradient_accumulation_steps * args.num_mini_batches
         )
         args.micro_batch_size = int(args.per_device_train_batch_size * args.world_size)
+        args.batch_size = int(args.local_batch_size * args.world_size)
         args.batch_size = int(args.local_batch_size * args.world_size)
         args.mini_batch_size = exact_div(
             args.batch_size, args.num_mini_batches, "`batch_size` must be a multiple of `num_mini_batches`"
