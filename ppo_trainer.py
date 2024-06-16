@@ -53,7 +53,6 @@ top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
-current_device = Accelerator().local_process_index
 
 
 def compute_uam_score(responses: List[str],
@@ -298,7 +297,6 @@ class PPOTrainer(Trainer):
         )
         args.micro_batch_size = int(args.per_device_train_batch_size * args.world_size)
         args.batch_size = int(args.local_batch_size * args.world_size)
-        args.batch_size = int(args.local_batch_size * args.world_size)
         args.mini_batch_size = exact_div(
             args.batch_size, args.num_mini_batches, "`batch_size` must be a multiple of `num_mini_batches`"
         )
@@ -312,10 +310,10 @@ class PPOTrainer(Trainer):
         # `per_rank_rollout_batch_size` is our `args.local_batch_size`
         # `per_rank_minibatch_size` is our `args.local_mini_batch_size`
         args.num_updates = args.total_episodes // args.batch_size
-        time_tensor = torch.tensor(int(time.time()), device=self.accelerator.device)
+        time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
         time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
         args.run_name = f"{args.exp_name}__{args.seed}__{time_int}"
-        self.local_seed = args.seed + self.accelerator.process_index * 100937  # a large prime number
+        self.local_seed = args.seed + accelerator.process_index * 100937  # a large prime number
         if args.num_sample_generations > 0:
             self.sample_generations_freq = max(1, args.num_updates // args.num_sample_generations)
 
@@ -368,7 +366,7 @@ class PPOTrainer(Trainer):
         # sync random states for DataLoader(shuffle=True) before `accelerator.prepare`
         # see https://gist.github.com/vwxyzjn/2581bff1e48e185e0b85b6dfe1def79c
         torch.manual_seed(args.seed)
-        self.model, self.optimizer, self.dataloader = self.accelerator.prepare(self.model, self.optimizer, self.dataloader)
+        self.model, self.optimizer, self.dataloader = accelerator.prepare(self.model, self.optimizer, self.dataloader)
         torch.manual_seed(self.local_seed)  # reset the local seed again
 
         self.eval_dataloader = DataLoader(
@@ -377,7 +375,7 @@ class PPOTrainer(Trainer):
             collate_fn=DataCollatorWithPadding(self.tokenizer),
             drop_last=True,
         )  # no need to shuffle eval dataset
-        self.eval_dataloader = self.accelerator.prepare(self.eval_dataloader)
+        self.eval_dataloader = accelerator.prepare(self.eval_dataloader)
 
         if self.is_deepspeed_enabled:
             # fixme: to rm
@@ -431,7 +429,7 @@ class PPOTrainer(Trainer):
         # reward_model = self.reward_model
         tokenizer = self.tokenizer
         dataloader = self.dataloader
-        device = self.accelerator.device
+        device = accelerator.device
 
         def repeat_generator():
             while True:
