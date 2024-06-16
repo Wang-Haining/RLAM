@@ -142,7 +142,7 @@ class PpoHParams:
 @dataclass
 class Args:
     # common args
-    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
+    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures🔥"
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""
@@ -477,7 +477,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             )
             responses = query_responses[:, context_length:]
             postprocessed_responses = truncate_response(args, tokenizer, responses)
-            generated_texts = tokenizer.batch_decode(postprocessed_response,
+            generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
             score = compute_uam_score(generated_texts)
@@ -738,7 +738,7 @@ if __name__ == "__main__":
                 )
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
-                generated_texts = tokenizer.batch_decode(postprocessed_response,
+                generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                          skip_special_tokens=True,
                                                          clean_up_tokenization_spaces=True)
                 uam_score = compute_uam_score(generated_texts)
