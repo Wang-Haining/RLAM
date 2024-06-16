@@ -214,7 +214,7 @@ class Args:
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
-    penalty_reward_value: int = -1
+    penalty_reward_value: int = -2  # todo: tune
     """the reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = True
     """whether to penalize responses that do not contain `truncate_token_id`"""
@@ -455,15 +455,16 @@ def forward(model, query_responses, tokenizer):
 
 
 # fixme: reward_model alert
-def evaluate(reward_model, policy, tokenizer, dataloader, generation_config, sampling=True):
+def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config, sampling=True):
     eval_storage = defaultdict(list)
     with torch.no_grad():
         for data in tqdm(dataloader):
             queries = data["query_token"]
             # reference_response_token = data["reference_response_token"]
             context_length = queries.shape[1]
-            query_reference_responses = torch.cat((data["query_token"], data["reference_response_token"]), dim=1)
-            _, reference_score, _ = get_reward(reward_model, query_reference_responses, tokenizer, queries.shape[1])
+            # query_reference_responses = torch.cat((data["query_token"], data["reference_response_token"]), dim=1)
+            uam_score = compute_uam_score(data['response'])
+            reference_score = sl_coef * uam_score['sl_score'] + wa_coef * uam_score['wa_score']
 
             query_responses, _ = generate(
                 policy,
@@ -473,11 +474,13 @@ def evaluate(reward_model, policy, tokenizer, dataloader, generation_config, sam
             )
             responses = query_responses[:, context_length:]
             postprocessed_responses = truncate_response(args, tokenizer, responses)
-            postprocessed_query_responses = torch.cat((queries, postprocessed_responses), 1)
-            _, score, _ = get_reward(reward_model, postprocessed_query_responses, tokenizer, queries.shape[1])
+            generated_texts = tokenizer.batch_decode(postprocessed_response,
+                                                     skip_special_tokens=True,
+                                                     clean_up_tokenization_spaces=True)
+            score = compute_uam_score(generated_texts)
 
             eval_storage["query_token"].extend(queries)
-            eval_storage["reference_response_token"].extend(reference_response_token)
+            eval_storage["reference_response_token"].extend(data['response'])
             eval_storage["reference_score"].append(reference_score)
             eval_storage["postprocessed_reference_response_token"].extend(postprocessed_responses)
             eval_storage["score"].append(score)
@@ -510,13 +513,12 @@ if __name__ == "__main__":
     # load dataset
     # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token"])
+    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token"])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     # fixme
     for split in ["validation", 'test']:
         eval_dataset = dataset[split]
-        # eval_dataset = eval_dataset.with_format("torch", columns=["query_token", "reference_response_token"])
         eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -524,7 +526,7 @@ if __name__ == "__main__":
         padding_side="right",
         trust_remote_code=True,
     )
-    # fixme: use <pad> if fine?
+    # fixme: use <pad> is fine?
     # we use the padding token manually but do not resize the token embedding of the model
     # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     if args.truncate_token == "eos":
@@ -565,7 +567,7 @@ if __name__ == "__main__":
     )
     # init value model and reward model from scratch
     critic: PreTrainedModel = ScalarModel(scalar_model_config)
-    reward_model: PreTrainedModel = ScalarModel(scalar_model_config)
+    # reward_model: PreTrainedModel = ScalarModel(scalar_model_config)
     # else:
     #     critic: PreTrainedModel = ScalarModel.from_pretrained(
     #         args.reward_model_path,
@@ -578,7 +580,7 @@ if __name__ == "__main__":
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, trust_remote_code=True)
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, trust_remote_code=True)
     # fixme: reward model alert
-    for module in [policy, ref_policy, critic, reward_model]:
+    for module in [policy, ref_policy, critic]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
     policy.generation_config.eos_token_id = None  # disable `pad_token_id` and `eos_token_id` because we just want to
@@ -626,7 +628,7 @@ if __name__ == "__main__":
     #     ref_policy.eval()
     # else:
     ref_policy = ref_policy.to(device)
-    reward_model = reward_model.to(device)
+    # reward_model = reward_model.to(device)
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
@@ -668,7 +670,7 @@ if __name__ == "__main__":
         data = next(iter_dataloader)
         with torch.no_grad():
             eval_storage, eval_df = evaluate(
-                reward_model,
+                args.sl_coef, args.wa_coef,
                 accelerator.unwrap_model(model).policy,
                 tokenizer,
                 eval_dataloaders[eval_split],
@@ -760,13 +762,13 @@ if __name__ == "__main__":
             del (logprob, ref_logprob, full_value, value, score)
             torch.cuda.empty_cache()
 
-            # # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
-            # # responses not passing that filter will receive a low (fixed) score
-            # # only query humans on responses that pass that filter
-            # contain_eos_token = torch.any(postprocessed_responses == tokenizer.eos_token_id, dim=-1)
-            # if args.non_eos_penalty:
-            #     scores = torch.where(contain_eos_token, scores, torch.full_like(scores, args.penalty_reward_value))
-            # accelerator.print(f"{scores=}, {(contain_eos_token.sum() / len(contain_eos_token))=}")
+            # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
+            # responses not passing that filter will receive a low (fixed) score
+            # only query humans on responses that pass that filter
+            contain_eos_token = torch.any(postprocessed_responses == tokenizer.eos_token_id, dim=-1)
+            if args.non_eos_penalty:
+                scores = torch.where(contain_eos_token, scores, torch.full_like(scores, args.penalty_reward_value))
+            accelerator.print(f"{scores=}, {(contain_eos_token.sum() / len(contain_eos_token))=}")
 
             # be very careful with `padding_mask_p1`
             # see https://excalidraw.com/#json=LWnzG4w2k5DjF_EOL_xPt,e2w3a-hFJ_gX5vOfeyXGTw
@@ -931,7 +933,7 @@ if __name__ == "__main__":
     if args.run_eval:
         for eval_split in eval_dataloaders:
             eval_storage, eval_df = evaluate(
-                reward_model,
+                args.sl_coef, args.wa_coef,
                 accelerator.unwrap_model(model).policy,
                 tokenizer,
                 eval_dataloaders[eval_split],

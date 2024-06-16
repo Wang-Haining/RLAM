@@ -360,7 +360,7 @@ def build_ppo_dataset(
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left",)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
-        # ds[split] = ds[split].rename_column("target", "response")
+        ds[split] = ds[split].rename_column("target", "response")
         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
     def tokenize(sample):
         # prepend the task-specific prefix and trailing template
@@ -372,7 +372,7 @@ def build_ppo_dataset(
             padding='max_length'
         )
         reference_response_token = tokenizer.encode(
-            sample["target"],
+            sample["response"],
             truncation=True,
             max_length=300,
             padding='max_length',
