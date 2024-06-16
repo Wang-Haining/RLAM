@@ -1,182 +1,75 @@
 """
-This module implements the Reinforcement Learning from Uncombined Accessibility Measures
-(RLUAM).
+The code is modified from
+https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
 """
 
-import argparse
+
+
+
 import heapq
 import os
 import pickle
-import shutil
-from typing import Dict, List
+import random
+import time
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from types import SimpleNamespace
+from typing import Literal, Optional, List, Dict
 
+import nltk
 import numpy as np
+import pandas as pd
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import tyro
 import wandb
-from accelerate import Accelerator
 from nltk.tokenize import sent_tokenize
-from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
+from accelerate import Accelerator
+from accelerate.utils import broadcast, gather_object
+from datasets import Dataset, load_dataset
+# from huggingface_hub import HfApi
+from rich.console import Console
+from rich.pretty import pprint
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from transformers import (AutoTokenizer, BitsAndBytesConfig,
-                          get_constant_schedule_with_warmup)
-from trl import (AutoModelForCausalLMWithValueHead,
-                 AutoModelForSeq2SeqLMWithValueHead,
-                 PPOConfig, PPOTrainer, set_seed)
+from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
+                          AutoTokenizer, GenerationConfig, PretrainedConfig,
+                          PreTrainedModel)
 
-from utils import (CKPTS_DIR, MAX_NEW_TOKENS, PROJECT_NAME, SEED, SEP_TOKENS,
-                   TASK_PREFIX, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_dataset, collator, compute_ari, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies)
+from utils import (WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, SEP_TOKENS,
+                   read_token_frequencies, compute_token_accessibility, compute_sent_len, build_ppo_dataset)
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+torch.set_printoptions(precision=4, sci_mode=False)
+# api = HfApi()
+nltk.download('punkt')
+INVALID_LOGPROB = 1.0
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-if device == "cuda":
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.use_deterministic_algorithms(True)
 
+### init word accessibility predictor
 # get word frequencies and the model to predict rare words' accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
 top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
 total_tokens = sum(token_freq.values())
-current_device = Accelerator().local_process_index
 
 
-def save_checkpoint(ppo_trainer, epoch, step, eval_score, num_saved_ckpts, save_folder,
-                    ckpts_dir=CKPTS_DIR):
-    """
-    Save model checkpoint if it's among the ones with the lowest ARI scores.
-
-    Args:
-        ppo_trainer: The trainer whose model should be saved.
-        epoch: Current epoch number in the training loop.
-        step: Current step number in the training loop.
-        eval_score: Eval scores of the current evaluation.
-        num_saved_ckpts: Number of the best checkpoints to save.
-        save_folder: Directory for saving checkpoints, under directory CKPTS_DIR.
-    """
-    save_dir = os.path.join(ckpts_dir, save_folder)
-    os.makedirs(save_dir, exist_ok=True)
-    metadata_path = os.path.join(save_dir, "metadata.npz")
-
-    if os.path.exists(metadata_path):
-        metadata = np.load(metadata_path, allow_pickle=True)
-        saved_models = list(metadata["saved_models"])
-        print("Loaded saved models:", saved_models)
-    else:
-        saved_models = []
-
-    current_ari_mean = np.mean(eval_score["ari"])
-    save_path = os.path.join(save_dir,
-                             f"model_epoch_{epoch}_step_{step}_ari_"
-                             f"{current_ari_mean:.2f}.pt")
-    print("Current ARI Mean:", current_ari_mean)
-
-    # ensure the directory for save_path exists
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-    # save the first three and remove the worst when a good one comes alone
-    if (len(saved_models) < num_saved_ckpts) or (
-            current_ari_mean < max(m['ari_mean'] for m in saved_models)):
-        ppo_trainer.save_pretrained(save_path)
-        saved_models.append({
-            "path": save_path,
-            "ari_mean": current_ari_mean,
-            "epoch": epoch,
-            "step": step
-        })
-
-        saved_models.sort(key=lambda x: x["ari_mean"])
-        if len(saved_models) > num_saved_ckpts:
-            worst_model = saved_models.pop()
-            shutil.rmtree(worst_model["path"])
-
-    np.savez(metadata_path, saved_models=saved_models)
-
-
-def evaluate_model(model, dataset, tokenizer, num_samples):
-    """
-    This function evaluates the model's performance (ARI and SacreBLEU) on a subset of
-    the given dataset.
-
-    Args:
-        model: The policy model to be evaluated.
-        dataset: The validation dataset to use for evaluation.
-        tokenizer: The tokenizer used for the model.
-        num_samples: Number of samples to evaluate on.
-
-    Returns:
-        A dictionary containing ARI scores, its standard deviation, and the
-        average SacreBLEU score of the model on the dataset.
-    """
-    model.eval()
-    device = next(model.parameters()).device
-    model.to(device)
-    bleu = BLEU()
-
-    # use first num_samples from the dataset
-    sampled_dataset = [dataset[i] for i in range(num_samples)]
-
-    ari_scores = []
-    bleu_scores = []
-    avg_sent_len = []
-    avg_word_access = []
-    avg_sent_count = []
-    with torch.no_grad():
-        for batch in tqdm(sampled_dataset):
-            query_tensors = batch["input_ids"].to(device)
-
-            if query_tensors.dim() == 1:
-                query_tensors = query_tensors.unsqueeze(0)
-            response_tensors = model.generate(query_tensors,
-                                              top_k=0.0,
-                                              top_p=1.0,
-                                              max_new_tokens=MAX_NEW_TOKENS,
-                                              do_sample=True)
-            responses = tokenizer.batch_decode(
-                response_tensors.cpu(),
-                clean_up_tokenization_spaces=True,
-                skip_special_tokens=True,
-            )
-            targets = [batch["target"]]
-
-            for response, target in zip(responses, targets):
-                ari_scores.append(compute_ari(response))
-                bleu_scores.append(bleu.corpus_score([response], [[target]]).score)
-                rewards = compute_uam_rewards([response],
-                                              [len(sent_tokenize(target))])
-                avg_sent_len.append(rewards['sl_reward'][0])
-                avg_word_access.append(rewards['wa_reward'][0])
-                avg_sent_count.append(rewards['sc_reward'][0])
-
-    return {
-        "ari": ari_scores,
-        "sacrebleu": bleu_scores,
-        "avg_sent_len": avg_sent_len,
-        "avg_word_accessibility": avg_word_access,
-        "avg_sent_count": avg_sent_count
-    }
-
-
-def compute_uam_rewards(responses: List[str],
-                        target_num_sents: List[int],
+def compute_uam_score(responses: List[str],
                         top_100k_tokens=top_100k_tokens,
                         wa_model=wa_model,
                         total_tokens=total_tokens,
-                        token_freq=token_freq) -> Dict[str, List[torch.Tensor]]:
+                        token_freq=token_freq) -> Dict[str, torch.Tensor]:
     """
-    Calculate rewards for a batch of responses:
+    Score a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
         want average to be shorter, we need to negate sentence length in order to
-        maximize the rewards.)
+        maximize the score.)
     - Avg word accessibility: Defined as the negative logarithm of the token frequency
       per billion, based on its occurrences in the English Wikipedia corpus.
-    - Sentence count reward: Penalizes deviation from the target number of sentences.
 
     During pilot running, models cheat by spitting out only one eos token. So we
     penalize both word accessibility and sentence length with reasonably large negative
@@ -187,8 +80,6 @@ def compute_uam_rewards(responses: List[str],
 
     Parameters:
         responses: A list of response strings to process.
-        target_num_sents: A list of target number of sentences (number of sentences in
-            the corresponding significance statement).
         top_100k_tokens: Set of the top 100k tokens based on frequency.
         wa_model: The model used to estimate word accessibility.
         total_tokens: Total number of tokens in the reference corpus.
@@ -196,28 +87,22 @@ def compute_uam_rewards(responses: List[str],
 
     Returns:
         A dict containing three lists of tensors:
-        - Raw sentence length rewards.
-        - Raw word accessibility rewards.
-        - Raw sentence count rewards.
+        - Negative sentence length score.
+        - Raw word accessibility score.
     """
     sent_len_rewards = []
     word_accessibility_rewards = []
-    sentence_count_rewards = []
     mt = MosesTokenizer(lang='en')
 
-    for i, response in enumerate(responses):
-        # EOS tokens of gemma/olmo/llama/flant5
-        if (response.strip() in SEP_TOKENS) or (len(response.strip()) <= 20):
-            sent_len_rewards.append(30.0)
+    for response in responses:
+        # penalize too short generations
+        if len(response.strip()) <= 50:
+            sent_len_rewards.append(25.0)
             word_accessibility_rewards.append(7.0)
-            sentence_count_rewards.append(abs(1 - target_num_sents[i]))
         else:
             sent_len_list = []
             word_accessibility_list = []
             sents = sent_tokenize(response)
-            num_sents = len(sents)
-            sentence_count_reward = abs(num_sents - target_num_sents[i])
-            sentence_count_rewards.append(sentence_count_reward)
 
             for sent in sents:
                 # prevent noise from artificial eos tokens
@@ -236,292 +121,847 @@ def compute_uam_rewards(responses: List[str],
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
 
     # negate sentence length and count for intuitive reward maximization
-    sent_len_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
-                        r in sent_len_rewards]
-    word_accessibility_rewards = [torch.tensor(r, dtype=torch.float32) for
-                                  r in word_accessibility_rewards]
-    sentence_count_rewards = [-1.0 * torch.tensor(r, dtype=torch.float32) for
-                              r in sentence_count_rewards]
+    sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
+    word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
 
-    return {"sl_reward": sent_len_rewards,
-            "wa_reward": word_accessibility_rewards,
-            "sc_reward": sentence_count_rewards}
+    return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
 
 
-def compute_ari_rewards(responses: List[str]) -> Dict[str, List[torch.Tensor]]:
+@dataclass
+class PpoHParams:
+    nminibatches: int = 1
+    noptepochs: int = 4
+    vf_coef: float = 0.1
+    cliprange: float = 0.2
+    cliprange_value: float = 0.2
+    gamma: float = 1
+    lam: float = 0.95
+    # whiten_rewards: bool = False
+    # fixme: modify
+    kl_coef: float = 0.2
+
+
+@dataclass
+class Args:
+    # common args
+    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
+    """the name of this experiment"""
+    run_name: Optional[str] = None
+    """a unique name of this run"""
+    seed: int = 42
+    """seed of the experiment"""
+    cuda: bool = True
+    """Whether to use cuda if available."""
+    # fixme: rm
+    # deepspeed: bool = False
+    # """Whether to use deepspeed to train the model"""
+    print_sample_output_freq: int = 10
+    """How often to print sample output"""
+    run_eval: bool = True
+    """Whether to run evaluation"""
+    # todo: add an option to set num_eval_samples
+
+    # optimizer (adamw) args
+    eps: float = 1e-5
+    """the epsilon value for adamw"""
+    lr: float = 3e-6
+    """the learning rate for adamw"""
+    scheduler: str = "cosine"
+    """Which scheduler to use"""
+    warm_up_steps: int = 0
+    """Number of warm up steps for the scheduler"""
+
+    # various batch sizes
+    world_size: Optional[int] = None
+    """The number of processes (GPUs) to use"""
+    num_train_epochs: int = 1
+    """Number of epochs to train"""
+    num_updates: Optional[int] = None
+    """The number of updates to train"""
+    gradient_accumulation_steps: int = 64
+    """The number of gradient accumulation steps"""
+    local_micro_batch_size: Optional[int] = 1
+    """The micro batch size per GPU (HF's `per_device_train_batch_size`)"""
+    total_episodes: Optional[int] = 1000000
+    """The total number of episodes in the dataset"""
+    micro_batch_size: Optional[int] = None
+    """The micro batch size across devices (HF's `per_device_train_batch_size` * `world_size`)"""
+    local_batch_size: Optional[int] = None
+    """The batch size per GPU (HF's `per_device_train_batch_size` * `gradient_accumulation_steps`)"""
+    batch_size: Optional[int] = None
+    """The batch size across devices (HF's `per_device_train_batch_size` * `world_size` * `gradient_accumulation_steps`)"""
+    nminibatches: int = 1
+    """Number of minibatches to split a batch into"""
+    local_mini_batch_size: Optional[int] = None
+    """the mini batch size per GPU"""
+    mini_batch_size: Optional[int] = None
+    """the mini batch size across GPUs"""
+    local_eval_batch_size: int = 2
+    """per rank eval batch size"""
+    local_rollout_forward_batch_size: int = 64
+    """per rank no grad forward pass in the rollout phase"""
+
+    # other args
+    base_model: str = "google/gemma-2b"
+    """the name of the pretrained model to use"""
+    # fixme: modify
+    query_dataset: str = "vwxyzjn/summarize_from_feedback_tldr_3_filtered_oai_preprocessing_1706381144"
+    """the query dataset"""
+    response_length: int = 256
+    """the length of the response"""
+    truncate_token: Literal["eos"] = "eos"
+    """the truncate token"""
+    # fixme: modify
+    truncate_token_id: Optional[int] = None  # 1 for gemma
+    """the truncation token id"""
+    temperature: float = 0.7
+    """the sampling temperature"""
+    penalty_reward_value: int = -1
+    """the reward value for responses that do not contain `truncate_token_id`"""
+    non_eos_penalty: bool = True
+    """whether to penalize responses that do not contain `truncate_token_id`"""
+    # offload: bool = False
+    # """Whether to offload ref policy and reward model to CPU"""  # fixme: reward model alarm
+    # fixme: rm
+    # reward_model_path: str = ""
+    # """the path to the reward model"""
+    sft_model_path: str = "ckpts/sft_gemma-2b/checkpoint-1120"
+    """the path to the sft model"""
+
+    # reward related
+    sl_coef: float = 1.0
+    "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
+    wa_coef: float = 2.0
+    "Scaling factor for word accessibility reward (will vary for an optimal value)"
+
+    # logging and evaluation intervals (directly inherited from TrainingArguments)
+    logging_steps: int = 2
+    save_steps: int = 10
+    eval_steps: int = 10
+    eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
+    save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
+    save_total_limit: Optional[int] = 3
+    output_dir: str = 'ckpts'
+    overwrite_output_dir: bool = False
+    ppo: PpoHParams = field(default_factory=PpoHParams)
+    """Default values will be used to create a PpoHParams"""
+
+
+def parse_args() -> tuple[Args, Accelerator]:
+    args = tyro.cli(Args)
+    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
+    args.world_size = accelerator.num_processes
+    args.local_batch_size = args.local_micro_batch_size * args.gradient_accumulation_steps * args.nminibatches
+    args.micro_batch_size = int(args.local_micro_batch_size * args.world_size)
+    args.batch_size = int(args.local_batch_size * args.world_size)
+    args.mini_batch_size = exact_div(args.batch_size, args.nminibatches)
+    args.local_mini_batch_size = exact_div(args.local_batch_size, args.nminibatches)
+    # if args.ppo.whiten_rewards:
+    #     assert (
+    #         args.local_mini_batch_size >= 8
+    #     ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
+    # `per_rank_rollout_batch_size` is our `args.local_batch_size`
+    # `per_rank_minibatch_size` is our `args.local_mini_batch_size`
+    args.num_updates = args.total_episodes // args.batch_size
+    time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
+    time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
+    args.run_name = f"{args.project_name}__{args.seed}__{time_int}"
+    # if args.push_to_hub:
+    #     if args.hf_repo_id is None: # auto-generate one
+    #         args.hf_repo_id = f"{args.base_model.replace('/', '_')}__{args.exp_name}__tldr"
+    #     if args.hf_entity is None:  # find the current user
+    #         args.hf_entity = api.whoami()["name"]
+    #     if "/" not in args.hf_repo_id: # prepend the current user
+    #         args.hf_repo_id = f"{args.hf_entity}/{args.hf_repo_id}"
+    #     if args.hf_repo_revision is None:  # auto-generate one
+    #         args.hf_repo_revision = args.run_name
+    #     args.hf_repo_url = f"https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}"
+    return args, accelerator
+
+
+def disable_dropout(model: torch.nn.Module):
+    """Disable dropout in a model."""
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.p = 0
+
+
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.normal_(layer.weight, std=std)
+    torch.nn.init.constant_(layer.bias, val=bias_const)
+    return layer
+
+
+def masked_mean(values, mask, axis=None):
+    """Compute mean of tensor with masked values."""
+    if axis is not None:
+        return (values * mask).sum(axis=axis) / mask.sum(axis=axis)
+    else:
+        return (values * mask).sum() / mask.sum()
+
+
+def masked_var(values, mask, unbiased=True):
+    """Compute variance of tensor with masked values."""
+    mean = masked_mean(values, mask)
+    centered_values = values - mean
+    variance = masked_mean(centered_values**2, mask)
+    if unbiased:
+        mask_sum = mask.sum()
+        if mask_sum == 0:
+            raise ValueError(
+                "The sum of the mask is zero, which can happen when `mini_batch_size=1`;"
+                "try increase the `mini_batch_size` or `gradient_accumulation_steps`"
+            )
+        # note that if mask_sum == 1, then there is a division by zero issue
+        # to avoid it you just need to use a larger minibatch_size
+        bessel_correction = mask_sum / (mask_sum - 1)
+        variance = variance * bessel_correction
+    return variance
+
+
+def masked_whiten(values, mask, shift_mean=True):
+    """Whiten values with masked values."""
+    mean, var = masked_mean(values, mask), masked_var(values, mask, False)
+    whitened = (values - mean) * torch.rsqrt(var + 1e-8)
+    if not shift_mean:
+        whitened += mean
+    return whitened
+
+
+# fixme: rm
+class ScalarModelConfig(PretrainedConfig):
+    def __init__(
+        self,
+        base_model: str = "EleutherAI/pythia-160m",
+        base_config: PretrainedConfig = AutoConfig.from_pretrained("EleutherAI/pythia-160m"),
+        hidden_size: int = 768,
+        bias: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.base_model = base_model
+        self.base_config = base_config
+        self.hidden_size = hidden_size
+        self.bias = bias
+
+# fixme: rm
+class ScalarModel(PreTrainedModel):
+    config_class = ScalarModelConfig
+
+    def __init__(self, config: ScalarModelConfig):
+        super().__init__(config)
+        self.config = config
+        self.lm_backbone = AutoModel.from_pretrained(
+            config.base_model,
+            config=self.config.base_config,
+            trust_remote_code=True,
+        )
+        self.scalar_head = layer_init(
+            nn.Linear(self.config.hidden_size, 1),
+            std=1 / np.sqrt(self.config.hidden_size + 1),
+        )
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
+        return reward
+
+
+def get_reward(model, query_responses, tokenizer, context_length):
+    attention_mask = query_responses != tokenizer.pad_token_id
+    # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    reward_logits = model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        # position_ids=position_ids,
+        return_dict=True,
+        output_hidden_states=True,
+    )
+    sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
+    # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
+    return (
+        reward_logits,
+        reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
+        sequence_lengths,
+    )
+
+
+# taken from https://github.com/OpenLMLab/MOSS-RLHF/blob/40b91eb2f2b71b16919addede0341d2bef70825d/ppo/ppo_trainer.py#L29
+# we did this we can do a single `model = accelerator.prepare(model)`
+class PolicyAndValueWrapper(nn.Module):
+    def __init__(self, policy, critic) -> None:
+        super().__init__()
+        self.policy = policy
+        self.critic = critic
+
+    def forward(self, **kwargs):
+        return self.policy(**kwargs), self.critic(**kwargs)
+
+
+def exact_div(a, b):
+    q = a // b
+    if a != q * b:
+        raise ValueError(f"Inexact division: {a} / {b} = {a / b}")
+    return q
+
+
+def generate(lm_backbone, queries, tokenizer, generation_config):
+    """generate in a way that does not affect padding tokens"""
+    context_length = queries.shape[1]
+    attention_mask = queries != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(queries, ~attention_mask, 0)
+    output = lm_backbone.generate(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        # position_ids=attention_mask.cumsum(1) - attention_mask.long(), # generation collapsed if this was turned on. TODO: why does generation collapse with this?
+        generation_config=generation_config,
+        return_dict_in_generate=True,
+        output_scores=True
+    )
+    logits = torch.stack(output.scores, 1)
+    return torch.cat((queries, output.sequences[:, context_length:]), dim=1), logits
+
+
+def first_true_indices(bools, dtype=torch.long):
     """
-    Calculate ARI readability rewards for a batch of responses.
+    Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of integers giving
+    the position of the first True in each "row".
 
-    Parameters:
-        responses: A list of response strings to process.
-    Returns:
-        A dict containing a list of tensors.
+    Returns the length of the rows (bools.size(-1)) if no element is True in a given row.
     """
+    row_len = bools.size(-1)
+    zero_or_index = row_len * (~bools).type(dtype) + torch.arange(row_len, dtype=dtype, device=bools.device)
+    return torch.min(zero_or_index, dim=-1).values
 
-    return {"ari_reward": [-1.0 * torch.tensor(compute_ari(r),
-                                               dtype=torch.float32) for r in responses]}
+
+def truncate_response(args, tokenizer, responses):
+    trunc_idxs = first_true_indices(responses == args.truncate_token_id).unsqueeze(-1)
+    new_size = [1] * (len(responses.size()) - 1) + [responses.shape[1]]
+    idxs = torch.arange(responses.shape[1], device=responses.device).view(*new_size)
+    postprocessed_responses = torch.masked_fill(responses, idxs > trunc_idxs, tokenizer.pad_token_id)
+    return postprocessed_responses
+
+
+def forward(model, query_responses, tokenizer):
+    attention_mask = query_responses != tokenizer.pad_token_id
+    # position_ids = attention_mask.cumsum(1) - attention_mask.long()
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    return model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        # position_ids=position_ids,
+        return_dict=True,
+        output_hidden_states=True,
+    )
+
+
+# fixme: reward_model alert
+def evaluate(reward_model, policy, tokenizer, dataloader, generation_config, sampling=True):
+    eval_storage = defaultdict(list)
+    with torch.no_grad():
+        for data in tqdm(dataloader):
+            queries = data["query_token"]
+            # reference_response_token = data["reference_response_token"]
+            context_length = queries.shape[1]
+            query_reference_responses = torch.cat((data["query_token"], data["reference_response_token"]), dim=1)
+            _, reference_score, _ = get_reward(reward_model, query_reference_responses, tokenizer, queries.shape[1])
+
+            query_responses, _ = generate(
+                policy,
+                queries,
+                tokenizer,
+                generation_config,
+            )
+            responses = query_responses[:, context_length:]
+            postprocessed_responses = truncate_response(args, tokenizer, responses)
+            postprocessed_query_responses = torch.cat((queries, postprocessed_responses), 1)
+            _, score, _ = get_reward(reward_model, postprocessed_query_responses, tokenizer, queries.shape[1])
+
+            eval_storage["query_token"].extend(queries)
+            eval_storage["reference_response_token"].extend(reference_response_token)
+            eval_storage["reference_score"].append(reference_score)
+            eval_storage["postprocessed_reference_response_token"].extend(postprocessed_responses)
+            eval_storage["score"].append(score)
+            if sampling:
+                break
+
+    eval_storage["query"] = tokenizer.batch_decode(eval_storage["query_token"], skip_special_tokens=True)
+    eval_storage["reference_response"] = tokenizer.batch_decode(eval_storage["reference_response_token"])
+    eval_storage["postprocessed_response"] = tokenizer.batch_decode(
+        eval_storage["postprocessed_reference_response_token"], skip_special_tokens=True
+    )
+    eval_score = torch.cat(eval_storage["score"]).float().cpu().numpy().tolist()
+    eval_reference_score = torch.cat(eval_storage["reference_score"]).float().cpu().numpy().tolist()
+    eval_df = pd.DataFrame(
+        {
+            "query": gather_object(eval_storage["query"]),
+            "postprocessed_response": gather_object(eval_storage["postprocessed_response"]),
+            "reference_responses": gather_object(eval_storage["reference_response"]),
+            "scores": gather_object(eval_score),
+            "reference_scores": gather_object(eval_reference_score),
+        }
+    )
+    return eval_storage, eval_df
 
 
 if __name__ == "__main__":
-    set_seed(SEED)
+    args, accelerator = parse_args()
+    local_seed = args.seed + accelerator.process_index * 100003  # Prime
 
-    # fmt: off
-    parser = argparse.ArgumentParser(
-        description="Rewriting complex scholarly abstracts to laymen.")
-    # ppo_config relevant
-    parser.add_argument("--seed", type=int, default=SEED,
-                        help="Batch size for training")
-    parser.add_argument("--steps", type=int, default=1_000_000,
-                        help="Number of training steps. A upper bound of total "
-                             "training steps. See num_epochs for details.")
-    parser.add_argument("--learning_rate", type=float, default=3e-6,
-                        help="Adam learning rate")
-    # kl objective
-    parser.add_argument("--adap_kl_ctrl",
-                        type=lambda x: (str(x).lower() == 'true'), default=True,
-                        help="Use adaptive KL control, otherwise linear")
-    parser.add_argument("--init_kl_coef", type=float, default=0.2,
-                        help="Initial KL penalty coefficient (used for adaptive and "
-                             "linear control). See formula (2) in "
-                             "https://arxiv.org/pdf/1909.08593")
-    parser.add_argument("--kl_penalty", type=str,
-                        choices=['kl', 'abs', 'mse', 'full'],
-                        default="kl", help="KL penalty options")
-    parser.add_argument("--target", type=float, default=5.0,
-                        help="Target KL value for adaptive KL control")
-    parser.add_argument("--horizon", type=float, default=10000,
-                        help="Horizon for adaptive KL control")
-    # ppo
-    parser.add_argument("--lam", type=float, default=0.95,
-                        help="Lambda parameter for advantage calculation")
-    parser.add_argument("--cliprange", type=float, default=0.25,
-                        help="Range for clipping in PPO policy gradient loss")
-    parser.add_argument("--cliprange_value", type=float, default=0.25,
-                        help="Range for clipping values in loss calculation")
-    parser.add_argument("--vf_coef", type=float, default=0.1,
-                        help="Scaling factor for value loss")
-    parser.add_argument("--batch_size", type=int, default=16,
-                        help="Batch size for training")
-    parser.add_argument("--mini_batch_size", type=int, default=2,
-                        help="Mini batch size for PPO updates")
-    parser.add_argument("--gradient_accumulation_steps", type=int,
-                        default=1, help="Number of gradient accumulation steps")
-    parser.add_argument("--ppo_epochs", type=int, default=2,
-                        help="Number of optimisation epochs per batch of samples")
-    parser.add_argument("--max_grad_norm", type=float, default=None,
-                        help="Maximum gradient norm for gradient clipping")
-    parser.add_argument("--early_stopping",
-                        type=lambda x: (str(x).lower() == 'true'), default=False,
-                        help="Whether to stop the PPO optimization loop early if KL "
-                             "is too high")
-    parser.add_argument("--target_kl", type=float, default=1.0,
-                        help="Stop early if we exceed this value by over 50%")
-    parser.add_argument("--compare_steps", type=int, default=1,
-                        help="Number of steps between comparison of the current "
-                             "reward with the best seen so far")
-    parser.add_argument("--ratio_threshold", type=float, default=10.0,
-                        help="Skip mini-batches with high PPO ratios that can cause "
-                             "loss spikes")
-    # for rewards, following https://arxiv.org/pdf/1909.08593
-    parser.add_argument("--use_score_scaling", action="store_true",
-                        help="Enable score scaling")
-    parser.add_argument("--use_score_norm", action="store_true",
-                        help="Enable score normalization")
-    parser.add_argument("--score_clip", type=float, default=None,
-                        help="Value to clip the scores, use 'None' to disable")
-    parser.add_argument("--whiten_rewards", action='store_true',
-                        help="Whiten the rewards before computing advantages")
-    # misc
-    parser.add_argument("--num_epochs", type=int, default=100,
-                        help="Number of total epochs")
-    parser.add_argument("--sl_coef", type=float, default=1.0,
-                        help="Scaling factor for sentence length reward (will keep "
-                             "this frozen as 1.0)")
-    parser.add_argument("--wa_coef", type=float, default=2.0,
-                        help="Scaling factor for word accessibility reward (will vary "
-                             "it for an optimal value)")
-    parser.add_argument("--sc_coef", type=float, default=0.0,
-                        help="Penalty factor for deviation from target number of "
-                             "sentences.")
-    parser.add_argument("--max_new_tokens", type=int,
-                        default=MAX_NEW_TOKENS, help="Max new tokens in rollouts.")
-    parser.add_argument("--eval_interval", type=int, default=20,
-                        help="Interval between evaluations")
-    parser.add_argument("--num_eval_samples", type=int, default=64,
-                        help="Num of samples for evaluation")
-    parser.add_argument("--num_saved_ckpts", type=int, default=5,
-                        help="Num of best ckpts to save")
-    parser.add_argument("--save_folder", type=str,
-                        help="Experiment name for checkpointing, under the directory "
-                             "of ckpts")
-    parser.add_argument("--sft_ckpt_path", type=str,
-                        help="Path to the SFT'ed model")
-    parser.add_argument("--reward", type=str, choices=['uam', 'ari'],
-                        default='uam', help="Reward for RL, either uam or ari")
-    parser.add_argument("--is_peft_model",
-                        type=lambda x: (str(x).lower() == 'true'), default=False,
-                        help="Whether to use LoRA for finetuning")
+    # load dataset
+    # dataset = load_dataset(args.query_dataset, split="train")
+    dataset = build_ppo_dataset(args.base_model)
+    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token"])
+    dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
+    eval_dataloaders = {}
+    # fixme
+    for split in ["validation", 'test']:
+        eval_dataset = dataset[split]
+        # eval_dataset = eval_dataset.with_format("torch", columns=["query_token", "reference_response_token"])
+        eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
-    args = parser.parse_args()
-    # ignore the extra args not for ppo
-    config_kwargs = vars(args).copy()
-    keys_to_pop = ["num_epochs", "sl_coef", "wa_coef", "sc_coef", "max_new_tokens",
-                   "eval_interval", "num_eval_samples", "num_saved_ckpts",
-                   "save_folder", "sft_ckpt_path", "reward", "is_peft_model"]
-    for key in keys_to_pop:
-        config_kwargs.pop(key, None)
-    # fmt: on
-    config = PPOConfig(log_with="wandb",
-                       remove_unused_columns=False,
-                       is_peft_model=args.is_peft_model,
-                       **config_kwargs)
-    # monitor with wandb
-    run_name = "ppo_" + args.sft_ckpt_path.split("/")[-2].split('_')[-1]
-    wandb.init(project=PROJECT_NAME, name=run_name, config=args)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.base_model,
+        padding_side="right",
+        trust_remote_code=True,
+    )
+    # fixme: use <pad> if fine?
+    # we use the padding token manually but do not resize the token embedding of the model
+    # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    if args.truncate_token == "eos":
+        args.truncate_token_id = tokenizer.eos_token_id
 
-    # build dataset
-    dataset = build_dataset(model_name=args.sft_ckpt_path,
-                            task_prefix=TASK_PREFIX)
-    # check model type
-    if any(model_name in args.sft_ckpt_path.lower() for model_name in
-           ['flant5', 'flan-t5']):
-        AutoModelValueHead = AutoModelForSeq2SeqLMWithValueHead
-    else:
-        AutoModelValueHead = AutoModelForCausalLMWithValueHead
-
-    # init SFT'ed models
-    if args.is_peft_model:
-        policy_model = AutoModelValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.float16,
-            load_in_8bit=True,
-            device_map={"": current_device},
+    console = Console(force_terminal=True)
+    writer = SimpleNamespace()  # dummy writer
+    writer.add_scalar = lambda x, y, z: None
+    writer.add_histogram = lambda x, y, z: None
+    if accelerator.is_main_process:
+        wandb.init(
+            project=args.project_name,
+            # entity=args.wandb_entity,
+            # sync_tensorboard=True,
+            config=asdict(args),
+            name=args.run_name,
+            save_code=True,
         )
-        ref_model = AutoModelValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.float16,
-            load_in_8bit=True,
-            device_map={"": current_device},
+        file_extensions = [".toml", ".lock", ".py", ".sh", ".yaml"]
+        wandb.run.log_code(".", include_fn=lambda path: any([path.endswith(ext) for ext in file_extensions]))
+        writer = SummaryWriter(f"logs/{args.run_name}")
+        writer.add_text(
+            "hyperparameters",
+            "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
         )
-    else:
-        policy_model = AutoModelValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16,
-        )
-        ref_model = AutoModelValueHead.from_pretrained(
-            args.sft_ckpt_path,
-            torch_dtype=torch.bfloat16
-        )
-    tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt_path)
-    # for llama
-    if getattr(tokenizer, "pad_token", None) is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-    # init optimizer
-    optimizer = torch.optim.AdamW(policy_model.parameters(),
-                                  lr=args.learning_rate)
-    lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=100)
+        pprint(args)
+    device = accelerator.device
+    random.seed(local_seed)
+    np.random.seed(local_seed)
+    torch.manual_seed(local_seed)
+    torch.backends.cudnn.deterministic = True
+    model_config = AutoConfig.from_pretrained(args.base_model)
+    # fixme: reward model alert
+    scalar_model_config = ScalarModelConfig(
+        base_model=args.base_model,
+        base_config=model_config,
+        hidden_size=model_config.hidden_size,
+    )
+    # init value model and reward model from scratch
+    critic: PreTrainedModel = ScalarModel(scalar_model_config)
+    reward_model: PreTrainedModel = ScalarModel(scalar_model_config)
+    # else:
+    #     critic: PreTrainedModel = ScalarModel.from_pretrained(
+    #         args.reward_model_path,
+    #         trust_remote_code=True,
+    #     )
+    #     reward_model: PreTrainedModel = ScalarModel.from_pretrained(
+    #         args.reward_model_path,
+    #         trust_remote_code=True,
+    #     )
+    ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, trust_remote_code=True)
+    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, trust_remote_code=True)
+    # fixme: reward model alert
+    for module in [policy, ref_policy, critic, reward_model]:
+        disable_dropout(module)
+    # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
+    policy.generation_config.eos_token_id = None  # disable `pad_token_id` and `eos_token_id` because we just want to
+    policy.generation_config.pad_token_id = None  # generate tokens without truncation / padding
+    # wrap policy and value head together
+    model = PolicyAndValueWrapper(policy, critic)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, eps=args.eps)
 
-    ppo_trainer = PPOTrainer(
-        config=config,
-        model=policy_model,
-        ref_model=ref_model,
-        tokenizer=tokenizer,
-        dataset=dataset["train"],
-        data_collator=collator,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler
+    # sync random states for DataLoader(shuffle=True) before `accelerator.prepare`
+    # see https://gist.github.com/vwxyzjn/2581bff1e48e185e0b85b6dfe1def79c
+    torch.manual_seed(args.seed)
+    model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
+    eval_dataloaders = {split: accelerator.prepare(eval_dataloader) for split, eval_dataloader in eval_dataloaders.items()}
+    torch.manual_seed(local_seed)  # reset the local seed again
+
+    def repeat_generator():
+        while True:
+            yield from dataloader
+
+    iter_dataloader = iter(repeat_generator())
+    # fixme: rm
+    # if args.deepspeed:
+    #     import deepspeed
+    #
+    #     deepspeed_states = AcceleratorState().deepspeed_plugin
+    #     deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
+    #
+    #     eval_ds_config = {
+    #         "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
+    #         "bf16": {"enabled": True},
+    #         "prescale_gradients": False,
+    #         "wall_clock_breakdown": False,
+    #     }
+    #     if args.offload or args.base_model == "EleutherAI/pythia-6.9b-deduped":
+    #         deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
+    #         eval_ds_config["zero_optimization"] = {
+    #             "stage": 3,
+    #             "stage3_param_persistence_threshold": 1e4,
+    #             "offload_param": {"device": "cpu"},
+    #         }
+    #     accelerator.print(f"{eval_ds_config=}")
+    #     reward_model, *_ = deepspeed.initialize(model=reward_model, config=eval_ds_config)
+    #     reward_model.eval()
+    #     ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
+    #     ref_policy.eval()
+    # else:
+    ref_policy = ref_policy.to(device)
+    reward_model = reward_model.to(device)
+
+    generation_config = GenerationConfig(
+        max_new_tokens=args.response_length,
+        min_new_tokens=args.response_length,
+        temperature=(args.temperature + 1e-7),
+        top_k=0.0,
+        top_p=1.0,
+        do_sample=True,
+    )
+    # use the same `0.01` temperature for validation response generation
+    # https://github.com/openai/summarize-from-feedback/blob/700967448d10004279f138666442bf1497d0e705/exps/sample.py#L27
+    validation_generation_config = GenerationConfig(
+        max_new_tokens=args.response_length,
+        min_new_tokens=args.response_length,
+        temperature=(0.01 + 1e-7),
+        top_k=0.0,
+        top_p=1.0,
+        do_sample=True,
     )
 
-    rollout_kwargs = {
-        "min_length": 20 if any(model_name in args.sft_ckpt_path.lower() for model_name
-                               in ['flant5', 'flan-t5']) else -1,
-        "top_k": 0.0,
-        "top_p": 1.0,
-        "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id if 'llama' not in args.sft_ckpt_path.lower() else tokenizer.eos_token_id,
-        "max_new_tokens": args.max_new_tokens,
-        "eos_token_id": tokenizer.eos_token_id
-    }
-
-    for epoch in range(args.num_epochs):
-        for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
-            query_tensors = batch["input_ids"]
-            response_tensors, ref_response_tensors = ppo_trainer.generate(
-                query_tensors,
-                return_prompt=False,
-                generate_ref_response=True,
-                **rollout_kwargs,
+    accelerator.print("===training policy===")
+    global_step = 0
+    start_time = time.time()
+    eval_split = list(eval_dataloaders.keys())[0]
+    stats_shape = (args.ppo.noptepochs, args.nminibatches, args.gradient_accumulation_steps)
+    approxkl_stats = torch.zeros(stats_shape, device=device)
+    pg_clipfrac_stats = torch.zeros(stats_shape, device=device)
+    pg_loss_stats = torch.zeros(stats_shape, device=device)
+    vf_loss_stats = torch.zeros(stats_shape, device=device)
+    vf_clipfrac_stats = torch.zeros(stats_shape, device=device)
+    entropy_stats = torch.zeros(stats_shape, device=device)
+    ratio_stats = torch.zeros(stats_shape, device=device)
+    model.train()
+    for update in range(1, args.num_updates + 1):
+        global_step += 1 * args.batch_size
+        frac = 1.0 - (update - 1.0) / args.num_updates
+        lrnow = frac * args.lr
+        optimizer.param_groups[0]["lr"] = lrnow
+        data = next(iter_dataloader)
+        with torch.no_grad():
+            eval_storage, eval_df = evaluate(
+                reward_model,
+                accelerator.unwrap_model(model).policy,
+                tokenizer,
+                eval_dataloaders[eval_split],
+                validation_generation_config,
             )
-
-            batch["response"] = tokenizer.batch_decode(response_tensors)
-            batch["ref_response"] = tokenizer.batch_decode(ref_response_tensors)
-            # calculate and balance rewards
-            if args.reward == 'uam':
-                target_num_sents = [len(sent_tokenize(s)) for s in batch["target"]]
-                rewards = compute_uam_rewards(batch["response"], target_num_sents)
-                rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
-                           for sl, wa, sc in zip(rewards['sl_reward'],
-                                                 rewards['wa_reward'],
-                                                 rewards['sc_reward'])]
-
-                # ref rewards
-                ref_rewards = compute_uam_rewards(batch["ref_response"],
-                                                  target_num_sents)
-                ref_rewards = [args.sl_coef * sl + args.wa_coef * wa + args.sc_coef * sc
-                               for sl, wa, sc in zip(ref_rewards['sl_reward'],
-                                                     ref_rewards['wa_reward'],
-                                                     ref_rewards['sc_reward'])]
-            else:
-                rewards = compute_ari_rewards(batch["response"])['ari_reward']
-                ref_rewards = compute_ari_rewards(batch["ref_response"])['ari_reward']
-            batch["ref_rewards"] = ref_rewards
-            batch["advantage"] = [p - r for p, r in zip(rewards, ref_rewards)]
-            # execute a PPO step
-            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-            ppo_trainer.log_stats(
-                stats,
-                batch,
-                rewards,
-                columns_to_log=["query", "response", "ref_response",
-                                "ref_rewards", "advantage"],
-            )
-            wandb.log(rollout_kwargs)
-
-            # evaluate on validation set after every n steps after the third epoch
-            if step % args.eval_interval == 0:
-                eval_score = evaluate_model(
-                    model=policy_model,
-                    dataset=dataset["validation"],
-                    tokenizer=tokenizer,
-                    num_samples=args.num_eval_samples,
+            validation_score = eval_storage["score"][0]
+            if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
+                if accelerator.is_main_process:
+                    # fixme: no need to save dfs
+                    eval_ds = Dataset.from_pandas(eval_df)
+                    # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset_{global_step}")
+                    # fixme: rm
+                    # if args.track:
+                    wandb.log({f"samples/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+            del eval_storage, eval_df
+            torch.cuda.empty_cache()
+            # rollout phase
+            queries = data["query_token"].to(device)
+            context_length = queries.shape[1]
+            query_responses = []
+            responses = []
+            postprocessed_responses = []
+            logprobs = []
+            ref_logprobs = []
+            values = []
+            scores = []
+            sequence_lengths = []
+            for i in range(0, queries.shape[0], args.local_rollout_forward_batch_size):
+                query = queries[i: i + args.local_rollout_forward_batch_size]
+                query_response, logits = generate(
+                    accelerator.unwrap_model(model).policy,
+                    query,
+                    tokenizer,
+                    generation_config,
                 )
-                wandb.log(eval_score)
-                _sent_len_reward = np.mean(eval_score['avg_sent_len'])
-                _word_accessibility_reward = np.mean(
-                    eval_score['avg_word_accessibility'])
-                _sent_count_reward = np.mean(eval_score['avg_sent_count'])
-                if args.reward == 'uam':
-                    _total_reward = (args.sl_coef * _sent_len_reward +
-                                     args.wa_coef * _word_accessibility_reward +
-                                     args.sc_coef * _sent_count_reward)
-                else:
-                    _total_reward = - np.mean(eval_score['ari'])
-                wandb.log({
-                    "Eval/Epoch": epoch,
-                    "Eval/Step": step,
-                    "Eval/ARI": np.mean(eval_score['ari']),
-                    "Eval/BLEU": np.mean(eval_score['sacrebleu']),
-                    "Eval/avg. neg. sentence length": _sent_len_reward,
-                    "Eval/avg. word accessibility": _word_accessibility_reward,
-                    "Eval/avg. neg. sentence count": _sent_count_reward,
-                    "Eval/total rewards": _total_reward
-                })
-                # save top checkpoints wrt ARI and their metadata
-                save_checkpoint(
-                    ppo_trainer=ppo_trainer,
-                    epoch=epoch,
-                    step=step,
-                    eval_score=eval_score,
-                    num_saved_ckpts=args.num_saved_ckpts,
-                    save_folder=args.save_folder)
+                response = query_response[:, context_length:]  # (local_rollout_forward_batch_size, gen_len)
+
+                # use the logits during generation directly, instead of using the following
+                all_logprob = F.log_softmax(logits, dim=-1)  # local_rollout_forward_batch_size, seq_len, vocab_size
+                logprob = torch.gather(all_logprob, 2, response.unsqueeze(-1)).squeeze(-1)
+                # log-probabilities of the generated tokens for each sequence in the batch
+                del logits, all_logprob
+                torch.cuda.empty_cache()
+
+                ref_output = forward(ref_policy, query_response, tokenizer)
+                ref_logits = ref_output.logits[:, context_length - 1: -1]
+                ref_logits /= args.temperature + 1e-7
+                ref_all_logprob = F.log_softmax(ref_logits, dim=-1)
+                ref_logprob = torch.gather(ref_all_logprob, 2, response.unsqueeze(-1)).squeeze(-1)  # (local_rollout_forward_batch_size, gen_len)
+                del ref_output, ref_logits, ref_all_logprob
+                torch.cuda.empty_cache()
+
+                # truncate response after the first occurrence of `stop_token_id` and
+                # pad up to the maximum sequence length within the batch
+                postprocessed_response = truncate_response(args, tokenizer, response)
+
+                # run reward model on the truncated responses
+                # postprocessed_query_response = torch.cat((query, postprocessed_response), 1)
+                sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
+                full_value, _, _ = get_reward(
+                    accelerator.unwrap_model(model).critic, query_response, tokenizer, context_length
+                )
+                # get value estimates for generated tokens, i.e., `value`
+                value = full_value[:, context_length - 1: -1].squeeze(-1)
+                generated_texts = tokenizer.batch_decode(postprocessed_response,
+                                                         skip_special_tokens=True,
+                                                         clean_up_tokenization_spaces=True)
+                uam_score = compute_uam_score(generated_texts)
+                score = args.sl_coef * uam_score['sl_score'] + args.wa_coef * uam_score['wa_score']
+                score = score.to(device=accelerator.device)
+                # _, score, _ = get_reward(reward_model, postprocessed_query_response, tokenizer, context_length)
+
+                query_responses.append(query_response)
+                responses.append(response)
+                postprocessed_responses.append(postprocessed_response)
+                logprobs.append(logprob)
+                ref_logprobs.append(ref_logprob)
+                values.append(value)
+                sequence_lengths.append(sequence_length)
+                scores.append(score)
+            query_responses = torch.cat(query_responses, 0)
+            responses = torch.cat(responses, 0)
+            postprocessed_responses = torch.cat(postprocessed_responses, 0)
+            logprobs = torch.cat(logprobs, 0)
+            ref_logprobs = torch.cat(ref_logprobs, 0)
+            values = torch.cat(values, 0)
+            sequence_lengths = torch.cat(sequence_lengths, 0)
+            scores = torch.cat(scores, 0)
+            del (logprob, ref_logprob, full_value, value, score)
+            torch.cuda.empty_cache()
+
+            # # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
+            # # responses not passing that filter will receive a low (fixed) score
+            # # only query humans on responses that pass that filter
+            # contain_eos_token = torch.any(postprocessed_responses == tokenizer.eos_token_id, dim=-1)
+            # if args.non_eos_penalty:
+            #     scores = torch.where(contain_eos_token, scores, torch.full_like(scores, args.penalty_reward_value))
+            # accelerator.print(f"{scores=}, {(contain_eos_token.sum() / len(contain_eos_token))=}")
+
+            # be very careful with `padding_mask_p1`
+            # see https://excalidraw.com/#json=LWnzG4w2k5DjF_EOL_xPt,e2w3a-hFJ_gX5vOfeyXGTw
+            # values are computed for each token in the entire sequence including the previouly generated tokens
+            # whereas logprobs are computed only for the generated tokens
+            sequence_lengths_p1 = sequence_lengths + 1
+            response_idxs = torch.arange(responses.shape[1], device=responses.device).repeat(responses.shape[0], 1)
+            padding_mask = response_idxs > sequence_lengths.unsqueeze(1)
+            padding_mask_p1 = response_idxs > (sequence_lengths_p1.unsqueeze(1))
+            logprobs = torch.masked_fill(logprobs, padding_mask, INVALID_LOGPROB)
+            ref_logprobs = torch.masked_fill(ref_logprobs, padding_mask, INVALID_LOGPROB)
+            values = torch.masked_fill(values, padding_mask_p1, 0)
+
+            # 4. compute rewards
+            kl = logprobs - ref_logprobs  # (batch_size, gen_len)
+            non_score_reward = -args.kl_coef * kl  # (batch_size, gen_len)
+            rewards = non_score_reward.clone()  # (batch_size, gen_len)
+            actual_start = torch.arange(rewards.size(0), device=rewards.device)  # (batch_size,)
+            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
+            # add reward (from reward func) to the last position
+            rewards[[actual_start, actual_end]] += scores  # (batch_size, gen_len)
+
+            # 5. whiten rewards
+            # if args.ppo.whiten_rewards:
+            #     rewards = masked_whiten(rewards, mask=~padding_mask_p1, shift_mean=False)
+            #     rewards = torch.masked_fill(rewards, padding_mask_p1, 0)
+
+            # 6. compute advantages and returns
+            lastgaelam = 0
+            advantages_reversed = []
+            gen_length = responses.shape[1]
+            for t in reversed(range(gen_length)):
+                nextvalues = values[:, t + 1] if t < gen_length - 1 else 0.0
+                delta = rewards[:, t] + args.ppo.gamma * nextvalues - values[:, t]
+                lastgaelam = delta + args.ppo.gamma * args.ppo.lam * lastgaelam
+                advantages_reversed.append(lastgaelam)
+            advantages = torch.stack(advantages_reversed[::-1], axis=1)
+            returns = advantages + values
+            advantages = masked_whiten(advantages, ~padding_mask)
+            advantages = torch.masked_fill(advantages, padding_mask, 0)
+            return_mean, return_var = returns.mean(), returns.var()
+            value_mean, value_var = values.mean(), values.var()
+            accelerator.print("rewards====", rewards[0])
+            accelerator.print("advantages====", advantages[0])
+            accelerator.print("values====", values[0])
+            torch.cuda.empty_cache()
+
+        # ppo training: iterate multiple epochs with a fresh random shuffle in each epoch
+        for ppo_epoch_idx in range(args.ppo.noptepochs):
+            b_inds = np.random.permutation(args.local_batch_size)
+            minibatch_idx = 0
+            for mini_batch_start in range(0, args.local_batch_size, args.local_mini_batch_size):
+                mini_batch_end = mini_batch_start + args.local_mini_batch_size
+                mini_batch_inds = b_inds[mini_batch_start:mini_batch_end]
+                gradient_accumulation_idx = 0
+                for micro_batch_start in range(0, args.local_mini_batch_size, args.local_micro_batch_size):
+                    with accelerator.accumulate(policy):
+                        micro_batch_end = micro_batch_start + args.local_micro_batch_size
+                        micro_batch_inds = mini_batch_inds[micro_batch_start:micro_batch_end]
+                        mb_return = returns[micro_batch_inds]
+                        mb_advantage = advantages[micro_batch_inds]
+                        mb_values = values[micro_batch_inds]
+                        mb_responses = responses[micro_batch_inds]
+                        mb_query_responses = query_responses[micro_batch_inds]
+                        mb_logprobs = logprobs[micro_batch_inds]
+
+                        output, vpred_temp = forward(model, mb_query_responses, tokenizer)
+                        logits = output.logits[:, context_length - 1 : -1]
+                        logits /= args.temperature + 1e-7
+                        new_all_logprobs = F.log_softmax(logits, dim=-1)
+                        new_logprobs = torch.gather(new_all_logprobs, 2, mb_responses.unsqueeze(-1)).squeeze(-1)
+                        new_logprobs = torch.masked_fill(new_logprobs, padding_mask[micro_batch_inds], INVALID_LOGPROB)
+                        vpred = vpred_temp[:, context_length - 1 : -1].squeeze(-1)
+                        vpred = torch.masked_fill(vpred, padding_mask_p1[micro_batch_inds], 0)
+                        vpredclipped = torch.clamp(
+                            vpred,
+                            mb_values - args.ppo.cliprange_value,
+                            mb_values + args.ppo.cliprange_value,
+                        )
+                        vf_losses1 = torch.square(vpred - mb_return)
+                        vf_losses2 = torch.square(vpredclipped - mb_return)
+                        vf_loss_max = torch.max(vf_losses1, vf_losses2)
+                        vf_loss = 0.5 * masked_mean(vf_loss_max, ~padding_mask_p1[micro_batch_inds])
+                        vf_clipfrac = masked_mean((vf_losses2 > vf_losses1).float(), ~padding_mask_p1[micro_batch_inds])
+                        logprobs_diff = new_logprobs - mb_logprobs
+                        ratio = torch.exp(logprobs_diff)
+                        pg_losses = -mb_advantage * ratio
+                        pg_losses2 = -mb_advantage * torch.clamp(ratio, 1.0 - args.ppo.cliprange, 1.0 + args.ppo.cliprange)
+                        pg_loss_max = torch.max(pg_losses, pg_losses2)
+                        pg_loss = masked_mean(pg_loss_max, ~padding_mask[micro_batch_inds])
+                        pg_clipfrac = masked_mean((pg_losses2 > pg_losses).float(), ~padding_mask[micro_batch_inds])
+                        loss = pg_loss + args.ppo.vf_coef * vf_loss
+                        accelerator.backward(loss)
+                        optimizer.step()
+                        optimizer.zero_grad()
+                        with torch.no_grad():
+                            pg_clipfrac = (pg_losses2 > pg_losses).float().mean()
+                            prob_dist = torch.nn.functional.softmax(logits, dim=-1)
+                            entropy = torch.logsumexp(logits, dim=-1) - torch.sum(prob_dist * logits, dim=-1)
+                            approxkl = 0.5 * (logprobs_diff**2).mean()
+                            approxkl_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = approxkl
+                            pg_clipfrac_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = pg_clipfrac
+                            pg_loss_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = pg_loss
+                            vf_loss_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = vf_loss
+                            vf_clipfrac_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = vf_clipfrac
+                            entropy_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = entropy.mean()
+                            ratio_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = ratio.mean()
+                    gradient_accumulation_idx += 1
+                minibatch_idx += 1
+                # del everything and empty cache
+                # fmt: off
+                del (
+                    output, vpred_temp, logits, new_all_logprobs, new_logprobs, vpred, vpredclipped,
+                    vf_losses1, vf_losses2, vf_loss, vf_clipfrac, logprobs_diff, ratio, pg_losses, pg_losses2,
+                    pg_loss, loss, pg_clipfrac, prob_dist, entropy, approxkl, mb_return,
+                    mb_advantage, mb_values, mb_responses, mb_query_responses, mb_logprobs,
+                )
+                # fmt: on
+                torch.cuda.empty_cache()
+            if accelerator.is_main_process:
+                console.print(
+                    "ppo_epoch_idx",
+                    ppo_epoch_idx,
+                    "approxkl",
+                    approxkl_stats[: ppo_epoch_idx + 1].mean().item(),
+                    "pg_loss",
+                    pg_loss_stats[: ppo_epoch_idx + 1].mean().item(),
+                    "pg_clipfrac",
+                    pg_clipfrac_stats[: ppo_epoch_idx + 1].mean().item(),
+                    "ratio",
+                    ratio_stats[: ppo_epoch_idx + 1].mean().item(),
+                )
+        with torch.no_grad():
+            mean_kl = kl.sum(1).mean()
+            mean_entropy = (-logprobs).sum(1).mean()
+            mean_non_score_reward = non_score_reward.sum(1).mean()
+            writer.add_scalar("objective/kl", accelerator.gather(mean_kl).mean().item(), update)
+            writer.add_scalar("objective/entropy", accelerator.gather(mean_entropy).mean().item(), update)
+            writer.add_scalar("objective/non_score_reward", accelerator.gather(mean_non_score_reward).mean().item(), update)
+            writer.add_scalar(
+                "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
+            )
+            writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
+            writer.add_scalar("objective/validation_score", accelerator.gather(validation_score.mean()).mean().item(), update)
+            writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
+            writer.add_scalar("ppo/policy/clipfrac_avg", accelerator.gather(pg_clipfrac_stats).mean().item(), update)
+            writer.add_scalar("ppo/loss/policy_avg", accelerator.gather(pg_loss_stats).mean().item(), update)
+            writer.add_scalar("ppo/loss/value_avg", accelerator.gather(vf_loss_stats).mean().item(), update)
+            writer.add_scalar("ppo/val/clipfrac_avg", accelerator.gather(vf_clipfrac_stats).mean().item(), update)
+            writer.add_scalar("ppo/policy/entropy_avg", accelerator.gather(entropy_stats).mean().item(), update)
+            writer.add_scalar("ppo/val/ratio", accelerator.gather(ratio_stats).mean().item(), update)
+            writer.add_scalar("ppo/val/ratio_var", accelerator.gather(ratio_stats).var().item(), update)
+            writer.add_scalar("ppo/val/num_eos_tokens", (responses == tokenizer.eos_token_id).sum().item(), update)
+            writer.add_scalar("ppo/lr", lrnow, update)
+            writer.add_scalar("ppo/episode", global_step, update)
+            eps = int(global_step / (time.time() - start_time))
+            writer.add_scalar("ppo/eps", eps, update)
+            accelerator.print("ppo/eps", eps, update)
+        del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
+        torch.cuda.empty_cache()
+
+    if args.run_eval:
+        for eval_split in eval_dataloaders:
+            eval_storage, eval_df = evaluate(
+                reward_model,
+                accelerator.unwrap_model(model).policy,
+                tokenizer,
+                eval_dataloaders[eval_split],
+                validation_generation_config,
+                sampling=False,
+            )
+            if accelerator.is_main_process:
+                eval_ds = Dataset.from_pandas(eval_df)
+                # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
+                wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+
+    # save model
+    if args.output_dir and args.num_train_epochs > 0:
+        os.makedirs(os.path.dirname(args.output_dir), exist_ok=True)
+        if accelerator.is_main_process:
+            tokenizer.save_pretrained(args.output_dir)
+            # if args.push_to_hub:
+            #     tokenizer.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision)
+        unwrapped: PreTrainedModel = accelerator.unwrap_model(model).policy
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process:
+            unwrapped.save_pretrained(
+                args.output_dir,
+                is_main_process=accelerator.is_main_process,
+                save_function=accelerator.save,
+                state_dict=accelerator.get_state_dict(unwrapped),
+                safe_serialization=False,
+            )
+            # if args.push_to_hub:
+            #     unwrapped.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision, safe_serialization=False)
+            #     accelerator.print(f"🔥 pushed to https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}")

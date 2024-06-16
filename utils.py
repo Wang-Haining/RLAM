@@ -336,7 +336,7 @@ def compute_ari(text: str):
     return ari_score
 
 
-def build_dataset(
+def build_ppo_dataset(
     model_name: str,
     task_prefix: str = TASK_PREFIX,
     response_template: str = RESPONSE_TEMP,
@@ -344,9 +344,12 @@ def build_dataset(
     """
     Build dataset for training. This function filters out too short samples and then
     extracts a specific number of samples for training.
+    In the original dataset, 'source' column holds abstracts and 'target' contains
+    significance statements. In the new dataset, 'query' (str) holds the templated
+    abstracts.
 
     Args:
-        model_name: SFT'ed model name.
+        model_name: base model name.
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
         response_template: RESPONSE_TEMP
@@ -357,20 +360,68 @@ def build_dataset(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
+        # ds[split] = ds[split].rename_column("target", "response")
         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
     def tokenize(sample):
         # prepend the task-specific prefix and trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
-        input_ids = tokenizer.encode(
+        query_token = tokenizer.encode(
             sample["query"],
             truncation=True,
             max_length=512,
+            padding='max_length',
+            padding_side="left",
         )
-        sample["input_ids"] = torch.tensor(input_ids)
+        reference_response_token = tokenizer.encode(
+            sample["target"],
+            truncation=True,
+            max_length=300,
+            padding='max_length',
+            padding_side="right",
+        )
+        sample["query_token"] = torch.tensor(query_token)
+        sample["reference_response_token"] = torch.tensor(reference_response_token)
         return sample
     ds = ds.map(tokenize, batched=False)
-    ds.set_format(type="torch")
+    # ds.set_format(type="torch")
     return ds
+
+
+# def build_dataset(
+#     model_name: str,
+#     task_prefix: str = TASK_PREFIX,
+#     response_template: str = RESPONSE_TEMP,
+# ):
+#     """
+#     Build dataset for training. This function filters out too short samples and then
+#     extracts a specific number of samples for training.
+#
+#     Args:
+#         model_name: SFT'ed model name.
+#         task_prefix: The prefix to prepend to each abstract for task
+#         instruction.
+#         response_template: RESPONSE_TEMP
+#
+#     Returns:
+#         DataLoader: The DataLoader for the dataset.
+#     """
+#     tokenizer = AutoTokenizer.from_pretrained(model_name)
+#     ds = load_from_disk(DATASET_PATH)
+#     for split in ["train", "validation", "test"]:
+#         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
+#     def tokenize(sample):
+#         # prepend the task-specific prefix and trailing template
+#         sample["query"] = task_prefix + sample["source"] + response_template
+#         input_ids = tokenizer.encode(
+#             sample["query"],
+#             truncation=True,
+#             max_length=512,
+#         )
+#         sample["input_ids"] = torch.tensor(input_ids)
+#         return sample
+#     ds = ds.map(tokenize, batched=False)
+#     ds.set_format(type="torch")
+#     return ds
 
 
 def collator(data):
