@@ -142,7 +142,8 @@ class PpoHParams:
 @dataclass
 class Args:
     # common args
-    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures🔥"
+    project_name: str = "RLUAM_TEST"
+    # project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""
