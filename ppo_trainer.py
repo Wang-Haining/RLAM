@@ -154,7 +154,6 @@ class PPOConfig(TrainingArguments):
     """a unique name of this run"""
     sanity_check: bool = False
     """whether to run in debug mode"""
-
     # batch size related config
     num_mini_batches: int = 1
     """Number of minibatches to split a batch into"""
@@ -164,7 +163,6 @@ class PPOConfig(TrainingArguments):
     """per rank no grad forward pass in the rollout phase"""
     num_sample_generations: int = 10
     """the number of debugging samples generations (i.e., `generate_completions` calls) throughout training"""
-
     # other config
     base_model: str = "google/gemma-2b"
     """the name of the pretrained model to use"""
@@ -185,7 +183,6 @@ class PPOConfig(TrainingArguments):
     # """the path to the reward model"""
     sft_model_path: str = None
     """the path to the sft model"""
-
     # ppo config
     num_ppo_epochs: int = 4
     """the number of epochs to train"""
@@ -204,13 +201,11 @@ class PPOConfig(TrainingArguments):
     # todo: perhaps with a KL controller
     kl_coef: float = 0.05
     """the KL coefficient"""
-
     # uncombined accessibility measure related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
     wa_coef: float = 2.0
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
-
     # logging and evaluation intervals (directly inherited from TrainingArguments)
     logging_steps: int = 2
     save_steps: int = 10
@@ -291,13 +286,11 @@ class PPOTrainer(Trainer):
             args.total_episodes = args.num_train_epochs * self.train_dataset_len
         accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
         self.accelerator = accelerator
-        accelerator.print(f"{accelerator.num_processes=}")
-        args.world_size = accelerator.num_processes
         args.local_batch_size = (
             args.per_device_train_batch_size * args.gradient_accumulation_steps * args.num_mini_batches
         )
-        args.micro_batch_size = int(args.per_device_train_batch_size * args.world_size)
-        args.batch_size = int(args.local_batch_size * args.world_size)
+        args.micro_batch_size = int(args.per_device_train_batch_size * args.accelerator.num_processes)
+        args.batch_size = int(args.local_batch_size * args.accelerator.num_processes)
         args.mini_batch_size = exact_div(
             args.batch_size, args.num_mini_batches, "`batch_size` must be a multiple of `num_mini_batches`"
         )
