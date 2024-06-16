@@ -239,7 +239,7 @@ class Args:
     eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
     save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
     save_total_limit: Optional[int] = 3
-    output_dir: str = 'ckpts'
+    output_dir: str = 'ckpts/test_run'
     overwrite_output_dir: bool = False
     ppo: PpoHParams = field(default_factory=PpoHParams)
     """Default values will be used to create a PpoHParams"""
