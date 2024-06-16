@@ -3,9 +3,6 @@ The code is modified from
 https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
 """
 
-
-
-
 import heapq
 import os
 import pickle
@@ -14,7 +11,7 @@ import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from types import SimpleNamespace
-from typing import Literal, Optional, List, Dict
+from typing import Dict, List, Literal, Optional
 
 import nltk
 import numpy as np
@@ -25,14 +22,14 @@ import torch.nn.functional as F
 import torch.optim as optim
 import tyro
 import wandb
-from nltk.tokenize import sent_tokenize
-from sacremoses import MosesTokenizer
 from accelerate import Accelerator
 from accelerate.utils import broadcast, gather_object
 from datasets import Dataset, load_dataset
+from nltk.tokenize import sent_tokenize
 # from huggingface_hub import HfApi
 from rich.console import Console
 from rich.pretty import pprint
+from sacremoses import MosesTokenizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -40,8 +37,9 @@ from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           AutoTokenizer, GenerationConfig, PretrainedConfig,
                           PreTrainedModel)
 
-from utils import (WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, SEP_TOKENS,
-                   read_token_frequencies, compute_token_accessibility, compute_sent_len, build_ppo_dataset)
+from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_ppo_dataset, compute_sent_len,
+                   compute_token_accessibility, read_token_frequencies)
 
 torch.set_printoptions(precision=4, sci_mode=False)
 # api = HfApi()

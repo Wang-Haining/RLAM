@@ -357,7 +357,7 @@ def build_ppo_dataset(
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left",)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         # ds[split] = ds[split].rename_column("target", "response")
@@ -369,15 +369,13 @@ def build_ppo_dataset(
             sample["query"],
             truncation=True,
             max_length=512,
-            padding='max_length',
-            padding_side="left",
+            padding='max_length'
         )
         reference_response_token = tokenizer.encode(
             sample["target"],
             truncation=True,
             max_length=300,
             padding='max_length',
-            padding_side="right",
         )
         sample["query_token"] = torch.tensor(query_token)
         sample["reference_response_token"] = torch.tensor(reference_response_token)
