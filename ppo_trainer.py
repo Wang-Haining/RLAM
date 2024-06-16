@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from transformers import (AutoModelForCausalLM,
                           AutoModelForSequenceClassification,
                           DataCollatorWithPadding, GenerationConfig,
-                          PreTrainedTokenizer, Trainer, TrainerCallback,
+                          AutoTokenizer, Trainer, TrainerCallback,
                           TrainerControl, TrainerState, TrainingArguments)
 from transformers.integrations import get_reporting_integration_callbacks
 from transformers.trainer_callback import CallbackHandler, DefaultFlowCallback
@@ -255,7 +255,7 @@ class PPOTrainer(Trainer):
     def __init__(
         self,
         config: PPOConfig,
-        tokenizer: PreTrainedTokenizer,
+        tokenizer: AutoTokenizer,
         policy: nn.Module,
         ref_policy: nn.Module,
         train_dataset: Dataset,
@@ -796,7 +796,7 @@ if __name__ == "__main__":
     eval_dataset = dataset['validation']
 
     # initialize tokenizer and models
-    tokenizer = PreTrainedTokenizer.from_pretrained(config.base_model)
+    tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     value_model = AutoModelForSequenceClassification.from_pretrained(config.sft_model_path, num_labels=1, torch_dtype=torch.bfloat16)
     ref_policy = AutoModelForCausalLM.from_pretrained(config.sft_model_path, torch_dtype=torch.bfloat16)
     policy = AutoModelForCausalLM.from_pretrained(config.sft_model_path, torch_dtype=torch.bfloat16)
