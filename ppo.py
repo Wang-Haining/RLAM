@@ -193,9 +193,9 @@ class Args:
     """the mini batch size per GPU"""
     mini_batch_size: Optional[int] = None
     """the mini batch size across GPUs"""
-    local_eval_batch_size: int = 2
+    local_eval_batch_size: int = 1
     """per rank eval batch size"""
-    local_rollout_forward_batch_size: int = 2
+    local_rollout_forward_batch_size: int = 1
     """per rank no grad forward pass in the rollout phase"""
 
     # other args
@@ -213,7 +213,7 @@ class Args:
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
-    penalty_reward_value: int = -2  # todo: tune
+    penalty_reward_value: int = -5  # todo: tune
     """the reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = True
     """whether to penalize responses that do not contain `truncate_token_id`"""
