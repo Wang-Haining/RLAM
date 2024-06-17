@@ -476,6 +476,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
+            print(f'{generated_texts=}')
             score = compute_uam_score(generated_texts)
             score = sl_coef * score['sl_score'] + wa_coef * score['wa_score']
 
