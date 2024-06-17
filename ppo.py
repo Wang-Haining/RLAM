@@ -733,8 +733,7 @@ if __name__ == "__main__":
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
                 generated_texts = tokenizer.batch_decode(postprocessed_responses,
-                                                         skip_special_tokens=True,
-                                                         clean_up_tokenization_spaces=True)
+                                                         skip_special_tokens=True)
                 print(f'rollout: {generated_texts=}')
                 uam_score = compute_uam_score(generated_texts)
                 score = args.sl_coef * uam_score['sl_score'] + args.wa_coef * uam_score['wa_score']
