@@ -461,13 +461,8 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
     with torch.no_grad():
         for data in tqdm(dataloader):
             queries = data["query_token"]
-            # reference_response_token = data["reference_response_token"]
-            context_length = queries.shape[1]
-            query_reference_responses = tokenizer.batch_decode(torch.cat((data["query_token"], data["reference_response_token"]), dim=1),
-                                                     skip_special_tokens=True,
-                                                     clean_up_tokenization_spaces=True)
-
-            uam_score = compute_uam_score(query_reference_responses)
+            reference_responses = data['response']
+            uam_score = compute_uam_score(reference_responses)
             reference_score = sl_coef * uam_score['sl_score'] + wa_coef * uam_score['wa_score']
 
             query_responses, _ = generate(
@@ -483,27 +478,22 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
                                                      clean_up_tokenization_spaces=True)
             score = compute_uam_score(generated_texts)
 
-            eval_storage["query_token"].extend(queries)
-            eval_storage["reference_response_token"].extend(query_reference_responses)
-            eval_storage["reference_score"].append(reference_score)
-            eval_storage["postprocessed_reference_response_token"].extend(postprocessed_responses)
+            eval_storage["query"].extend(data['query'])  # str
+            eval_storage["generated_texts"].extend(generated_texts)  # str
             eval_storage["score"].append(score)
+            eval_storage["reference_response"].extend(reference_responses)  # str
+            eval_storage["reference_score"].append(reference_score)
             if sampling:
                 break
 
-    eval_storage["query"] = tokenizer.batch_decode(eval_storage["query_token"], skip_special_tokens=True)
-    eval_storage["reference_response"] = tokenizer.batch_decode(eval_storage["reference_response_token"])
-    eval_storage["postprocessed_response"] = tokenizer.batch_decode(
-        eval_storage["postprocessed_reference_response_token"], skip_special_tokens=True
-    )
     eval_score = torch.cat(eval_storage["score"]).float().cpu().numpy().tolist()
     eval_reference_score = torch.cat(eval_storage["reference_score"]).float().cpu().numpy().tolist()
     eval_df = pd.DataFrame(
         {
             "query": gather_object(eval_storage["query"]),
-            "postprocessed_response": gather_object(eval_storage["postprocessed_response"]),
-            "reference_responses": gather_object(eval_storage["reference_response"]),
+            "generated_texts": gather_object(eval_storage["generated_texts"]),
             "scores": gather_object(eval_score),
+            "reference_responses": gather_object(eval_storage["reference_response"]),
             "reference_scores": gather_object(eval_reference_score),
         }
     )
