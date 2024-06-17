@@ -461,6 +461,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
     with torch.no_grad():
         for data in tqdm(dataloader):
             queries = data["query_token"]
+            context_length = queries.shape[1]
             reference_responses = data['response']
             uam_score = compute_uam_score(reference_responses)
             reference_score = sl_coef * uam_score['sl_score'] + wa_coef * uam_score['wa_score']
