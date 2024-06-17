@@ -507,7 +507,7 @@ if __name__ == "__main__":
     # load dataset
     # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token"])  # query_token: (bs, 512) left padded
+    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response'])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     # fixme
