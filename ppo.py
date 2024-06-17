@@ -573,8 +573,8 @@ if __name__ == "__main__":
     #         args.reward_model_path,
     #         trust_remote_code=True,
     #     )
-    ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, bf16=True, trust_remote_code=True)
-    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, bf16=True, trust_remote_code=True)
+    ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
+    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
     # fixme: reward model alert
     for module in [policy, ref_policy, critic]:
         disable_dropout(module)
