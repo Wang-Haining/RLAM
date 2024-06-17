@@ -94,7 +94,7 @@ def compute_uam_score(responses: List[str],
     for response in responses:
         # penalize too short generations
         if len(response.strip()) <= 50:
-            sent_len_rewards.append(25.0)
+            sent_len_rewards.append(28.0)
             word_accessibility_rewards.append(7.0)
         else:
             sent_len_list = []
@@ -116,6 +116,7 @@ def compute_uam_score(responses: List[str],
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
     # negate sentence length and count for intuitive reward maximization
+    print(f'{sent_len_rewards=}')
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
     return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
@@ -460,7 +461,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             context_length = queries.shape[1]
             reference_responses = data['response']
             reference_score = compute_uam_score(reference_responses)
-            print(f'{reference_score}')
+            print(f'{reference_score=}')
             reference_score = sl_coef * reference_score['sl_score'] + wa_coef * reference_score['wa_score']
 
             query_responses, _ = generate(
