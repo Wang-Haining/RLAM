@@ -462,7 +462,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             context_length = queries.shape[1]
             reference_responses = data['response']
             reference_score = compute_uam_score(reference_responses)
-            print(f'{reference_score=}')
+            # print(f'{reference_score=}')
             reference_score = sl_coef * reference_score['sl_score'] + wa_coef * reference_score['wa_score']
 
             query_responses, _ = generate(
@@ -475,7 +475,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             postprocessed_responses = truncate_response(args, tokenizer, responses)
             generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True)
-            print(f'{generated_texts=}')
+            # print(f'{generated_texts=}')
             score = compute_uam_score(generated_texts)
             score = sl_coef * score['sl_score'] + wa_coef * score['wa_score']
 
@@ -703,7 +703,7 @@ if __name__ == "__main__":
                     generation_config,
                 )
                 response = query_response[:, context_length:]  # (local_rollout_forward_batch_size, gen_len)
-
+                print(f'rollout: {response}')
                 # use the logits during generation directly, instead of using the following
                 all_logprob = F.log_softmax(logits, dim=-1)  # local_rollout_forward_batch_size, seq_len, vocab_size
                 logprob = torch.gather(all_logprob, 2, response.unsqueeze(-1)).squeeze(-1)
