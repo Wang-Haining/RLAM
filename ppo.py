@@ -116,6 +116,7 @@ def compute_uam_score(responses: List[str],
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
     # negate sentence length and count for intuitive reward maximization
+    print(f'{responses=}')
     print(f'{sent_len_rewards=}')
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
