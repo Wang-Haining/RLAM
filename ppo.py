@@ -57,10 +57,10 @@ total_tokens = sum(token_freq.values())
 
 
 def compute_uam_score(responses: List[str],
-                        top_100k_tokens=top_100k_tokens,
-                        wa_model=wa_model,
-                        total_tokens=total_tokens,
-                        token_freq=token_freq) -> Dict[str, torch.Tensor]:
+                      top_100k_tokens=top_100k_tokens,
+                      wa_model=wa_model,
+                      total_tokens=total_tokens,
+                      token_freq=token_freq) -> Dict[str, torch.Tensor]:
     """
     Score a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
@@ -91,7 +91,6 @@ def compute_uam_score(responses: List[str],
     sent_len_rewards = []
     word_accessibility_rewards = []
     mt = MosesTokenizer(lang='en')
-
     for response in responses:
         # penalize too short generations
         if len(response.strip()) <= 50:
@@ -101,7 +100,6 @@ def compute_uam_score(responses: List[str],
             sent_len_list = []
             word_accessibility_list = []
             sents = sent_tokenize(response)
-
             for sent in sents:
                 # prevent noise from artificial eos tokens
                 for t in SEP_TOKENS:
@@ -117,11 +115,9 @@ def compute_uam_score(responses: List[str],
                                                     token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
-
     # negate sentence length and count for intuitive reward maximization
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
-
     return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
 
 
@@ -464,6 +460,7 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
             context_length = queries.shape[1]
             reference_responses = data['response']
             reference_score = compute_uam_score(reference_responses)
+            print(f'{reference_score}')
             reference_score = sl_coef * reference_score['sl_score'] + wa_coef * reference_score['wa_score']
 
             query_responses, _ = generate(
