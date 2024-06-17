@@ -195,7 +195,7 @@ class Args:
     """the mini batch size across GPUs"""
     local_eval_batch_size: int = 2
     """per rank eval batch size"""
-    local_rollout_forward_batch_size: int = 64
+    local_rollout_forward_batch_size: int = 4
     """per rank no grad forward pass in the rollout phase"""
 
     # other args
