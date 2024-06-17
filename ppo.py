@@ -422,8 +422,8 @@ def generate(lm_backbone, queries, tokenizer, generation_config):
 
 def first_true_indices(bools, dtype=torch.long):
     """
-    Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of integers giving
-    the position of the first True in each "row".
+    Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of
+    integers giving the position of the first True in each "row".
 
     Returns the length of the rows (bools.size(-1)) if no element is True in a given row.
     """
@@ -523,7 +523,7 @@ if __name__ == "__main__":
     )
     # fixme: use <pad> is fine?
     # we use the padding token manually but do not resize the token embedding of the model
-    tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
@@ -727,6 +727,7 @@ if __name__ == "__main__":
                 # run reward model on the truncated responses
                 # postprocessed_query_response = torch.cat((query, postprocessed_response), 1)
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
+                print(f'rollout: {sequence_length=}')
                 full_value, _, _ = get_reward(
                     accelerator.unwrap_model(model).critic, query_response, tokenizer, context_length
                 )
