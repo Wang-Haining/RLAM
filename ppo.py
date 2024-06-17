@@ -722,7 +722,8 @@ if __name__ == "__main__":
                 # truncate response after the first occurrence of `stop_token_id` and
                 # pad up to the maximum sequence length within the batch
                 postprocessed_response = truncate_response(args, tokenizer, response)
-
+                print(f'rollout: {response=}')
+                print(f'rollout: {postprocessed_response=}')
                 # run reward model on the truncated responses
                 # postprocessed_query_response = torch.cat((query, postprocessed_response), 1)
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
