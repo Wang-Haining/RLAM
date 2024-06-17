@@ -177,7 +177,7 @@ class Args:
     """Number of epochs to train"""
     num_updates: Optional[int] = None
     """The number of updates to train"""
-    gradient_accumulation_steps: int = 64
+    gradient_accumulation_steps: int = 16
     """The number of gradient accumulation steps"""
     local_micro_batch_size: Optional[int] = 1
     """The micro batch size per GPU (HF's `per_device_train_batch_size`)"""
