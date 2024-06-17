@@ -199,7 +199,8 @@ class Args:
     """per rank no grad forward pass in the rollout phase"""
 
     # other args
-    base_model: str = "google/gemma-2b"
+    # base_model: str = "google/gemma-2b"
+    base_model: str = 'allenai/OLMo-1B-hf'
     """the name of the pretrained model to use"""
     # fixme: modify
     # query_dataset: str = "vwxyzjn/summarize_from_feedback_tldr_3_filtered_oai_preprocessing_1706381144"
@@ -209,7 +210,7 @@ class Args:
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
     # fixme: modify
-    truncate_token_id: Optional[int] = 1  # 1 for gemma
+    truncate_token_id: Optional[int] = 50279  # 1 for gemma, 50279 for olmo
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -222,7 +223,8 @@ class Args:
     # fixme: rm
     # reward_model_path: str = ""
     # """the path to the reward model"""
-    sft_model_path: str = "ckpts/sft_gemma-2b/checkpoint-1120"
+    # sft_model_path: str = "ckpts/sft_gemma-2b/checkpoint-1120"
+    sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """the path to the sft model"""
 
     # reward related
