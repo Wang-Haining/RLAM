@@ -523,7 +523,7 @@ if __name__ == "__main__":
     )
     # fixme: use <pad> is fine?
     # we use the padding token manually but do not resize the token embedding of the model
-    # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
