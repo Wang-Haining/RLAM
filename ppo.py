@@ -116,8 +116,8 @@ def compute_uam_score(responses: List[str],
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
     # negate sentence length and count for intuitive reward maximization
-    print(f'{responses=}')
-    print(f'{sent_len_rewards=}')
+    # print(f'{responses=}')
+    # print(f'{sent_len_rewards=}')
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
     return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
@@ -703,7 +703,7 @@ if __name__ == "__main__":
                     generation_config,
                 )
                 response = query_response[:, context_length:]  # (local_rollout_forward_batch_size, gen_len)
-                print(f'rollout: {response}')
+                # print(f'rollout: {response}')
                 # use the logits during generation directly, instead of using the following
                 all_logprob = F.log_softmax(logits, dim=-1)  # local_rollout_forward_batch_size, seq_len, vocab_size
                 logprob = torch.gather(all_logprob, 2, response.unsqueeze(-1)).squeeze(-1)
@@ -722,12 +722,12 @@ if __name__ == "__main__":
                 # truncate response after the first occurrence of `stop_token_id` and
                 # pad up to the maximum sequence length within the batch
                 postprocessed_response = truncate_response(args, tokenizer, response)
-                print(f'rollout: {response=}')
-                print(f'rollout: {postprocessed_response=}')
+                # print(f'rollout: {response=}')
+                # print(f'rollout: {postprocessed_response=}')
                 # run reward model on the truncated responses
                 # postprocessed_query_response = torch.cat((query, postprocessed_response), 1)
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
-                print(f'rollout: {sequence_length=}')
+                # print(f'rollout: {sequence_length=}')
                 full_value, _, _ = get_reward(
                     accelerator.unwrap_model(model).critic, query_response, tokenizer, context_length
                 )
@@ -735,7 +735,7 @@ if __name__ == "__main__":
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
                 generated_texts = tokenizer.batch_decode(postprocessed_response,
                                                          skip_special_tokens=True)
-                print(f'rollout: {generated_texts=}')
+                # print(f'rollout: {generated_texts=}')
                 uam_score = compute_uam_score(generated_texts)
                 score = args.sl_coef * uam_score['sl_score'] + args.wa_coef * uam_score['wa_score']
                 score = score.to(device=accelerator.device)
