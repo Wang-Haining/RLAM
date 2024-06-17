@@ -782,7 +782,7 @@ if __name__ == "__main__":
 
             # 4. compute rewards
             kl = logprobs - ref_logprobs  # (batch_size, gen_len)
-            non_score_reward = -args.kl_coef * kl  # (batch_size, gen_len)
+            non_score_reward = -args.ppo.kl_coef * kl  # (batch_size, gen_len)
             rewards = non_score_reward.clone()  # (batch_size, gen_len)
             actual_start = torch.arange(rewards.size(0), device=rewards.device)  # (batch_size,)
             actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
