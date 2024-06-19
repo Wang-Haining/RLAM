@@ -1043,7 +1043,7 @@ if __name__ == "__main__":
         # save model
         # todo: make sure there is a total limit
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
-            current_score = {'avg_ari': eval_storage['avg_ari'], 'step': update}
+            current_score = {'avg_ari': f'{round(np.mean(eval_storage["ari"]), 2)}', 'step': update}
             save_model(accelerator, tokenizer, model, args.output_dir,
                                 current_score, args.save_total_limit)
         # if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
