@@ -560,7 +560,8 @@ def evaluate_model(
 
 
 def save_model(accelerator, tokenizer, model, output_dir, current_score, save_total_limit):
-    save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_score_{current_score['avg_ari']:.2f}.pt")
+    ari = round(current_score['avg_ari'], 2)
+    save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_ari_{ari}")
     metadata_path = os.path.join(output_dir, "metadata.npz")
 
     # load existing metadata if available
@@ -581,7 +582,7 @@ def save_model(accelerator, tokenizer, model, output_dir, current_score, save_to
         # update saved models list
         saved_models.append({
             'path': save_path,
-            'score': current_score['score'],
+            'ari': ari,
             'step': current_score['step']
         })
         saved_models.sort(key=lambda x: x['score'])
