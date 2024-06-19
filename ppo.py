@@ -485,7 +485,7 @@ def evaluate_model(
         Tuple[Dict[str, List], pd.DataFrame]: Evaluation metrics and DataFrame of results.
     """
     eval_storage = defaultdict(list)
-    bleu = corpus_bleu
+    bleu = BLEU()
 
     with torch.no_grad():
         for i, data in tqdm(enumerate(dataloader)):
