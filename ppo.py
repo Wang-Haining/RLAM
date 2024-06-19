@@ -558,6 +558,7 @@ def evaluate_model(
     )
     return eval_storage, eval_df
 
+
 def save_model(accelerator, tokenizer, model, output_dir, current_score, save_total_limit):
     save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_score_{current_score['avg_ari']:.2f}.pt")
     metadata_path = os.path.join(output_dir, "metadata.npz")
@@ -577,7 +578,7 @@ def save_model(accelerator, tokenizer, model, output_dir, current_score, save_to
             unwrapped = accelerator.unwrap_model(model).policy
             unwrapped.save_pretrained(save_path, save_function=accelerator.save)
 
-        # ppdate saved models list
+        # update saved models list
         saved_models.append({
             'path': save_path,
             'score': current_score['score'],
@@ -585,13 +586,13 @@ def save_model(accelerator, tokenizer, model, output_dir, current_score, save_to
         })
         saved_models.sort(key=lambda x: x['score'])
 
-        # Remove the worst model if limit exceeded
+        # remove the worst model if limit exceeded
         if len(saved_models) > save_total_limit:
             worst_model = saved_models.pop(0)
             if os.path.exists(worst_model['path']):
                 shutil.rmtree(worst_model['path'])
 
-        # Save updated metadata
+        # save updated metadata
         if accelerator.is_main_process:
             np.savez(metadata_path, saved_models=saved_models)
 
@@ -1043,7 +1044,7 @@ if __name__ == "__main__":
         # save model
         # todo: make sure there is a total limit
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
-            current_score = {'avg_ari': f'{round(np.mean(eval_storage["ari"]), 2)}', 'step': update}
+            current_score = {'avg_ari': np.mean(eval_storage["ari"]), 'step': update}
             save_model(accelerator, tokenizer, model, args.output_dir,
                                 current_score, args.save_total_limit)
         # if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
