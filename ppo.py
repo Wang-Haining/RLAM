@@ -559,9 +559,8 @@ def evaluate_model(
     return eval_storage, eval_df
 
 
-def save_model(accelerator, tokenizer, model, output_dir, current_score, save_total_limit):
-    ari = round(current_score['avg_ari'], 2)
-    save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_ari_{ari}")
+def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_limit):
+    save_path = os.path.join(output_dir, f"model_step_{step}_ari_{ari}")
     metadata_path = os.path.join(output_dir, "metadata.npz")
 
     # load existing metadata if available
@@ -1063,9 +1062,9 @@ if __name__ == "__main__":
         # save model
         # todo: make sure there is a total limit
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
-            current_score = {'avg_ari': np.mean(eval_storage["ari"]), 'step': update}
+            avg_ari = round(np.mean(eval_storage["ari"]), 2)
             save_model(accelerator, tokenizer, model, args.output_dir,
-                                current_score, args.save_total_limit)
+                                avg_ari, update, args.save_total_limit)
         # if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
             # os.makedirs(os.path.dirname(args.output_dir), exist_ok=True)
             # if accelerator.is_main_process:
