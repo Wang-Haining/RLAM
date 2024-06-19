@@ -516,11 +516,12 @@ def evaluate_model(
             total_scores = sl_coef * sl_scores + wa_coef * wa_scores
             ari_scores = []
             bleu_scores = []
+            num_sents = []
 
             for g, r in zip(generated_texts, data['source']):
                 ari_scores.append(compute_ari(g))
-                bleu_scores.append(bleu([g], [[
-                                                  r]]).score)  # BLEU to the original abstract (cf. significance statement)
+                bleu_scores.append(bleu([g], [[r]]).score)  # BLEU to the original abstract (cf. significance statement)
+                num_sents.append(count_sent(g))
 
             eval_storage["queries"].extend(data['query'])  # str
             eval_storage["generated_texts"].extend(generated_texts)  # str
@@ -533,6 +534,7 @@ def evaluate_model(
             eval_storage['avg_sent_len'].append(np.mean(sl_scores.cpu().numpy()))
             eval_storage['avg_word_accessibility'].append(
                 np.mean(wa_scores.cpu().numpy()))
+            eval_storage['avg_sent_count'].append(np.mean(num_sents))
 
             if i >= num_samples:
                 break
@@ -551,7 +553,8 @@ def evaluate_model(
             "avg_ari": eval_storage['avg_ari'],
             "avg_bleu": eval_storage['avg_bleu'],
             "avg_sent_len": eval_storage['avg_sent_len'],
-            "avg_word_accessibility": eval_storage['avg_word_accessibility']
+            "avg_word_accessibility": eval_storage['avg_word_accessibility'],
+            "avg_sent_count": eval_storage['avg_sent_count']
         }
     )
     return eval_storage, eval_df
