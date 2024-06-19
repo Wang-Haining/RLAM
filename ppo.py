@@ -520,7 +520,7 @@ def evaluate_model(
 
             for g, r in zip(generated_texts, data['source']):
                 ari_scores.append(compute_ari(g))
-                bleu_scores.append(bleu([g], [[r]]).score)  # BLEU to the original abstract (cf. significance statement)
+                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)  # BLEU to the original abstract (cf. significance statement)
                 num_sents.append(count_sent(g))
 
             eval_storage["queries"].extend(data['query'])  # str
