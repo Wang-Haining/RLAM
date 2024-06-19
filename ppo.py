@@ -571,7 +571,7 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
         saved_models = []
 
     # save new model if conditions are met
-    if len(saved_models) < save_total_limit or current_score['score'] < max(m['score'] for m in saved_models):
+    if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
         # prepare model for saving
         if accelerator.is_main_process:
             tokenizer.save_pretrained(output_dir)
@@ -582,9 +582,9 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
         saved_models.append({
             'path': save_path,
             'ari': ari,
-            'step': current_score['step']
+            'step': step
         })
-        saved_models.sort(key=lambda x: x['score'])
+        saved_models.sort(key=lambda x: x['ari'])
 
         # remove the worst model if limit exceeded
         if len(saved_models) > save_total_limit:
@@ -599,7 +599,7 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
 
 if __name__ == "__main__":
     args, accelerator = parse_args()
-    local_seed = args.seed + accelerator.process_index * 100003  # Prime
+    local_seed = args.seed + accelerator.process_index * 100003  # a prime number
 
     # load dataset
     # dataset = load_dataset(args.query_dataset, split="train")
