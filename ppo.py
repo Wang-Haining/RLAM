@@ -7,6 +7,7 @@ import heapq
 import os
 import pickle
 import random
+import shutil
 import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
@@ -29,6 +30,7 @@ from nltk.tokenize import sent_tokenize
 # from huggingface_hub import HfApi
 from rich.console import Console
 from rich.pretty import pprint
+from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -38,10 +40,12 @@ from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           PreTrainedModel)
 
 from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_ppo_dataset, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies)
+                   build_ppo_dataset, compute_ari, compute_sent_len,
+                   compute_token_accessibility, count_sent,
+                   read_token_frequencies)
 
-torch.set_printoptions(precision=4, sci_mode=False)
+torch.set_printoptions(precision=3, sci_mode=False)
+bleu = BLEU()
 # api = HfApi()
 nltk.download('punkt')
 INVALID_LOGPROB = 1.0
@@ -132,7 +136,7 @@ class PpoHParams:
     cliprange_value: float = 0.2
     gamma: float = 1
     lam: float = 0.95
-    # whiten_rewards: bool = False
+    whiten_rewards: bool = False
     # fixme: modify
     kl_coef: float = 0.2
 
@@ -237,8 +241,9 @@ class Args:
     logging_steps: int = 2
     save_steps: int = 10
     eval_steps: int = 10
-    eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
-    save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
+    num_eval_samples: int = 64
+    # eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
+    # save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts/test_run'
     overwrite_output_dir: bool = False
@@ -255,10 +260,10 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.batch_size = int(args.local_batch_size * args.world_size)
     args.mini_batch_size = exact_div(args.batch_size, args.nminibatches)
     args.local_mini_batch_size = exact_div(args.local_batch_size, args.nminibatches)
-    # if args.ppo.whiten_rewards:
-    #     assert (
-    #         args.local_mini_batch_size >= 8
-    #     ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
+    if args.ppo.whiten_rewards:
+        assert (
+            args.local_mini_batch_size >= 8
+        ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
     # `per_rank_rollout_batch_size` is our `args.local_batch_size`
     # `per_rank_minibatch_size` is our `args.local_mini_batch_size`
     args.num_updates = args.total_episodes // args.batch_size
@@ -455,38 +460,52 @@ def forward(model, query_responses, tokenizer):
     )
 
 
-# fixme: reward_model alert
-def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config, sampling=True):
+def evaluate_model(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config, num_samples):
     eval_storage = defaultdict(list)
     with torch.no_grad():
-        for data in tqdm(dataloader):
-            queries = data["query_token"]
-            context_length = queries.shape[1]
-            reference_responses = data['response']
-            reference_score = compute_uam_score(reference_responses)
+        for i, data in tqdm(enumerate(dataloader)):
+            # evaluate reference response (i.e., human-written significance statement)
+            reference_scores = compute_uam_score(data['response'])
             # print(f'{reference_score=}')
-            reference_score = sl_coef * reference_score['sl_score'] + wa_coef * reference_score['wa_score']
-
+            reference_scores = sl_coef * reference_scores['sl_score'] + wa_coef * reference_scores['wa_score']
+            # evaluate policy generated response
+            queries = data["query_token"]
+            context_lengths = queries.shape[1]
             query_responses, _ = generate(
                 policy,
                 queries,
                 tokenizer,
                 generation_config,
             )
-            responses = query_responses[:, context_length:]
+            responses = query_responses[:, context_lengths:]
             postprocessed_responses = truncate_response(args, tokenizer, responses)
             generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True)
-            # print(f'{generated_texts=}')
-            score = compute_uam_score(generated_texts)
-            score = sl_coef * score['sl_score'] + wa_coef * score['wa_score']
+            # calculate metrics
+            scores = compute_uam_score(generated_texts)
+            scores = sl_coef * scores['sl_score'] + wa_coef * scores['wa_score']  # (bs,)
+            sent_len_scores = scores['sl_score']
+            word_access_scores = scores['wa_score']
+            ari_scores = []
+            bleu_scores = []
+            num_sents = []
 
-            eval_storage["query"].extend(data['query'])  # str
+            for g, r in zip(generated_texts, data['source']):
+                ari_scores.append(compute_ari(g))
+                bleu_scores.append(bleu([g], [[r]]).score) # bleu to the original abstract (cf. significance statement)
+                num_sents.append(count_sent(g))
+
+            eval_storage["queries"].extend(data['queries'])  # str
             eval_storage["generated_texts"].extend(generated_texts)  # str
-            eval_storage["score"].append(score)
-            eval_storage["reference_response"].extend(reference_responses)  # str
-            eval_storage["reference_score"].append(reference_score)
-            if sampling:
+            eval_storage["scores"].append(scores)
+            eval_storage["reference_responses"].extend(data['responses'])  # str
+            eval_storage["reference_scores"].append(reference_scores)
+            eval_storage['avg_ari'].append(np.mean(ari_scores))
+            eval_storage['avg_bleu'].append(np.mean(bleu_scores))
+            eval_storage['avg_sent_len'].append(np.mean(sent_len_scores))
+            eval_storage['avg_word_accessibility'].append(np.mean(word_access_scores))
+
+            if i >= num_samples:
                 break
 
     eval_score = torch.cat(eval_storage["score"]).float().cpu().numpy().tolist()
@@ -503,6 +522,44 @@ def evaluate(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config,
     return eval_storage, eval_df
 
 
+def save_model(accelerator, tokenizer, model, output_dir, current_score, save_total_limit):
+    save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_score_{current_score['avg_ari']:.2f}.pt")
+    metadata_path = os.path.join(output_dir, "metadata.npz")
+
+    # load existing metadata if available
+    if os.path.exists(metadata_path):
+        metadata = np.load(metadata_path, allow_pickle=True)
+        saved_models = list(metadata['saved_models'])
+    else:
+        saved_models = []
+
+    # save new model if conditions are met
+    if len(saved_models) < save_total_limit or current_score['score'] < max(m['score'] for m in saved_models):
+        # prepare model for saving
+        if accelerator.is_main_process:
+            tokenizer.save_pretrained(output_dir)
+            unwrapped = accelerator.unwrap_model(model).policy
+            unwrapped.save_pretrained(save_path, save_function=accelerator.save)
+
+        # ppdate saved models list
+        saved_models.append({
+            'path': save_path,
+            'score': current_score['score'],
+            'step': current_score['step']
+        })
+        saved_models.sort(key=lambda x: x['score'])
+
+        # Remove the worst model if limit exceeded
+        if len(saved_models) > save_total_limit:
+            worst_model = saved_models.pop(0)
+            if os.path.exists(worst_model['path']):
+                shutil.rmtree(worst_model['path'])
+
+        # Save updated metadata
+        if accelerator.is_main_process:
+            np.savez(metadata_path, saved_models=saved_models)
+
+
 if __name__ == "__main__":
     args, accelerator = parse_args()
     local_seed = args.seed + accelerator.process_index * 100003  # Prime
@@ -510,11 +567,11 @@ if __name__ == "__main__":
     # load dataset
     # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response'])  # query_token: (bs, 512) left padded
+    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response', 'source'])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     # fixme
-    for split in ["validation", 'test']:
+    for split in ["validation"]:  # fixme: no test for now
         eval_dataset = dataset[split]
         eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
@@ -667,14 +724,15 @@ if __name__ == "__main__":
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
-            eval_storage, eval_df = evaluate(
+            eval_storage, eval_df = evaluate_model(
                 args.sl_coef, args.wa_coef,
                 accelerator.unwrap_model(model).policy,
                 tokenizer,
                 eval_dataloaders[eval_split],
                 validation_generation_config,
+                num_samples=4  # test a few samples to see if this works
             )
-            validation_score = eval_storage["score"][0]
+            validation_score = np.mean(eval_storage["score"])
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
                     # fixme: no need to save dfs
@@ -788,13 +846,14 @@ if __name__ == "__main__":
             rewards = non_score_reward.clone()  # (batch_size, gen_len)
             actual_start = torch.arange(rewards.size(0), device=rewards.device)  # (batch_size,)
             actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
+            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
             # add reward (from reward func) to the last position
             rewards[[actual_start, actual_end]] += scores  # (batch_size, gen_len)
 
             # 5. whiten rewards
-            # if args.ppo.whiten_rewards:
-            #     rewards = masked_whiten(rewards, mask=~padding_mask_p1, shift_mean=False)
-            #     rewards = torch.masked_fill(rewards, padding_mask_p1, 0)
+            if args.ppo.whiten_rewards:
+                rewards = masked_whiten(rewards, mask=~padding_mask_p1, shift_mean=False)
+                rewards = torch.masked_fill(rewards, padding_mask_p1, 0)
 
             # 6. compute advantages and returns
             lastgaelam = 0
@@ -930,38 +989,43 @@ if __name__ == "__main__":
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         torch.cuda.empty_cache()
 
-    if args.run_eval:
-        for eval_split in eval_dataloaders:
-            eval_storage, eval_df = evaluate(
-                args.sl_coef, args.wa_coef,
-                accelerator.unwrap_model(model).policy,
-                tokenizer,
-                eval_dataloaders[eval_split],
-                validation_generation_config,
-                sampling=False,
-            )
-            if accelerator.is_main_process:
-                eval_ds = Dataset.from_pandas(eval_df)
-                # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
-                wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+        if args.run_eval and update % args.eval_steps == 0:
+            for eval_split in eval_dataloaders:
+                eval_storage, eval_df = evaluate_model(
+                    args.sl_coef, args.wa_coef,
+                    accelerator.unwrap_model(model).policy,
+                    tokenizer,
+                    eval_dataloaders[eval_split],
+                    validation_generation_config,
+                    num_samples=args.num_eval_samples,
+                )
+                if accelerator.is_main_process:
+                    eval_ds = Dataset.from_pandas(eval_df)
+                    # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
+                    wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
 
-    # save model
-    if args.output_dir and args.num_train_epochs > 0:
-        os.makedirs(os.path.dirname(args.output_dir), exist_ok=True)
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            # if args.push_to_hub:
-            #     tokenizer.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision)
-        unwrapped: PreTrainedModel = accelerator.unwrap_model(model).policy
-        accelerator.wait_for_everyone()
-        if accelerator.is_main_process:
-            unwrapped.save_pretrained(
-                args.output_dir,
-                is_main_process=accelerator.is_main_process,
-                save_function=accelerator.save,
-                state_dict=accelerator.get_state_dict(unwrapped),
-                safe_serialization=False,
-            )
-            # if args.push_to_hub:
-            #     unwrapped.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision, safe_serialization=False)
-            #     accelerator.print(f"🔥 pushed to https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}")
+        # save model
+        # todo: make sure there is a total limit
+        if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
+            current_score = {'avg_ari': eval_storage['avg_ari'], 'step': update}
+            save_model(accelerator, tokenizer, model, args.output_dir,
+                                current_score, args.save_total_limit)
+        # if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
+            # os.makedirs(os.path.dirname(args.output_dir), exist_ok=True)
+            # if accelerator.is_main_process:
+            #     tokenizer.save_pretrained(args.output_dir)
+            #     # if args.push_to_hub:
+            #     #     tokenizer.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision)
+            # unwrapped: PreTrainedModel = accelerator.unwrap_model(model).policy
+            # accelerator.wait_for_everyone()
+            # if accelerator.is_main_process:
+            #     unwrapped.save_pretrained(
+            #         args.output_dir,
+            #         is_main_process=accelerator.is_main_process,
+            #         save_function=accelerator.save,
+            #         state_dict=accelerator.get_state_dict(unwrapped),
+            #         safe_serialization=False,
+            #     )
+                # if args.push_to_hub:
+                #     unwrapped.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision, safe_serialization=False)
+                #     accelerator.print(f"🔥 pushed to https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}")

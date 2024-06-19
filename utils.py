@@ -336,6 +336,11 @@ def compute_ari(text: str):
     return ari_score
 
 
+def count_sent(text: str) -> int:
+    sents = sent_tokenize(text)
+    return len(sents)
+
+
 def build_ppo_dataset(
     model_name: str,
     task_prefix: str = TASK_PREFIX,
