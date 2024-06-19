@@ -777,7 +777,7 @@ if __name__ == "__main__":
                     # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset_{global_step}")
                     # fixme: rm
                     # if args.track:
-                    wandb.log({f"samples/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+                    wandb.log({f"sft_samples/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
             del eval_storage, eval_df
             torch.cuda.empty_cache()
             # rollout phase
@@ -1040,6 +1040,24 @@ if __name__ == "__main__":
                     eval_ds = Dataset.from_pandas(eval_df)
                     # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
                     wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+                    # calculate averages
+                    avg_ari = np.mean(eval_storage['avg_ari'])
+                    avg_total_score = np.mean(eval_storage['total_scores'])
+                    avg_bleu = np.mean(eval_storage['avg_bleu'])
+                    avg_sent_len = np.mean(eval_storage['avg_sent_len'])
+                    avg_word_accessibility = np.mean(
+                        eval_storage['avg_word_accessibility'])
+                    avg_sent_count = np.mean(eval_storage['avg_sent_count'])
+
+                    # Log averages to Wandb
+                    wandb.log({
+                        f"eval/{eval_split}_avg_ari": avg_ari,
+                        f"eval/{eval_split}_avg_total_score": avg_total_score,
+                        f"eval/{eval_split}_avg_bleu": avg_bleu,
+                        f"eval/{eval_split}_avg_sent_len": avg_sent_len,
+                        f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
+                        f"eval/{eval_split}_avg_sent_count": avg_sent_count
+                    }, step=update)
 
         # save model
         # todo: make sure there is a total limit
