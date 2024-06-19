@@ -12,7 +12,7 @@ import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from types import SimpleNamespace
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Tuple
 
 import nltk
 import numpy as np
@@ -37,7 +37,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           AutoTokenizer, GenerationConfig, PretrainedConfig,
-                          PreTrainedModel)
+                          PreTrainedModel, PreTrainedTokenizerBase)
 
 from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_sent_len,
@@ -460,67 +460,101 @@ def forward(model, query_responses, tokenizer):
     )
 
 
-def evaluate_model(sl_coef, wa_coef, policy, tokenizer, dataloader, generation_config, num_samples):
+def evaluate_model(
+        sl_coef: float,
+        wa_coef: float,
+        policy: torch.nn.Module,
+        tokenizer: PreTrainedTokenizerBase,
+        dataloader: DataLoader,
+        generation_config: GenerationConfig,
+        num_samples: int
+) -> Tuple[Dict[str, List], pd.DataFrame]:
+    """
+    Evaluates the policy model using various metrics on a subset of the dataset.
+
+    Args:
+        sl_coef (float): Scaling factor for sentence length score.
+        wa_coef (float): Scaling factor for word accessibility score.
+        policy (torch.nn.Module): The policy model to be evaluated.
+        tokenizer (PreTrainedTokenizerBase): Tokenizer used for encoding/decoding.
+        dataloader (DataLoader): DataLoader providing the evaluation dataset.
+        generation_config (GenerationConfig): Configuration for text generation.
+        num_samples (int): Number of samples to evaluate on.
+
+    Returns:
+        Tuple[Dict[str, List], pd.DataFrame]: Evaluation metrics and DataFrame of results.
+    """
     eval_storage = defaultdict(list)
+    bleu = corpus_bleu
+
     with torch.no_grad():
         for i, data in tqdm(enumerate(dataloader)):
-            # evaluate reference response (i.e., human-written significance statement)
+            # Evaluate reference response (i.e., human-written significance statement)
             reference_scores = compute_uam_score(data['response'])
-            # print(f'{reference_score=}')
-            reference_scores = sl_coef * reference_scores['sl_score'] + wa_coef * reference_scores['wa_score']
-            # evaluate policy generated response
+            reference_sl_scores = reference_scores['sl_score']
+            reference_wa_scores = reference_scores['wa_score']
+            reference_total_scores = sl_coef * reference_sl_scores + wa_coef * reference_wa_scores
+
+            # Evaluate policy generated response
             queries = data["query_token"]
-            context_lengths = queries.shape[1]
+            context_length = queries.shape[1]
             query_responses, _ = generate(
                 policy,
                 queries,
                 tokenizer,
                 generation_config,
             )
-            responses = query_responses[:, context_lengths:]
+            responses = query_responses[:, context_length:]
             postprocessed_responses = truncate_response(args, tokenizer, responses)
             generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True)
-            # calculate metrics
-            scores = compute_uam_score(generated_texts)
-            scores = sl_coef * scores['sl_score'] + wa_coef * scores['wa_score']  # (bs,)
-            sent_len_scores = scores['sl_score']
-            word_access_scores = scores['wa_score']
+
+            # Calculate metrics
+            uam_scores = compute_uam_score(generated_texts)
+            sl_scores = uam_scores['sl_score']
+            wa_scores = uam_scores['wa_score']
+            total_scores = sl_coef * sl_scores + wa_coef * wa_scores
             ari_scores = []
             bleu_scores = []
-            num_sents = []
 
             for g, r in zip(generated_texts, data['source']):
                 ari_scores.append(compute_ari(g))
-                bleu_scores.append(bleu([g], [[r]]).score) # bleu to the original abstract (cf. significance statement)
-                num_sents.append(count_sent(g))
+                bleu_scores.append(bleu([g], [[
+                                                  r]]).score)  # BLEU to the original abstract (cf. significance statement)
 
-            eval_storage["queries"].extend(data['queries'])  # str
+            eval_storage["queries"].extend(data['query'])  # str
             eval_storage["generated_texts"].extend(generated_texts)  # str
-            eval_storage["scores"].append(scores)
-            eval_storage["reference_responses"].extend(data['responses'])  # str
-            eval_storage["reference_scores"].append(reference_scores)
+            eval_storage["total_scores"].append(total_scores.cpu().numpy().tolist())
+            eval_storage["reference_responses"].extend(data['response'])  # str
+            eval_storage["reference_scores"].append(
+                reference_total_scores.cpu().numpy().tolist())
             eval_storage['avg_ari'].append(np.mean(ari_scores))
             eval_storage['avg_bleu'].append(np.mean(bleu_scores))
-            eval_storage['avg_sent_len'].append(np.mean(sent_len_scores))
-            eval_storage['avg_word_accessibility'].append(np.mean(word_access_scores))
+            eval_storage['avg_sent_len'].append(np.mean(sl_scores.cpu().numpy()))
+            eval_storage['avg_word_accessibility'].append(
+                np.mean(wa_scores.cpu().numpy()))
 
             if i >= num_samples:
                 break
 
-    eval_score = torch.cat(eval_storage["score"]).float().cpu().numpy().tolist()
-    eval_reference_score = torch.cat(eval_storage["reference_score"]).float().cpu().numpy().tolist()
+    eval_total_scores = [item for sublist in eval_storage["total_scores"] for item in
+                         sublist]
+    eval_reference_total_scores = [item for sublist in eval_storage["reference_scores"]
+                                   for item in sublist]
     eval_df = pd.DataFrame(
         {
-            "query": gather_object(eval_storage["query"]),
+            "queries": gather_object(eval_storage["queries"]),
             "generated_texts": gather_object(eval_storage["generated_texts"]),
-            "scores": gather_object(eval_score),
-            "reference_responses": gather_object(eval_storage["reference_response"]),
-            "reference_scores": gather_object(eval_reference_score),
+            "total_scores": gather_object(eval_total_scores),
+            "reference_responses": gather_object(eval_storage["reference_responses"]),
+            "reference_total_scores": gather_object(eval_reference_total_scores),
+            "avg_ari": eval_storage['avg_ari'],
+            "avg_bleu": eval_storage['avg_bleu'],
+            "avg_sent_len": eval_storage['avg_sent_len'],
+            "avg_word_accessibility": eval_storage['avg_word_accessibility']
         }
     )
     return eval_storage, eval_df
-
 
 def save_model(accelerator, tokenizer, model, output_dir, current_score, save_total_limit):
     save_path = os.path.join(output_dir, f"model_step_{current_score['step']}_score_{current_score['avg_ari']:.2f}.pt")
