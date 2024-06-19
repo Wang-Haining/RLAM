@@ -529,12 +529,11 @@ def evaluate_model(
             eval_storage["reference_responses"].extend(data['response'])  # str
             eval_storage["reference_scores"].append(
                 reference_total_scores.cpu().numpy().tolist())
-            eval_storage['avg_ari'].append(np.mean(ari_scores))
-            eval_storage['avg_bleu'].append(np.mean(bleu_scores))
-            eval_storage['avg_sent_len'].append(np.mean(sl_scores.cpu().numpy()))
-            eval_storage['avg_word_accessibility'].append(
-                np.mean(wa_scores.cpu().numpy()))
-            eval_storage['avg_sent_count'].append(np.mean(num_sents))
+            eval_storage['ari'].extend(ari_scores)
+            eval_storage['bleu'].extend(bleu_scores)
+            eval_storage['sent_len'].extend(sl_scores.cpu().numpy().tolist())
+            eval_storage['word_accessibility'].extend(wa_scores.cpu().numpy().tolist())
+            eval_storage['sent_count'].extend(num_sents)
 
             if i >= num_samples:
                 break
@@ -550,11 +549,11 @@ def evaluate_model(
             "total_scores": gather_object(eval_total_scores),
             "reference_responses": gather_object(eval_storage["reference_responses"]),
             "reference_total_scores": gather_object(eval_reference_total_scores),
-            "avg_ari": eval_storage['avg_ari'],
-            "avg_bleu": eval_storage['avg_bleu'],
-            "avg_sent_len": eval_storage['avg_sent_len'],
-            "avg_word_accessibility": eval_storage['avg_word_accessibility'],
-            "avg_sent_count": eval_storage['avg_sent_count']
+            "ari": eval_storage['ari'],
+            "bleu": eval_storage['bleu'],
+            "sent_len": eval_storage['sent_len'],
+            "word_accessibility": eval_storage['word_accessibility'],
+            "sent_count": eval_storage['sent_count']
         }
     )
     return eval_storage, eval_df
