@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_olmo-1b
+#SBATCH --job-name=ppo_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
@@ -18,20 +18,20 @@ module load CUDA/12.2.0
 accelerate launch --num_machines 1 --num_processes 2 --mixed_precision=bf16 \
 ppo.py \
 --project_name RLUAM \
---run_name ppo_olmo-1b \
+--run_name ppo_gemma-2b\
 --print_sample_output_freq 0 \
 --lr 3e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
---base_model 'google/gemma-2b' \
+--base_model 'allenai/OLMo-1B-hf' \
 --response_length 256 \
 --truncate_token eos \
---truncate_token_id 1 \
+--truncate_token_id 50279 \
 --temperature 0.7 \
 --penalty_reward_value -5 \
 --non_eos_penalty \
---sft_model_path "ckpts/sft_gemma-2b/checkpoint-1120" \
+--sft_model_path "ckpts/sft_OLMo-1B-hf/checkpoint-1100" \
 --sl_coef 1.0 \
 --wa_coef 2.0 \
 --logging_steps 2 \
@@ -39,4 +39,4 @@ ppo.py \
 --eval_steps 10 \
 --num_eval_samples 64 \
 --save_total_limit 3 \
---output_dir 'ckpts/ppo_gemma-2b'
+--output_dir 'ckpts/ppo_olmo-1b'
