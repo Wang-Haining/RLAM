@@ -632,7 +632,7 @@ if __name__ == "__main__":
             # settings=wandb.Settings(start_method="fork"),
             project=args.project_name,
             # entity=args.wandb_entity,
-            # sync_tensorboard=True,
+            sync_tensorboard=True,
             config=asdict(args),
             name=args.run_name,
             save_code=True,
