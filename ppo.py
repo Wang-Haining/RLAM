@@ -1040,43 +1040,25 @@ if __name__ == "__main__":
                             # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
                             wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                               dataframe=eval_df)}, step=update)
-                            # log averages directly
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_ari",
-                                accelerator.gather(torch.tensor(
-                                    eval_storage['avg_ari'])).mean().item(),
-                                update
-                            )
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_total_score",
-                                accelerator.gather(torch.tensor(
-                                    eval_storage['total_scores'])).mean().item(),
-                                update
-                            )
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_bleu",
-                                accelerator.gather(torch.tensor(
-                                    eval_storage['avg_bleu'])).mean().item(),
-                                update
-                            )
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_sent_len",
-                                accelerator.gather(torch.tensor(
-                                    eval_storage['avg_sent_len'])).mean().item(),
-                                update
-                            )
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_word_accessibility",
-                                accelerator.gather(torch.tensor(eval_storage[
-                                                                    'avg_word_accessibility'])).mean().item(),
-                                update
-                            )
-                            writer.add_scalar(
-                                f"metrics/{eval_split}_avg_sent_count",
-                                accelerator.gather(torch.tensor(
-                                    eval_storage['avg_sent_count'])).mean().item(),
-                                update
-                            )
+
+                            # calculate averages
+                            avg_ari = np.mean(eval_storage['ari'])
+                            avg_total_score = np.mean(eval_storage['total_scores'])
+                            avg_bleu = np.mean(eval_storage['bleu'])
+                            avg_sent_len = np.mean(eval_storage['sent_len'])
+                            avg_word_accessibility = np.mean(
+                                eval_storage['word_accessibility'])
+                            avg_sent_count = np.mean(eval_storage['sent_count'])
+
+                            # log averages to wandb
+                            wandb.log({
+                                f"eval/{eval_split}_avg_ari": avg_ari,
+                                f"eval/{eval_split}_avg_total_score": avg_total_score,
+                                f"eval/{eval_split}_avg_bleu": avg_bleu,
+                                f"eval/{eval_split}_avg_sent_len": avg_sent_len,
+                                f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
+                                f"eval/{eval_split}_avg_sent_count": avg_sent_count
+                            }, step=update)
 
         # save model
         # todo: make sure there is a total limit
