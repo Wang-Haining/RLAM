@@ -756,7 +756,7 @@ if __name__ == "__main__":
                 validation_generation_config,
                 num_samples=4  # test a few samples to see if this works
             )
-            validation_score = torch.Tensor(eval_storage["total_scores"])
+            validation_score = eval_storage["total_scores"]
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
                     # fixme: no need to save dfs
@@ -995,7 +995,7 @@ if __name__ == "__main__":
                 "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
             )
             writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
-            writer.add_scalar("objective/validation_score", accelerator.gather(validation_score.mean()).mean().item(), update)
+            writer.add_scalar("objective/validation_score", accelerator.gather(validation_score).mean().item(), update)
             writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
             writer.add_scalar("ppo/policy/clipfrac_avg", accelerator.gather(pg_clipfrac_stats).mean().item(), update)
             writer.add_scalar("ppo/loss/policy_avg", accelerator.gather(pg_loss_stats).mean().item(), update)
