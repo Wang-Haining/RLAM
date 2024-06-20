@@ -756,7 +756,7 @@ if __name__ == "__main__":
                 validation_generation_config,
                 num_samples=4  # test a few samples to see if this works
             )
-            validation_score = eval_storage["total_scores"][0]
+            validation_score = torch.Tensor(eval_storage["total_scores"])
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
                     # fixme: no need to save dfs
