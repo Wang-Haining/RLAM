@@ -30,7 +30,7 @@ ppo.py \
 --truncate_token_id 50279 \
 --temperature 0.7 \
 --penalty_reward_value -5 \
---non_eos_penalty True \
+--non_eos_penalty true \
 --sft_model_path "ckpts/sft_OLMo-1B-hf/checkpoint-1100" \
 --sl_coef 1.0 \
 --wa_coef 2.0 \
