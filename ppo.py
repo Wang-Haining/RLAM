@@ -1038,43 +1038,41 @@ if __name__ == "__main__":
                         if accelerator.is_main_process:
                             eval_ds = Dataset.from_pandas(eval_df)
                             # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
-                            wandb.log({
-                                          f"eval/{eval_split}_query_responses": wandb.Table(
+                            wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                               dataframe=eval_df)}, step=update)
-
                             # log averages directly
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_ari",
+                                f"metrics/{eval_split}_avg_ari",
                                 accelerator.gather(torch.tensor(
                                     eval_storage['avg_ari'])).mean().item(),
                                 update
                             )
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_total_score",
+                                f"metrics/{eval_split}_avg_total_score",
                                 accelerator.gather(torch.tensor(
                                     eval_storage['total_scores'])).mean().item(),
                                 update
                             )
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_bleu",
+                                f"metrics/{eval_split}_avg_bleu",
                                 accelerator.gather(torch.tensor(
                                     eval_storage['avg_bleu'])).mean().item(),
                                 update
                             )
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_sent_len",
+                                f"metrics/{eval_split}_avg_sent_len",
                                 accelerator.gather(torch.tensor(
                                     eval_storage['avg_sent_len'])).mean().item(),
                                 update
                             )
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_word_accessibility",
+                                f"metrics/{eval_split}_avg_word_accessibility",
                                 accelerator.gather(torch.tensor(eval_storage[
                                                                     'avg_word_accessibility'])).mean().item(),
                                 update
                             )
                             writer.add_scalar(
-                                f"eval/{eval_split}_avg_sent_count",
+                                f"metrics/{eval_split}_avg_sent_count",
                                 accelerator.gather(torch.tensor(
                                     eval_storage['avg_sent_count'])).mean().item(),
                                 update
