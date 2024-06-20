@@ -27,7 +27,6 @@ from accelerate import Accelerator
 from accelerate.utils import broadcast, gather_object
 from datasets import Dataset, load_dataset
 from nltk.tokenize import sent_tokenize
-# from huggingface_hub import HfApi
 from rich.console import Console
 from rich.pretty import pprint
 from sacrebleu.metrics import BLEU
@@ -46,12 +45,10 @@ from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
 
 torch.set_printoptions(precision=3, sci_mode=False)
 bleu = BLEU()
-# api = HfApi()
 nltk.download('punkt')
 INVALID_LOGPROB = 1.0
 
-
-### init word accessibility predictor
+# init word accessibility predictor
 # get word frequencies and the model to predict rare words' accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
 top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
@@ -119,9 +116,6 @@ def compute_uam_score(responses: List[str],
                                                     token_freq))
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
-    # negate sentence length and count for intuitive reward maximization
-    # print(f'{responses=}')
-    # print(f'{sent_len_rewards=}')
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
     return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
@@ -169,7 +163,7 @@ class Args:
     """the learning rate for adamw"""
     scheduler: str = "cosine"
     """Which scheduler to use"""
-    warm_up_steps: int = 0
+    warm_up_steps: int = 20
     """Number of warm up steps for the scheduler"""
 
     # various batch sizes
@@ -246,7 +240,6 @@ class Args:
     # save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts/test_run'
-    overwrite_output_dir: bool = False
     ppo: PpoHParams = field(default_factory=PpoHParams)
     """Default values will be used to create a PpoHParams"""
 
@@ -336,22 +329,23 @@ def masked_whiten(values, mask, shift_mean=True):
 class ScalarModelConfig(PretrainedConfig):
     def __init__(
         self,
-        base_model: str = "EleutherAI/pythia-160m",
-        base_config: PretrainedConfig = AutoConfig.from_pretrained("EleutherAI/pythia-160m"),
+        base_model: str,
+        base_config: PretrainedConfig = None,
         hidden_size: int = 768,
         bias: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.base_model = base_model
+        if base_config is None:
+            base_config = AutoConfig.from_pretrained(base_model)
         self.base_config = base_config
         self.hidden_size = hidden_size
         self.bias = bias
 
-# fixme: rm
+
 class ScalarModel(PreTrainedModel):
     config_class = ScalarModelConfig
-
     def __init__(self, config: ScalarModelConfig):
         super().__init__(config)
         self.config = config
@@ -648,28 +642,17 @@ if __name__ == "__main__":
     np.random.seed(local_seed)
     torch.manual_seed(local_seed)
     torch.backends.cudnn.deterministic = True
+    # init value model from scratch but ref and policy model from sft ckpt
     model_config = AutoConfig.from_pretrained(args.base_model)
-    # fixme: reward model alert
     scalar_model_config = ScalarModelConfig(
         base_model=args.base_model,
         base_config=model_config,
         hidden_size=model_config.hidden_size,
     )
-    # init value model and reward model from scratch
-    critic: PreTrainedModel = ScalarModel(scalar_model_config)
-    # reward_model: PreTrainedModel = ScalarModel(scalar_model_config)
-    # else:
-    #     critic: PreTrainedModel = ScalarModel.from_pretrained(
-    #         args.reward_model_path,
-    #         trust_remote_code=True,
-    #     )
-    #     reward_model: PreTrainedModel = ScalarModel.from_pretrained(
-    #         args.reward_model_path,
-    #         trust_remote_code=True,
-    #     )
+
+    critic = ScalarModel(scalar_model_config)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
-    # fixme: reward model alert
     for module in [policy, ref_policy, critic]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
@@ -754,7 +737,15 @@ if __name__ == "__main__":
     model.train()
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
-        frac = 1.0 - (update - 1.0) / args.num_updates
+        if global_step < args.warm_up_steps:
+            # linear warmup
+            lr_scale = global_step / args.warm_up_steps
+        else:
+            # post warmup: decay the learning rate
+            frac = 1.0 - (update - 1.0) / args.num_updates
+            lr_scale = frac
+        # global_step += 1 * args.batch_size
+        # frac = 1.0 - (update - 1.0) / args.num_updates
         lrnow = frac * args.lr
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
@@ -1034,28 +1025,60 @@ if __name__ == "__main__":
                     validation_generation_config,
                     num_samples=args.num_eval_samples,
                 )
-                if accelerator.is_main_process:
-                    eval_ds = Dataset.from_pandas(eval_df)
-                    # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
-                    wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
-                    # calculate averages
-                    avg_ari = np.mean(eval_storage['avg_ari'])
-                    avg_total_score = np.mean(eval_storage['total_scores'])
-                    avg_bleu = np.mean(eval_storage['avg_bleu'])
-                    avg_sent_len = np.mean(eval_storage['avg_sent_len'])
-                    avg_word_accessibility = np.mean(
-                        eval_storage['avg_word_accessibility'])
-                    avg_sent_count = np.mean(eval_storage['avg_sent_count'])
+                if args.run_eval and update % args.eval_steps == 0:
+                    for eval_split in eval_dataloaders:
+                        eval_storage, eval_df = evaluate_model(
+                            args.sl_coef, args.wa_coef,
+                            accelerator.unwrap_model(model).policy,
+                            tokenizer,
+                            eval_dataloaders[eval_split],
+                            validation_generation_config,
+                            num_samples=args.num_eval_samples,
+                        )
+                        if accelerator.is_main_process:
+                            eval_ds = Dataset.from_pandas(eval_df)
+                            # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
+                            wandb.log({
+                                          f"eval/{eval_split}_query_responses": wandb.Table(
+                                              dataframe=eval_df)}, step=update)
 
-                    # Log averages to Wandb
-                    wandb.log({
-                        f"eval/{eval_split}_avg_ari": avg_ari,
-                        f"eval/{eval_split}_avg_total_score": avg_total_score,
-                        f"eval/{eval_split}_avg_bleu": avg_bleu,
-                        f"eval/{eval_split}_avg_sent_len": avg_sent_len,
-                        f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
-                        f"eval/{eval_split}_avg_sent_count": avg_sent_count
-                    }, step=update)
+                            # log averages directly
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_ari",
+                                accelerator.gather(torch.tensor(
+                                    eval_storage['avg_ari'])).mean().item(),
+                                update
+                            )
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_total_score",
+                                accelerator.gather(torch.tensor(
+                                    eval_storage['total_scores'])).mean().item(),
+                                update
+                            )
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_bleu",
+                                accelerator.gather(torch.tensor(
+                                    eval_storage['avg_bleu'])).mean().item(),
+                                update
+                            )
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_sent_len",
+                                accelerator.gather(torch.tensor(
+                                    eval_storage['avg_sent_len'])).mean().item(),
+                                update
+                            )
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_word_accessibility",
+                                accelerator.gather(torch.tensor(eval_storage[
+                                                                    'avg_word_accessibility'])).mean().item(),
+                                update
+                            )
+                            writer.add_scalar(
+                                f"eval/{eval_split}_avg_sent_count",
+                                accelerator.gather(torch.tensor(
+                                    eval_storage['avg_sent_count'])).mean().item(),
+                                update
+                            )
 
         # save model
         # todo: make sure there is a total limit
