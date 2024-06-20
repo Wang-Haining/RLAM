@@ -746,7 +746,7 @@ if __name__ == "__main__":
             lr_scale = frac
         # global_step += 1 * args.batch_size
         # frac = 1.0 - (update - 1.0) / args.num_updates
-        lrnow = frac * args.lr
+        lrnow = lr_scale * args.lr
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
