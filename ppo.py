@@ -629,9 +629,7 @@ if __name__ == "__main__":
     writer.add_histogram = lambda x, y, z: None
     if accelerator.is_main_process:
         wandb.init(
-            # settings=wandb.Settings(start_method="fork"),
             project=args.project_name,
-            # entity=args.wandb_entity,
             sync_tensorboard=True,
             config=asdict(args),
             name=args.run_name,
@@ -769,7 +767,7 @@ if __name__ == "__main__":
                 validation_generation_config,
                 num_samples=4  # test a few samples to see if this works
             )
-            validation_score = np.mean(eval_storage["score"])
+            validation_score = np.mean(eval_storage["total_scores"])
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
                     # fixme: no need to save dfs
