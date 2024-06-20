@@ -236,8 +236,6 @@ class Args:
     save_steps: int = 10
     eval_steps: int = 10
     num_eval_samples: int = 64
-    # eval_strategy: Optional[str] = "steps"  # "no", "steps", "epoch"
-    # save_strategy: Optional[str] = "steps"  # "no", "epoch", "steps"
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts/test_run'
     ppo: PpoHParams = field(default_factory=PpoHParams)
@@ -489,7 +487,7 @@ def evaluate_model(
             reference_wa_scores = reference_scores['wa_score']
             reference_total_scores = sl_coef * reference_sl_scores + wa_coef * reference_wa_scores
 
-            # Evaluate policy generated response
+            # evaluate policy generated response
             queries = data["query_token"]
             context_length = queries.shape[1]
             query_responses, _ = generate(
@@ -503,7 +501,7 @@ def evaluate_model(
             generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True)
 
-            # Calculate metrics
+            # calculate metrics
             uam_scores = compute_uam_score(generated_texts)
             sl_scores = uam_scores['sl_score']
             wa_scores = uam_scores['wa_score']
@@ -543,11 +541,11 @@ def evaluate_model(
             "total_scores": gather_object(eval_total_scores),
             "reference_responses": gather_object(eval_storage["reference_responses"]),
             "reference_total_scores": gather_object(eval_reference_total_scores),
-            "ari": eval_storage['ari'],
-            "bleu": eval_storage['bleu'],
-            "sent_len": eval_storage['sent_len'],
-            "word_accessibility": eval_storage['word_accessibility'],
-            "sent_count": eval_storage['sent_count']
+            "ari": gather_object(eval_storage['ari']),
+            "bleu": gather_object(eval_storage['bleu']),
+            "sent_len": gather_object(eval_storage['sent_len']),
+            "word_accessibility": gather_object(eval_storage['word_accessibility']),
+            "sent_count": gather_object(eval_storage['sent_count'])
         }
     )
     return eval_storage, eval_df
