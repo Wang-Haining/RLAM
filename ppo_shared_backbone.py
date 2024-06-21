@@ -645,7 +645,9 @@ if __name__ == "__main__":
     # )
 
     # critic = ScalarModel(scalar_model_config)
-    value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path, torch_dtype='bf16', num_labels=1)
+    value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
+                                                                     torch_dtype=torch.bfloat16,
+                                                                     num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
