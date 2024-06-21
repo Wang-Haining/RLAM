@@ -39,7 +39,7 @@ ppo.py \
 --save_steps 10 \
 --eval_steps 10 \
 --num_eval_samples 64 \
---save_total_limit 3 \
+--save_total_limit 30 \
 --output_dir 'ckpts/ppo_olmo-1b' \
 --local_rollout_forward_batch_size 64 \
 --gradient_accumulation_steps 16 \
