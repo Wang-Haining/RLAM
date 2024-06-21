@@ -308,7 +308,6 @@ class ScalarModelConfig(PretrainedConfig):
         self,
         base_model: str,
         base_config: PretrainedConfig = None,
-        hidden_size: int = 768,
         bias: float = 0.0,
         **kwargs,
     ):
@@ -317,7 +316,7 @@ class ScalarModelConfig(PretrainedConfig):
         if base_config is None:
             base_config = AutoConfig.from_pretrained(base_model)
         self.base_config = base_config
-        self.hidden_size = hidden_size
+        self.hidden_size = base_config.hidden_size
         self.bias = bias
 
 
@@ -329,6 +328,7 @@ class ScalarModel(PreTrainedModel):
         self.lm_backbone = AutoModel.from_pretrained(
             config.base_model,
             config=self.config.base_config,
+            torch_dtype=torch.bfloat16,
             trust_remote_code=True,
         )
         self.scalar_head = layer_init(
