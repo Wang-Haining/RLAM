@@ -701,7 +701,7 @@ if __name__ == "__main__":
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
-                                                      trust_remote_code=True)
+                                                      trust_remote_code=True).to('cpu')
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                   config=model_config,
                                                   torch_dtype=torch.bfloat16,
