@@ -15,11 +15,13 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --num_machines 1 --num_processes 2 --mixed_precision=bf16 \
+accelerate launch --config_file runs/deepspeed.yaml \
 ppo.py \
 --project_name RLUAM \
 --run_name ppo_olmo-1b \
 --print_sample_output_freq 0 \
+--deepspeed \
+--offload \
 --lr 3e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
@@ -39,4 +41,8 @@ ppo.py \
 --eval_steps 10 \
 --num_eval_samples 64 \
 --save_total_limit 3 \
---output_dir 'ckpts/ppo_olmo-1b'
+--output_dir 'ckpts/ppo_olmo-1b' \
+--local_rollout_forward_batch_size 64 \
+--gradient_accumulation_steps 16 \
+--local_micro_batch_size 2 \
+--local_eval_batch_size 1

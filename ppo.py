@@ -303,7 +303,6 @@ def masked_whiten(values, mask, shift_mean=True):
     return whitened
 
 
-# fixme: rm
 class ScalarModelConfig(PretrainedConfig):
     def __init__(
         self,
@@ -627,8 +626,14 @@ if __name__ == "__main__":
     )
 
     critic = ScalarModel(scalar_model_config)
-    ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
-    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path, config=model_config, torch_dtype=torch.bfloat16, trust_remote_code=True)
+    ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
+                                                      config=model_config,
+                                                      torch_dtype=torch.bfloat16,
+                                                      trust_remote_code=True)
+    policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
+                                                  config=model_config,
+                                                  torch_dtype=torch.bfloat16,
+                                                  trust_remote_code=True)
     for module in [policy, ref_policy, critic]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
