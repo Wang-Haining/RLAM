@@ -27,7 +27,7 @@ ppo.py \
 --world_size 2 \
 --num_train_epochs 5 \
 --base_model 'google/gemma-2b' \
---response_length 256 \
+--response_length 50 \
 --truncate_token eos \
 --truncate_token_id 1 \
 --temperature 0.7 \
