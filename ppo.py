@@ -24,6 +24,7 @@ import torch.optim as optim
 import tyro
 import wandb
 from accelerate import Accelerator
+from accelerate.state import AcceleratorState
 from accelerate.utils import broadcast, gather_object
 from datasets import Dataset, load_dataset
 from nltk.tokenize import sent_tokenize
@@ -138,8 +139,7 @@ class PpoHParams:
 @dataclass
 class Args:
     # common args
-    project_name: str = "RLUAM_TEST"
-    # project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
+    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""
@@ -147,14 +147,14 @@ class Args:
     """seed of the experiment"""
     cuda: bool = True
     """Whether to use cuda if available."""
-    # fixme: rm
-    # deepspeed: bool = False
-    # """Whether to use deepspeed to train the model"""
+    deepspeed: bool = False
+    """Whether to use deepspeed to train the model"""
+    offload: bool = False
+    """Whether to offload ref policy model to CPU"""
     print_sample_output_freq: int = 10
     """How often to print sample output"""
     run_eval: bool = True
     """Whether to run evaluation"""
-    # todo: add an option to set num_eval_samples
 
     # optimizer (adamw) args
     eps: float = 1e-5
@@ -200,15 +200,11 @@ class Args:
     # base_model: str = "google/gemma-2b"
     base_model: str = 'allenai/OLMo-1B-hf'
     """the name of the pretrained model to use"""
-    # fixme: modify
-    # query_dataset: str = "vwxyzjn/summarize_from_feedback_tldr_3_filtered_oai_preprocessing_1706381144"
-    # """the query dataset"""
     response_length: int = 256
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
-    # fixme: modify
-    truncate_token_id: Optional[int] = 50279  # 1 for gemma, 50279 for olmo
+    truncate_token_id: Optional[int] = None  # 1 for gemma, 50279 for olmo
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -216,12 +212,6 @@ class Args:
     """the reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = True
     """whether to penalize responses that do not contain `truncate_token_id`"""
-    # offload: bool = False
-    # """Whether to offload ref policy and reward model to CPU"""  # fixme: reward model alarm
-    # fixme: rm
-    # reward_model_path: str = ""
-    # """the path to the reward model"""
-    # sft_model_path: str = "ckpts/sft_gemma-2b/checkpoint-1120"
     sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """the path to the sft model"""
 
@@ -260,17 +250,7 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.num_updates = args.total_episodes // args.batch_size
     time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
     time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
-    args.run_name = f"{args.project_name}__{args.seed}__{time_int}"
-    # if args.push_to_hub:
-    #     if args.hf_repo_id is None: # auto-generate one
-    #         args.hf_repo_id = f"{args.base_model.replace('/', '_')}__{args.exp_name}__tldr"
-    #     if args.hf_entity is None:  # find the current user
-    #         args.hf_entity = api.whoami()["name"]
-    #     if "/" not in args.hf_repo_id: # prepend the current user
-    #         args.hf_repo_id = f"{args.hf_entity}/{args.hf_repo_id}"
-    #     if args.hf_repo_revision is None:  # auto-generate one
-    #         args.hf_repo_revision = args.run_name
-    #     args.hf_repo_url = f"https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}"
+    args.run_name = f"{args.project_name}__{args.run_name}__{args.seed}__{time_int}"
     return args, accelerator
 
 
@@ -671,33 +651,30 @@ if __name__ == "__main__":
 
     iter_dataloader = iter(repeat_generator())
     # fixme: rm
-    # if args.deepspeed:
-    #     import deepspeed
-    #
-    #     deepspeed_states = AcceleratorState().deepspeed_plugin
-    #     deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
-    #
-    #     eval_ds_config = {
-    #         "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
-    #         "bf16": {"enabled": True},
-    #         "prescale_gradients": False,
-    #         "wall_clock_breakdown": False,
-    #     }
-    #     if args.offload or args.base_model == "EleutherAI/pythia-6.9b-deduped":
-    #         deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
-    #         eval_ds_config["zero_optimization"] = {
-    #             "stage": 3,
-    #             "stage3_param_persistence_threshold": 1e4,
-    #             "offload_param": {"device": "cpu"},
-    #         }
-    #     accelerator.print(f"{eval_ds_config=}")
-    #     reward_model, *_ = deepspeed.initialize(model=reward_model, config=eval_ds_config)
-    #     reward_model.eval()
-    #     ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
-    #     ref_policy.eval()
-    # else:
-    ref_policy = ref_policy.to(device)
-    # reward_model = reward_model.to(device)
+    if args.deepspeed:
+        import deepspeed
+
+        deepspeed_states = AcceleratorState().deepspeed_plugin
+        deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
+
+        eval_ds_config = {
+            "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
+            "bf16": {"enabled": True},
+            "prescale_gradients": False,
+            "wall_clock_breakdown": False,
+        }
+        if args.offload:
+            deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
+            eval_ds_config["zero_optimization"] = {
+                "stage": 3,
+                "stage3_param_persistence_threshold": 1e4,
+                "offload_param": {"device": "cpu"},
+            }
+        accelerator.print(f"{eval_ds_config=}")
+        ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
+        ref_policy.eval()
+    else:
+        ref_policy = ref_policy.to(device)
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
