@@ -378,7 +378,7 @@ def get_reward(model, query_responses, tokenizer, context_length):
     lm_backbone = getattr(model, model.base_model_prefix)
     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
-    reward_logits = lm_backbone(
+    output = lm_backbone(
         input_ids=input_ids,
         attention_mask=attention_mask,
         # position_ids=position_ids,
@@ -386,6 +386,7 @@ def get_reward(model, query_responses, tokenizer, context_length):
         output_hidden_states=True,
     )
     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
+    reward_logits = model.score(output.hidden_states[-1])
     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
     return (
         reward_logits,
