@@ -418,13 +418,13 @@ def get_reward(
                 The lengths of the sequences in the query responses.
     """
     attention_mask = query_responses != pad_token_id
-    position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
+    # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
     lm_backbone = getattr(model, model.base_model_prefix)
     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
     output = lm_backbone(
         input_ids=input_ids,
         attention_mask=attention_mask,
-        position_ids=position_ids,
+        # position_ids=position_ids,
         return_dict=True,
         output_hidden_states=True,
         use_cache=False,  # otherwise mistral-based RM would error out
