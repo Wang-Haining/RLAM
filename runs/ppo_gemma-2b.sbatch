@@ -44,5 +44,5 @@ ppo.py \
 --output_dir 'ckpts/ppo_gemma-2b' \
 --local_rollout_forward_batch_size 4 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 2 \
+--local_micro_batch_size 1 \
 --local_eval_batch_size 1
