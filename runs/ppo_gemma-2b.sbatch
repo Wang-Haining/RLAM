@@ -42,7 +42,7 @@ ppo_shared_backbone.py \
 --num_eval_samples 64 \
 --save_total_limit 3 \
 --output_dir 'ckpts/ppo_gemma-2b' \
---local_rollout_forward_batch_size 64 \
+--local_rollout_forward_batch_size 2 \
 --gradient_accumulation_steps 1 \
 --local_micro_batch_size 1 \
 --local_eval_batch_size 1
