@@ -37,7 +37,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           AutoTokenizer, GenerationConfig, PretrainedConfig,
-                          PreTrainedModel, PreTrainedTokenizerBase)
+                          PreTrainedModel, PreTrainedTokenizerBase,
+                          AutoModelForSequenceClassification)
 
 from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_sent_len,
@@ -303,58 +304,73 @@ def masked_whiten(values, mask, shift_mean=True):
     return whitened
 
 
-class ScalarModelConfig(PretrainedConfig):
-    def __init__(
-        self,
-        base_model: str,
-        base_config: PretrainedConfig = None,
-        bias: float = 0.0,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.base_model = base_model
-        if base_config is None:
-            base_config = AutoConfig.from_pretrained(base_model)
-        self.base_config = base_config
-        self.hidden_size = base_config.hidden_size
-        self.bias = bias
+# class ValueModelConfig(PretrainedConfig):
+#     def __init__(
+#         self,
+#         base_model: str,
+#         base_config: PretrainedConfig = None,
+#         bias: float = 0.0,
+#         **kwargs,
+#     ):
+#         super().__init__(**kwargs)
+#         self.base_model = base_model
+#         if base_config is None:
+#             base_config = AutoConfig.from_pretrained(base_model)
+#         self.base_config = base_config
+#         self.hidden_size = base_config.hidden_size
+#         self.bias = bias
+
+
+# class PolicyAndValueWrapper(nn.Module):
+#     def __init__(self, policy, value_model) -> None:
+#         super().__init__()
+#         self.policy = policy
+#         self.value_model = value_model
+#         self.critic_backbone = critic.lm_backbone
+#
+#     def forward(self, **kwargs):
+#         output = self.critic_backbone(
+#             **kwargs,
+#         )
+#         logits = self.critic.score(output.hidden_states[-1])
+#         return self.policy(**kwargs), logits
+
+
+# class ValueModel(PreTrainedModel):
+#     config_class = ValueModelConfig
+#     def __init__(self, config: ValueModelConfig):
+#         super().__init__(config)
+#         self.config = config
+#         self.lm_backbone = AutoModel.from_pretrained(
+#             config.base_model,
+#             config=self.config.base_config,
+#             torch_dtype=torch.bfloat16,
+#             trust_remote_code=True,
+#         )
+#         self.scalar_head = layer_init(
+#             nn.Linear(self.config.hidden_size, 1),
+#             std=1 / np.sqrt(self.config.hidden_size + 1),
+#         )
+#
+#     def forward(self, **kwargs):
+#         output = self.lm_backbone(**kwargs)
+#         reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
+#         return reward
 
 
 class PolicyAndValueWrapper(nn.Module):
-    def __init__(self, policy, critic) -> None:
+    def __init__(self, policy, value_model) -> None:
         super().__init__()
         self.policy = policy
-        self.value_model = critic
-        self.critic_backbone = getattr(critic, critic.base_model_prefix)
+        self.value_model = value_model
+        self.lm_backbone = getattr(value_model, value_model.base_model_prefix)
 
     def forward(self, **kwargs):
-        output = self.critic_backbone(
+        output = self.lm_backbone(
             **kwargs,
         )
-        logits = self.critic.score(output.hidden_states[-1])
+        logits = self.value_model.score(output.hidden_states[-1])
         return self.policy(**kwargs), logits
-
-
-class ScalarModel(PreTrainedModel):
-    config_class = ScalarModelConfig
-    def __init__(self, config: ScalarModelConfig):
-        super().__init__(config)
-        self.config = config
-        self.lm_backbone = AutoModel.from_pretrained(
-            config.base_model,
-            config=self.config.base_config,
-            torch_dtype=torch.bfloat16,
-            trust_remote_code=True,
-        )
-        self.scalar_head = layer_init(
-            nn.Linear(self.config.hidden_size, 1),
-            std=1 / np.sqrt(self.config.hidden_size + 1),
-        )
-
-    def forward(self, **kwargs):
-        output = self.lm_backbone(**kwargs)
-        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
-        return reward
 
 
 def get_reward(model, query_responses, tokenizer, context_length):
@@ -622,13 +638,14 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     # init value model from scratch but ref and policy model from sft ckpt
     model_config = AutoConfig.from_pretrained(args.base_model)
-    scalar_model_config = ScalarModelConfig(
-        base_model=args.base_model,
-        base_config=model_config,
-        hidden_size=model_config.hidden_size,
-    )
+    # scalar_model_config = ScalarModelConfig(
+    #     base_model=args.base_model,
+    #     base_config=model_config,
+    #     hidden_size=model_config.hidden_size,
+    # )
 
-    critic = ScalarModel(scalar_model_config)
+    # critic = ScalarModel(scalar_model_config)
+    value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path, torch_dtype='bf16', num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
@@ -637,13 +654,13 @@ if __name__ == "__main__":
                                                   config=model_config,
                                                   torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
-    for module in [policy, ref_policy, critic]:
+    for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
     policy.generation_config.eos_token_id = None  # disable `pad_token_id` and `eos_token_id` because we just want to
     policy.generation_config.pad_token_id = None  # generate tokens without truncation / padding
     # wrap policy and value head together
-    model = PolicyAndValueWrapper(policy, critic)
+    model = PolicyAndValueWrapper(policy, value_model)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, eps=args.eps)
 
     # sync random states for DataLoader(shuffle=True) before `accelerator.prepare`
@@ -789,7 +806,7 @@ if __name__ == "__main__":
                 # run reward model on the truncated responses
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
                 full_value, _, _ = get_reward(
-                    accelerator.unwrap_model(model).critic, query_response, tokenizer, context_length
+                    accelerator.unwrap_model(model).value_model, query_response, tokenizer, context_length
                 )
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
