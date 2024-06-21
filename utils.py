@@ -362,7 +362,7 @@ def build_ppo_dataset(
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left",)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")
@@ -370,16 +370,24 @@ def build_ppo_dataset(
     def tokenize(sample):
         # prepend the task-specific prefix and trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
+        if 'gemma' in model_name.lower():
+            max_input_length = 544
+            max_output_length = 241
+        elif 'olmo' in model_name.lower():
+            max_input_length = 531
+            max_output_length = 223
+        else:
+            raise ValueError(f"Max lens should be computed beforehand for {model_name}.")
         query_token = tokenizer.encode(
             sample["query"],
             truncation=True,
-            max_length=512,
+            max_length=max_input_length,  # max: 544 for gemma; 531 for olmo
             padding='max_length'
         )
         reference_response_token = tokenizer.encode(
             sample["response"],
             truncation=True,
-            max_length=300,
+            max_length=max_output_length,  # max: 241 for gemma; 223 for olmo
             padding='max_length',
         )
         sample["query_token"] = torch.tensor(query_token)

@@ -250,7 +250,7 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.num_updates = args.total_episodes // args.batch_size
     time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
     time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
-    args.run_name = f"{args.project_name}__{args.run_name}__{args.seed}__{time_int}"
+    args.run_name = f"{args.run_name}__{args.seed}__{time_int}"
     return args, accelerator
 
 
