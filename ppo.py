@@ -36,11 +36,11 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          AutoTokenizer, GenerationConfig, PretrainedConfig,
-                          PreTrainedModel, PreTrainedTokenizerBase,
-                          AutoModelForSequenceClassification)
+                          AutoModelForSequenceClassification, AutoTokenizer,
+                          GenerationConfig, PretrainedConfig, PreTrainedModel,
+                          PreTrainedTokenizerBase)
 
-from utils import (SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+from utils import (SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_sent_len,
                    compute_token_accessibility, count_sent,
                    read_token_frequencies)
@@ -133,7 +133,6 @@ class PpoHParams:
     gamma: float = 1
     lam: float = 0.95
     whiten_rewards: bool = False
-    # fixme: modify
     kl_coef: float = 0.2
 
 
@@ -144,7 +143,7 @@ class Args:
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""
-    seed: int = 42
+    seed: int = SEED
     """seed of the experiment"""
     cuda: bool = True
     """Whether to use cuda if available."""
@@ -595,7 +594,7 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
 
         # remove the worst model if limit exceeded
         if len(saved_models) > save_total_limit:
-            worst_model = saved_models.pop(0)
+            worst_model = saved_models.pop()
             if os.path.exists(worst_model['path']):
                 shutil.rmtree(worst_model['path'])
 
@@ -655,11 +654,11 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     # init value model from scratch but ref and policy model from sft ckpt
     model_config = AutoConfig.from_pretrained(args.base_model)
-    scalar_model_config = ScalarModelConfig(
-        base_model=args.base_model,
-        base_config=model_config,
-        hidden_size=model_config.hidden_size,
-    )
+    # scalar_model_config = ScalarModelConfig(
+    #     base_model=args.base_model,
+    #     base_config=model_config,
+    #     hidden_size=model_config.hidden_size,
+    # )
 
     # critic = ScalarModel(scalar_model_config)
     value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
