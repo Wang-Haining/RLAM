@@ -4,7 +4,7 @@
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --time=7-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
@@ -44,5 +44,5 @@ ppo.py \
 --output_dir 'ckpts/ppo_gemma-2b' \
 --local_rollout_forward_batch_size 32 \
 --gradient_accumulation_steps 16 \
---local_micro_batch_size 4 \
+--local_micro_batch_size 2 \
 --local_eval_batch_size 1
