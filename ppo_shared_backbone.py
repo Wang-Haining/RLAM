@@ -749,9 +749,10 @@ if __name__ == "__main__":
             }
         accelerator.print(f"{eval_ds_config=}")
         ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
-        ref_policy.eval()
+        # ref_policy.eval()
     else:
         ref_policy = ref_policy.to(device)
+    ref_policy.eval()
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
