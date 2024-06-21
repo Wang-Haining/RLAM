@@ -27,7 +27,7 @@ ppo.py \
 --world_size 2 \
 --num_train_epochs 5 \
 --base_model 'google/gemma-2b' \
---response_length 50 \
+--response_length 241 \
 --truncate_token eos \
 --truncate_token_id 1 \
 --temperature 0.7 \
@@ -42,7 +42,7 @@ ppo.py \
 --num_eval_samples 64 \
 --save_total_limit 3 \
 --output_dir 'ckpts/ppo_gemma-2b' \
---local_rollout_forward_batch_size 4 \
+--local_rollout_forward_batch_size 1 \
 --gradient_accumulation_steps 1 \
 --local_micro_batch_size 1 \
 --local_eval_batch_size 1

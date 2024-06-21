@@ -25,7 +25,7 @@ ppo.py \
 --world_size 2 \
 --num_train_epochs 5 \
 --base_model 'allenai/OLMo-1B-hf' \
---response_length 256 \
+--response_length 223 \
 --truncate_token eos \
 --truncate_token_id 50279 \
 --temperature 0.7 \
