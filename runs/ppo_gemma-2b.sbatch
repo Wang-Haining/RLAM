@@ -18,7 +18,7 @@ module load CUDA/12.2.0
 accelerate launch --num_machines 1 --num_processes 2 --mixed_precision=bf16 \
 ppo.py \
 --project_name RLUAM \
---run_name ppo_\
+--run_name ppo_gemma-2b \
 --print_sample_output_freq 0 \
 --lr 3e-6 \
 --warm_up_steps 50 \
