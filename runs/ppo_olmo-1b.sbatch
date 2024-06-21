@@ -21,8 +21,7 @@ ppo.py \
 --run_name ppo_olmo-1b \
 --print_sample_output_freq 0 \
 --deepspeed \
---offload \
---lr 3e-6 \
+--lr 5e-7 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
@@ -35,7 +34,7 @@ ppo.py \
 --non_eos_penalty \
 --sft_model_path "ckpts/sft_OLMo-1B-hf/checkpoint-1100" \
 --sl_coef 1.0 \
---wa_coef 2.1 \
+--wa_coef 2.05 \
 --logging_steps 2 \
 --save_steps 10 \
 --eval_steps 10 \
