@@ -465,16 +465,16 @@ def evaluate_model(
     Evaluates the policy model using various metrics on a subset of the dataset.
 
     Args:
-        sl_coef (float): Scaling factor for sentence length score.
-        wa_coef (float): Scaling factor for word accessibility score.
-        policy (torch.nn.Module): The policy model to be evaluated.
-        tokenizer (PreTrainedTokenizerBase): Tokenizer used for encoding/decoding.
-        dataloader (DataLoader): DataLoader providing the evaluation dataset.
-        generation_config (GenerationConfig): Configuration for text generation.
-        num_samples (int): Number of samples to evaluate on.
+        sl_coef: Scaling factor for sentence length score.
+        wa_coef: Scaling factor for word accessibility score.
+        policy: The policy model to be evaluated.
+        tokenizer: Tokenizer used for encoding/decoding.
+        dataloader: DataLoader providing the evaluation dataset.
+        generation_config: Configuration for text generation.
+        num_samples: Number of samples to evaluate on.
 
     Returns:
-        Tuple[Dict[str, List], pd.DataFrame]: Evaluation metrics and DataFrame of results.
+        Evaluation metrics and DataFrame of results.
     """
     eval_storage = defaultdict(list)
     bleu = BLEU()
@@ -609,9 +609,7 @@ if __name__ == "__main__":
         padding_side="right",
         trust_remote_code=True,
     )
-    # fixme: use <pad> is fine?
-    # we use the padding token manually but do not resize the token embedding of the model
-    # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
@@ -742,8 +740,6 @@ if __name__ == "__main__":
             # post warmup: decay the learning rate
             frac = 1.0 - (update - 1.0) / args.num_updates
             lr_scale = frac
-        # global_step += 1 * args.batch_size
-        # frac = 1.0 - (update - 1.0) / args.num_updates
         lrnow = lr_scale * args.lr
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
@@ -787,7 +783,6 @@ if __name__ == "__main__":
                     generation_config,
                 )
                 response = query_response[:, context_length:]  # (local_rollout_forward_batch_size, gen_len)
-                # print(f'rollout: {response}')
                 # use the logits during generation directly, instead of using the following
                 all_logprob = F.log_softmax(logits, dim=-1)  # local_rollout_forward_batch_size, seq_len, vocab_size
                 logprob = torch.gather(all_logprob, 2, response.unsqueeze(-1)).squeeze(-1)
@@ -806,12 +801,8 @@ if __name__ == "__main__":
                 # truncate response after the first occurrence of `stop_token_id` and
                 # pad up to the maximum sequence length within the batch
                 postprocessed_response = truncate_response(args, tokenizer, response)
-                # print(f'rollout: {response=}')
-                # print(f'rollout: {postprocessed_response=}')
                 # run reward model on the truncated responses
-                # postprocessed_query_response = torch.cat((query, postprocessed_response), 1)
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
-                # print(f'rollout: {sequence_length=}')
                 full_value, _, _ = get_reward(
                     accelerator.unwrap_model(model).critic, query_response, tokenizer, context_length
                 )
@@ -819,11 +810,9 @@ if __name__ == "__main__":
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
                 generated_texts = tokenizer.batch_decode(postprocessed_response,
                                                          skip_special_tokens=True)
-                # print(f'rollout: {generated_texts=}')
                 uam_score = compute_uam_score(generated_texts)
                 score = args.sl_coef * uam_score['sl_score'] + args.wa_coef * uam_score['wa_score']
                 score = score.to(device=accelerator.device)
-                # _, score, _ = get_reward(reward_model, postprocessed_query_response, tokenizer, context_length)
 
                 query_responses.append(query_response)
                 responses.append(response)
@@ -961,7 +950,6 @@ if __name__ == "__main__":
                             ratio_stats[ppo_epoch_idx, minibatch_idx, gradient_accumulation_idx] = ratio.mean()
                     gradient_accumulation_idx += 1
                 minibatch_idx += 1
-                # del everything and empty cache
                 # fmt: off
                 del (
                     output, vpred_temp, logits, new_all_logprobs, new_logprobs, vpred, vpredclipped,
@@ -1035,7 +1023,6 @@ if __name__ == "__main__":
                         )
                         if accelerator.is_main_process:
                             eval_ds = Dataset.from_pandas(eval_df)
-                            # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset")
                             wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                               dataframe=eval_df)}, step=update)
 
@@ -1059,27 +1046,7 @@ if __name__ == "__main__":
                             }, step=update)
 
         # save model
-        # todo: make sure there is a total limit
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
             avg_ari = round(np.mean(eval_storage["ari"]), 2)
             save_model(accelerator, tokenizer, model, args.output_dir,
                                 avg_ari, update, args.save_total_limit)
-        # if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
-            # os.makedirs(os.path.dirname(args.output_dir), exist_ok=True)
-            # if accelerator.is_main_process:
-            #     tokenizer.save_pretrained(args.output_dir)
-            #     # if args.push_to_hub:
-            #     #     tokenizer.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision)
-            # unwrapped: PreTrainedModel = accelerator.unwrap_model(model).policy
-            # accelerator.wait_for_everyone()
-            # if accelerator.is_main_process:
-            #     unwrapped.save_pretrained(
-            #         args.output_dir,
-            #         is_main_process=accelerator.is_main_process,
-            #         save_function=accelerator.save,
-            #         state_dict=accelerator.get_state_dict(unwrapped),
-            #         safe_serialization=False,
-            #     )
-                # if args.push_to_hub:
-                #     unwrapped.push_to_hub(repo_id=args.hf_repo_id, revision=args.hf_repo_revision, safe_serialization=False)
-                #     accelerator.print(f"🔥 pushed to https://huggingface.co/{args.hf_repo_id}/tree/{args.hf_repo_revision}")
