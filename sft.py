@@ -20,7 +20,7 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoToken
 from trl import SFTTrainer, set_seed
 from peft import LoraConfig, get_peft_model
 
-from utils import (DATASET_PATH, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B,
+from utils import (DATASET_PATH, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B, GPT2_XL,
                    PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, CKPTS_DIR)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -54,8 +54,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with "
                                                  "Gemma-2B/7B, OLMo-1B, or Llama3-8B.")
     parser.add_argument("--model", type=str,
-                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b"],
-                        help="Either gemma-2b, gemma-7b, olmo-1b, or llama3-8b")
+                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl"],
+                        help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, or gpt2-xl")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--is_peft_model",
                         type=lambda x: (str(x).lower() == 'true'), default=False,
@@ -70,6 +70,8 @@ if __name__ == "__main__":
         model_name = GEMMA_7B
     elif args.model == "llama3-8b":
         model_name = LLAMA3_8B
+    elif args.model == "gpt2-xl":
+        model_name = GPT2_XL
     else:
         raise ValueError(f"Invalid model name: {args.model}")
 

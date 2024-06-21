@@ -197,7 +197,6 @@ class Args:
     """per rank no grad forward pass in the rollout phase"""
 
     # other args
-    # base_model: str = "google/gemma-2b"
     base_model: str = 'allenai/OLMo-1B-hf'
     """the name of the pretrained model to use"""
     response_length: int = 256
