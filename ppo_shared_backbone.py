@@ -808,7 +808,7 @@ if __name__ == "__main__":
                 # run reward model on the truncated responses
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
                 full_value, _, _ = get_reward(
-                    accelerator.unwrap_model(model).value_model, query_response, tokenizer, context_length
+                    accelerator.unwrap_model(model).value_model.lm_backbone, query_response, tokenizer, context_length
                 )
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
