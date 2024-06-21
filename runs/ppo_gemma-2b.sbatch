@@ -20,6 +20,8 @@ ppo.py \
 --project_name RLUAM \
 --run_name ppo_gemma-2b \
 --print_sample_output_freq 0 \
+--deepspeed \
+--offload \
 --lr 3e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
