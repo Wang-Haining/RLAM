@@ -36,7 +36,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          AutoModelForSequenceClassification, AutoTokenizer,
+                          # AutoModelForSequenceClassification,
+                          AutoTokenizer,
                           GenerationConfig, PretrainedConfig, PreTrainedModel,
                           PreTrainedTokenizerBase)
 
@@ -145,8 +146,6 @@ class Args:
     """a unique name of this run"""
     seed: int = SEED
     """seed of the experiment"""
-    cuda: bool = True
-    """Whether to use cuda if available."""
     deepspeed: bool = False
     """Whether to use deepspeed to train the model"""
     offload: bool = False
@@ -302,43 +301,43 @@ def masked_whiten(values, mask, shift_mean=True):
     return whitened
 
 
-# class ScalarModelConfig(PretrainedConfig):
-#     def __init__(
-#         self,
-#         base_model: str,
-#         base_config: PretrainedConfig = None,
-#         bias: float = 0.0,
-#         **kwargs,
-#     ):
-#         super().__init__(**kwargs)
-#         self.base_model = base_model
-#         if base_config is None:
-#             base_config = AutoConfig.from_pretrained(base_model)
-#         self.base_config = base_config
-#         self.hidden_size = base_config.hidden_size
-#         self.bias = bias
+class ScalarModelConfig(PretrainedConfig):
+    def __init__(
+        self,
+        base_model: str,
+        base_config: PretrainedConfig = None,
+        bias: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.base_model = base_model
+        if base_config is None:
+            base_config = AutoConfig.from_pretrained(base_model)
+        self.base_config = base_config
+        self.hidden_size = base_config.hidden_size
+        self.bias = bias
 
 
-# class ScalarModel(PreTrainedModel):
-#     config_class = ScalarModelConfig
-#     def __init__(self, config: ScalarModelConfig):
-#         super().__init__(config)
-#         self.config = config
-#         self.lm_backbone = AutoModel.from_pretrained(
-#             config.base_model,
-#             config=self.config.base_config,
-#             torch_dtype=torch.bfloat16,
-#             trust_remote_code=True,
-#         )
-#         self.scalar_head = layer_init(
-#             nn.Linear(self.config.hidden_size, 1),
-#             std=1 / np.sqrt(self.config.hidden_size + 1),
-#         )
-#
-#     def forward(self, **kwargs):
-#         output = self.lm_backbone(**kwargs)
-#         reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
-#         return reward
+class ScalarModel(PreTrainedModel):
+    config_class = ScalarModelConfig
+    def __init__(self, config: ScalarModelConfig):
+        super().__init__(config)
+        self.config = config
+        self.lm_backbone = AutoModel.from_pretrained(
+            config.base_model,
+            config=self.config.base_config,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+        )
+        self.scalar_head = layer_init(
+            nn.Linear(self.config.hidden_size, 1),
+            std=1 / np.sqrt(self.config.hidden_size + 1),
+        )
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
+        return reward
 
 
 class PolicyAndValueWrapper(nn.Module):
@@ -653,16 +652,16 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     # init value model from scratch but ref and policy model from sft ckpt
     model_config = AutoConfig.from_pretrained(args.base_model)
-    # scalar_model_config = ScalarModelConfig(
-    #     base_model=args.base_model,
-    #     base_config=model_config,
-    #     hidden_size=model_config.hidden_size,
-    # )
+    value_model_config = ScalarModelConfig(
+        base_model=args.base_model,
+        base_config=model_config,
+        hidden_size=model_config.hidden_size,
+    )
 
-    # critic = ScalarModel(scalar_model_config)
-    value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
-                                                                     torch_dtype=torch.bfloat16,
-                                                                     num_labels=1)
+    value_model = ScalarModel(value_model_config)
+    # value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
+    #                                                                  torch_dtype=torch.bfloat16,
+    #                                                                  num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
