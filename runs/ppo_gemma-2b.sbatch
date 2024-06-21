@@ -15,7 +15,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --num_machines 1 --num_processes 2 --mixed_precision=bf16 \
+accelerate launch --config_file runs/deepspeed.yaml \
 ppo.py \
 --project_name RLUAM \
 --run_name ppo_gemma-2b \
