@@ -11,6 +11,9 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
+JOB_NAME="ppo_uam_gemma-2b"
+OUTPUT_DIR="ckpts/${JOB_NAME}"
+
 module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
@@ -38,7 +41,7 @@ ppo.py \
 --eval_steps 10 \
 --num_eval_samples 64 \
 --save_total_limit 30 \
---output_dir 'ckpts/ppo_gemma-2b' \
+--output_dir $OUTPUT_DIR \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 2 \
