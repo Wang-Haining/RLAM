@@ -326,7 +326,7 @@ class ScalarModel(PreTrainedModel):
         self.lm_backbone = AutoModel.from_pretrained(
             config.base_model,
             config=self.config.base_config,
-            torch_dtype=torch.bfloat16,
+            # torch_dtype=torch.bfloat16,
             trust_remote_code=True,
         )
         self.scalar_head = layer_init(
@@ -665,11 +665,11 @@ if __name__ == "__main__":
     #                                                                  num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
-                                                      torch_dtype=torch.bfloat16,
+                                                      # torch_dtype=torch.bfloat16,
                                                       trust_remote_code=True)
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                   config=model_config,
-                                                  torch_dtype=torch.bfloat16,
+                                                  # torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
     for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
