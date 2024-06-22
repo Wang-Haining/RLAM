@@ -661,6 +661,9 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
     ref_policy = accelerator.prepare(ref_policy)
+    accelerator.print('*'*99)
+    accelerator.print(f'after accelerator.prepare: {ref_policy.device=}, should be on cpu')
+    accelerator.print('*'*99)
     eval_dataloaders = {split: accelerator.prepare(eval_dataloader) for split, eval_dataloader in eval_dataloaders.items()}
     torch.manual_seed(local_seed)  # reset the local seed again
 
@@ -669,30 +672,30 @@ if __name__ == "__main__":
             yield from dataloader
 
     iter_dataloader = iter(repeat_generator())
-    # fixme: rm
-    if args.deepspeed:
-        import deepspeed
-
-        deepspeed_states = AcceleratorState().deepspeed_plugin
-        deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
-
-        eval_ds_config = {
-            "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
-            "bf16": {"enabled": True},
-            "prescale_gradients": False,
-            "wall_clock_breakdown": False,
-        }
-        if args.offload:
-            deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
-            eval_ds_config["zero_optimization"] = {
-                "stage": 3,
-                "stage3_param_persistence_threshold": 1e4,
-                "offload_param": {"device": "cpu"},
-            }
-        accelerator.print(f"{eval_ds_config=}")
-        ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
-    else:
-        ref_policy = ref_policy.to(device)
+    # # fixme: rm
+    # if args.deepspeed:
+    #     import deepspeed
+    #
+    #     deepspeed_states = AcceleratorState().deepspeed_plugin
+    #     deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
+    #
+    #     eval_ds_config = {
+    #         "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
+    #         "bf16": {"enabled": True},
+    #         "prescale_gradients": False,
+    #         "wall_clock_breakdown": False,
+    #     }
+    #     if args.offload:
+    #         deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
+    #         eval_ds_config["zero_optimization"] = {
+    #             "stage": 3,
+    #             "stage3_param_persistence_threshold": 1e4,
+    #             "offload_param": {"device": "cpu"},
+    #         }
+    #     accelerator.print(f"{eval_ds_config=}")
+    #     ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
+    # else:
+    #     ref_policy = ref_policy.to(device)
     ref_policy.eval()
     # debug print
     accelerator.print(f'after offload: {ref_policy.device=}, should still be cpu')
