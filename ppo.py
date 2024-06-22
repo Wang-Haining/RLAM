@@ -203,7 +203,7 @@ class Args:
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
-    truncate_token_id: Optional[int] = None  # 1 for gemma, 50279 for olmo
+    truncate_token_id: Optional[int] = None  # 1 for gemma; 50279 for olmo; 50256 for gpt2
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -217,7 +217,7 @@ class Args:
     # reward related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.0
+    wa_coef: float = 2.05
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
@@ -354,25 +354,6 @@ class PolicyAndValueWrapper(nn.Module):
         return self.policy(**kwargs), logits
 
 
-# def get_reward(model, query_responses, tokenizer, context_length):
-#     attention_mask = query_responses != tokenizer.pad_token_id
-#     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
-#     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
-#     reward_logits = model(
-#         input_ids=input_ids,
-#         attention_mask=attention_mask,
-#         # position_ids=position_ids,
-#         return_dict=True,
-#         output_hidden_states=True,
-#     )
-#     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
-#     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
-#     return (
-#         reward_logits,
-#         reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
-#         sequence_lengths,
-#     )
-
 def get_reward(model, query_responses, tokenizer, context_length):
     attention_mask = query_responses != tokenizer.pad_token_id
     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
@@ -392,17 +373,6 @@ def get_reward(model, query_responses, tokenizer, context_length):
         reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
         sequence_lengths,
     )
-
-# taken from https://github.com/OpenLMLab/MOSS-RLHF/blob/40b91eb2f2b71b16919addede0341d2bef70825d/ppo/ppo_trainer.py#L29
-# we did this we can do a single `model = accelerator.prepare(model)`
-# class PolicyAndValueWrapper(nn.Module):
-#     def __init__(self, policy, critic) -> None:
-#         super().__init__()
-#         self.policy = policy
-#         self.critic = critic
-#
-#     def forward(self, **kwargs):
-#         return self.policy(**kwargs), self.critic(**kwargs)
 
 
 def exact_div(a, b):
@@ -604,22 +574,25 @@ if __name__ == "__main__":
     local_seed = args.seed + accelerator.process_index * 100003  # a prime number
 
     # load dataset
-    # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response', 'source'])  # query_token: (bs, 512) left padded
+    dataset = dataset.with_format("torch", columns=["query_token",
+                                                    "reference_response_token",
+                                                    "query", 'response', 'source'])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     # fixme
     for split in ["validation"]:  # fixme: no test for now
         eval_dataset = dataset[split]
-        eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
+        eval_dataloaders[split] = DataLoader(eval_dataset,
+                                             batch_size=args.local_eval_batch_size)
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.base_model,
         padding_side="right",
         trust_remote_code=True,
     )
-
+    if 'gpt2' in args.base_model.lower():
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
@@ -657,9 +630,6 @@ if __name__ == "__main__":
     )
 
     value_model = ScalarModel(value_model_config)
-    # value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
-    #                                                                  torch_dtype=torch.bfloat16,
-    #                                                                  num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
