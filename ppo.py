@@ -634,6 +634,7 @@ if __name__ == "__main__":
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
                                                       trust_remote_code=True)
+    ref_policy.to('cpu')
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                   config=model_config,
                                                   torch_dtype=torch.bfloat16,
@@ -656,6 +657,7 @@ if __name__ == "__main__":
     # see https://gist.github.com/vwxyzjn/2581bff1e48e185e0b85b6dfe1def79c
     torch.manual_seed(args.seed)
     model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
+    ref_policy = accelerator.prepare(ref_policy)
     eval_dataloaders = {split: accelerator.prepare(eval_dataloader) for split, eval_dataloader in eval_dataloaders.items()}
     torch.manual_seed(local_seed)  # reset the local seed again
 
