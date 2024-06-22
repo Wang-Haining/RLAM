@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a40:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=7-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -15,7 +15,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --config_file runs/deepspeed.yaml \
+accelerate launch --config_file runs/ds_config.yaml \
 ppo.py \
 --project_name RLUAM \
 --run_name ppo_gpt2-xl_dynamic_kl_control \
@@ -42,9 +42,9 @@ ppo.py \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --output_dir 'ckpts/ppo_gpt2-xl_dynamic_kl_control' \
---local_rollout_forward_batch_size 4 \
+--local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 1 \
+--local_micro_batch_size 4 \
 --local_eval_batch_size 1 \
 --ppo.target_kl 4.0 \
 --ppo.k_beta 0.1
