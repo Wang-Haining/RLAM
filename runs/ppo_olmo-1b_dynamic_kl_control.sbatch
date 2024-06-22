@@ -41,9 +41,9 @@ ppo.py \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --output_dir 'ckpts/ppo_olmo-1b_dynamic_kl_control' \
---local_rollout_forward_batch_size 4 \
+--local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 2 \
+--local_micro_batch_size 4 \
 --local_eval_batch_size 1 \
 --ppo.target_kl 4.0 \
 --ppo.k_beta 0.1
