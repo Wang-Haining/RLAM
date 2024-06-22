@@ -345,13 +345,11 @@ class PolicyAndValueWrapper(nn.Module):
         super().__init__()
         self.policy = policy
         self.value_model = value_model
-        self.lm_backbone = getattr(value_model, value_model.base_model_prefix)
+        self.lm_backbone = value_model.lm_backbone
 
     def forward(self, **kwargs):
-        output = self.lm_backbone(
-            **kwargs,
-        )
-        logits = self.value_model.score(output.hidden_states[-1])
+        output = self.lm_backbone(**kwargs)
+        logits = self.value_model.scalar_head(output.hidden_states[-1])
         return self.policy(**kwargs), logits
 
 
