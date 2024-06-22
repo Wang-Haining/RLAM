@@ -21,6 +21,7 @@ ppo.py \
 --run_name ppo_olmo-1b \
 --print_sample_output_freq 0 \
 --deepspeed \
+--offload \
 --lr 5e-7 \
 --warm_up_steps 50 \
 --world_size 2 \
