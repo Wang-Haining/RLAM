@@ -171,6 +171,8 @@ class Args:
     num_eval_samples: int = 64
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts/test_run'
+    early_stop: bool = True
+    """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
     rluam: RluamHParams = field(default_factory=RluamHParams)
     """Default values will be used to create a RluamHParams"""
 
@@ -195,6 +197,24 @@ def parse_args() -> tuple[Args, Accelerator]:
     time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
     args.run_name = f"{args.run_name}__{args.seed}__{time_int}"
     return args, accelerator
+
+
+class EarlyStopping:
+    def __init__(self, patience: int = 10, min_ari: float = 8.0):
+        self.patience = patience
+        self.min_ari = min_ari
+        self.best_ari = float('-inf')
+        self.counter = 0
+
+    def should_stop(self, current_ari: float) -> bool:
+        if current_ari < self.min_ari:
+            return True
+        if current_ari > self.best_ari:
+            self.best_ari = current_ari
+            self.counter = 0
+        else:
+            self.counter += 1
+        return self.counter >= self.patience
 
 
 def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
@@ -736,6 +756,7 @@ if __name__ == "__main__":
         top_p=1.0,
         do_sample=True,
     )
+    early_stopping = EarlyStopping(patience=10, min_ari=8.0)
 
     accelerator.print("===training policy===")
     global_step = 0
@@ -1080,6 +1101,13 @@ if __name__ == "__main__":
                                 f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
                                 f"eval/{eval_split}_avg_sent_count": avg_sent_count
                             }, step=update)
+                            # early stopping check
+                            if args.early_stop and early_stopping.should_stop(avg_ari):
+                                save_model(accelerator, tokenizer, model,
+                                           args.output_dir, avg_ari, update,
+                                           args.save_total_limit)
+                                print(f"Early stopping at step {update} with ARI {avg_ari}")
+                                exit()
 
         # save model
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
