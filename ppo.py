@@ -366,8 +366,10 @@ def get_reward(model, query_responses, tokenizer, context_length):
         return_dict=True,
         output_hidden_states=True,
     )
+    hidden_states = output.hidden_states[-1].to(dtype=torch.bfloat16)
+    reward_logits = model.scalar_head(hidden_states)
     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
-    reward_logits = model.scalar_head(output.hidden_states[-1])
+    # reward_logits = model.scalar_head(output.hidden_states[-1])
     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
     return (
         reward_logits,
@@ -812,7 +814,7 @@ if __name__ == "__main__":
                 # run reward model on the truncated responses
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
                 full_value, _, _ = get_reward(
-                    accelerator.unwrap_model(model).value_model, query_response, tokenizer, context_length
+                    accelerator.unwrap_model(model).value_model, query_response.to(device), tokenizer, context_length
                 )
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
