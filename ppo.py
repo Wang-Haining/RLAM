@@ -1,6 +1,11 @@
 """
-The code is modified from
-https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
+This script implements a Proximal Policy Optimization (PPO) training loop for rewriting
+scholarly abstract into more accessbile version.
+
+References:
+- PPO Algorithm: https://arxiv.org/abs/1707.06347
+- Summarize from Feedback: https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
+
 """
 
 import heapq
@@ -36,7 +41,6 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          # AutoModelForSequenceClassification,
                           AutoTokenizer,
                           GenerationConfig, PretrainedConfig, PreTrainedModel,
                           PreTrainedTokenizerBase)
@@ -51,94 +55,39 @@ bleu = BLEU()
 nltk.download('punkt')
 INVALID_LOGPROB = 1.0
 
-# init word accessibility predictor
-# get word frequencies and the model to predict rare words' accessibility
-token_freq = read_token_frequencies(WORD_FREQ_CSV)
-top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
-# load for making predictions word accessibility
-wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
-total_tokens = sum(token_freq.values())
-
-
-def compute_uam_score(responses: List[str],
-                      top_100k_tokens=top_100k_tokens,
-                      wa_model=wa_model,
-                      total_tokens=total_tokens,
-                      token_freq=token_freq) -> Dict[str, torch.Tensor]:
-    """
-    Score a batch of responses:
-    - Avg sentence length: Computed over all sentences in a response. (Note, because we
-        want average to be shorter, we need to negate sentence length in order to
-        maximize the score.)
-    - Avg word accessibility: Defined as the negative logarithm of the token frequency
-      per billion, based on its occurrences in the English Wikipedia corpus.
-
-    During pilot running, models cheat by spitting out only one eos token. So we
-    penalize both word accessibility and sentence length with reasonably large negative
-    feedback in such situations.
-
-    Note, we intentionally preclude the calculation of EOS tokens as their inclusion
-    will lead to underestimated word accessibility and inflated sentence length.
-
-    Parameters:
-        responses: A list of response strings to process.
-        top_100k_tokens: Set of the top 100k tokens based on frequency.
-        wa_model: The model used to estimate word accessibility.
-        total_tokens: Total number of tokens in the reference corpus.
-        token_freq: Dictionary of token frequencies.
-
-    Returns:
-        A dict containing three lists of tensors:
-        - Negative sentence length score.
-        - Raw word accessibility score.
-    """
-    sent_len_rewards = []
-    word_accessibility_rewards = []
-    mt = MosesTokenizer(lang='en')
-    for response in responses:
-        # penalize too short generations
-        if len(response.strip()) <= 50:
-            sent_len_rewards.append(28.0)
-            word_accessibility_rewards.append(7.0)
-        else:
-            sent_len_list = []
-            word_accessibility_list = []
-            sents = sent_tokenize(response)
-            for sent in sents:
-                # prevent noise from artificial eos tokens
-                for t in SEP_TOKENS:
-                    if sent.strip().endswith(t) or sent.strip().startswith(t):
-                        sent = sent.replace(t, "").strip()
-                sent_len_list.append(compute_sent_len(sent))
-                for token in mt.tokenize(sent):
-                    word_accessibility_list.append(
-                        compute_token_accessibility(token,
-                                                    top_100k_tokens,
-                                                    wa_model,
-                                                    total_tokens,
-                                                    token_freq))
-            sent_len_rewards.append(np.mean(sent_len_list))
-            word_accessibility_rewards.append(np.mean(word_accessibility_list))
-    sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
-    word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
-    return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
-
 
 @dataclass
-class PpoHParams:
-    nminibatches: int = 1
+class RluamHParams:
     noptepochs: int = 4
+    """Optimization iterations per batch of samples"""
     vf_coef: float = 0.1
+    """Scaling factor for value loss"""
     cliprange: float = 0.2
+    """PPO policy gradient clipping range"""
     cliprange_value: float = 0.2
+    """Clip value estimaiton for stability"""
     gamma: float = 1
+    """Gamma for GAE"""
     lam: float = 0.95
-    whiten_rewards: bool = False
+    """Lambda for GAE"""
+    reward: Literal['ari', 'uam'] = 'uam'
+    """Either guide optimization with the uncombined accessibility measures (uam) or 
+    the Automated Readability Index (ari)"""
+    # reward related
+    sl_coef: float = 1.0
+    "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
+    wa_coef: float = 2.05
+    "Scaling factor for word accessibility reward (will vary for an optimal value)"
     kl_coef: float = 0.2
+    """KL penalty coefficient"""
     target_kl: Optional[float] = None
+    """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`
+    see https://arxiv.org/abs/1909.08593"""
     k_beta: Optional[float] = None
-
-    """log-space proportional controller gain, e.g., 0.1, see https://arxiv.org/abs/1909.08593"""
+    """log-space proportional controller gain, e.g., 0.1, set with `target_kl`
+    see https://arxiv.org/abs/1909.08593"""
+    whiten_rewards: bool = False
+    """Normalize rewards before advantages estimation"""
 
 
 @dataclass
@@ -217,12 +166,6 @@ class Args:
     sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """the path to the sft model"""
 
-    # reward related
-    sl_coef: float = 1.0
-    "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.05
-    "Scaling factor for word accessibility reward (will vary for an optimal value)"
-
     # logging and evaluation intervals (directly inherited from TrainingArguments)
     logging_steps: int = 2
     save_steps: int = 10
@@ -230,8 +173,8 @@ class Args:
     num_eval_samples: int = 64
     save_total_limit: Optional[int] = 3
     output_dir: str = 'ckpts/test_run'
-    ppo: PpoHParams = field(default_factory=PpoHParams)
-    """Default values will be used to create a PpoHParams"""
+    rluam: RluamHParams = field(default_factory=RluamHParams)
+    """Default values will be used to create a RluamHParams"""
 
 
 def parse_args() -> tuple[Args, Accelerator]:
@@ -243,7 +186,7 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.batch_size = int(args.local_batch_size * args.world_size)
     args.mini_batch_size = exact_div(args.batch_size, args.nminibatches)
     args.local_mini_batch_size = exact_div(args.local_batch_size, args.nminibatches)
-    if args.ppo.whiten_rewards:
+    if args.rluam.whiten_rewards:
         assert (
             args.local_mini_batch_size >= 8
         ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
@@ -254,6 +197,180 @@ def parse_args() -> tuple[Args, Accelerator]:
     time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
     args.run_name = f"{args.run_name}__{args.seed}__{time_int}"
     return args, accelerator
+
+
+def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
+    """
+    Score a batch of responses using the Automated Readability Index (ARI).
+
+    Parameters:
+        responses: A list of response strings to process.
+
+    Returns:
+        A dict containing a list of tensors:
+        - ARI scores.
+    """
+    ari_scores = [compute_ari(response) for response in responses]
+    ari_scores_tensor = torch.stack(
+        [torch.tensor(score, dtype=torch.float32) for score in ari_scores])
+
+    return {"ari_score": ari_scores_tensor}
+
+
+def compute_uam_score(responses: List[str],
+                      top_100k_tokens,
+                      wa_model,
+                      total_tokens,
+                      token_freq) -> Dict[str, torch.Tensor]:
+    """
+    Score a batch of responses:
+    - Avg sentence length: Computed over all sentences in a response. (Note, because we
+        want average to be shorter, we need to negate sentence length in order to
+        maximize the score.)
+    - Avg word accessibility: Defined as the negative logarithm of the token frequency
+      per billion, based on its occurrences in the English Wikipedia corpus.
+
+    During pilot running, models cheat by spitting out only one eos token. So we
+    penalize both word accessibility and sentence length with reasonably large negative
+    feedback in such situations.
+
+    Note, we intentionally preclude the calculation of EOS tokens as their inclusion
+    will lead to underestimated word accessibility and inflated sentence length.
+
+    Parameters:
+        responses: A list of response strings to process.
+        top_100k_tokens: Set of the top 100k tokens based on frequency.
+        wa_model: The model used to estimate word accessibility.
+        total_tokens: Total number of tokens in the reference corpus.
+        token_freq: Dictionary of token frequencies.
+
+    Returns:
+        A dict containing three lists of tensors:
+        - Negative sentence length score.
+        - Raw word accessibility score.
+    """
+    sent_len_rewards = []
+    word_accessibility_rewards = []
+    mt = MosesTokenizer(lang='en')
+    for response in responses:
+        # penalize too short generations
+        if len(response.strip()) <= 50:
+            sent_len_rewards.append(28.0)
+            word_accessibility_rewards.append(7.0)
+        else:
+            sent_len_list = []
+            word_accessibility_list = []
+            sents = sent_tokenize(response)
+            for sent in sents:
+                # prevent noise from artificial eos tokens
+                for t in SEP_TOKENS:
+                    if sent.strip().endswith(t) or sent.strip().startswith(t):
+                        sent = sent.replace(t, "").strip()
+                sent_len_list.append(compute_sent_len(sent))
+                for token in mt.tokenize(sent):
+                    word_accessibility_list.append(
+                        compute_token_accessibility(token,
+                                                    top_100k_tokens,
+                                                    wa_model,
+                                                    total_tokens,
+                                                    token_freq))
+            sent_len_rewards.append(np.mean(sent_len_list))
+            word_accessibility_rewards.append(np.mean(word_accessibility_list))
+    sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
+    word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
+    return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
+
+
+class ScalarModelConfig(PretrainedConfig):
+    def __init__(
+        self,
+        base_model: str,
+        base_config: PretrainedConfig = None,
+        bias: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.base_model = base_model
+        if base_config is None:
+            base_config = AutoConfig.from_pretrained(base_model)
+        self.base_config = base_config
+        self.hidden_size = base_config.hidden_size
+        self.bias = bias
+
+
+class ScalarModel(PreTrainedModel):
+    config_class = ScalarModelConfig
+    def __init__(self, config: ScalarModelConfig):
+        super().__init__(config)
+        self.config = config
+        self.lm_backbone = AutoModel.from_pretrained(
+            config.base_model,
+            config=self.config.base_config,
+            trust_remote_code=True,
+        )
+        self.scalar_head = layer_init(
+            nn.Linear(self.config.hidden_size, 1),
+            std=1 / np.sqrt(self.config.hidden_size + 1),
+        )
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
+        return reward
+
+
+class PolicyAndValueWrapper(nn.Module):
+    def __init__(self, policy, value_model) -> None:
+        super().__init__()
+        self.policy = policy
+        self.value_model = value_model
+        self.lm_backbone = value_model.lm_backbone
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        logits = self.value_model.scalar_head(output.hidden_states[-1])
+        return self.policy(**kwargs), logits
+
+
+def get_reward(model, query_responses, tokenizer, context_length):
+    attention_mask = query_responses != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    output = model.lm_backbone(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        return_dict=True,
+        output_hidden_states=True,
+    )
+    sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
+    reward_logits = model.scalar_head(output.hidden_states[-1])
+    return (
+        reward_logits,
+        reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
+        sequence_lengths,
+    )
+
+
+def generate(lm_backbone, queries, tokenizer, generation_config):
+    """generate in a way that does not affect padding tokens"""
+    context_length = queries.shape[1]
+    attention_mask = queries != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(queries, ~attention_mask, 0)
+    output = lm_backbone.generate(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        generation_config=generation_config,
+        return_dict_in_generate=True,
+        output_scores=True
+    )
+    logits = torch.stack(output.scores, 1)
+    return torch.cat((queries, output.sequences[:, context_length:]), dim=1), logits
+
+
+def exact_div(a, b):
+    q = a // b
+    if a != q * b:
+        raise ValueError(f"Inexact division: {a} / {b} = {a / b}")
+    return q
 
 
 def disable_dropout(model: torch.nn.Module):
@@ -305,133 +422,6 @@ def masked_whiten(values, mask, shift_mean=True):
     return whitened
 
 
-class ScalarModelConfig(PretrainedConfig):
-    def __init__(
-        self,
-        base_model: str,
-        base_config: PretrainedConfig = None,
-        bias: float = 0.0,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.base_model = base_model
-        if base_config is None:
-            base_config = AutoConfig.from_pretrained(base_model)
-        self.base_config = base_config
-        self.hidden_size = base_config.hidden_size
-        self.bias = bias
-
-
-class ScalarModel(PreTrainedModel):
-    config_class = ScalarModelConfig
-    def __init__(self, config: ScalarModelConfig):
-        super().__init__(config)
-        self.config = config
-        self.lm_backbone = AutoModel.from_pretrained(
-            config.base_model,
-            config=self.config.base_config,
-            # torch_dtype=torch.bfloat16,
-            trust_remote_code=True,
-        )
-        self.scalar_head = layer_init(
-            nn.Linear(self.config.hidden_size, 1),
-            std=1 / np.sqrt(self.config.hidden_size + 1),
-        )
-
-    def forward(self, **kwargs):
-        output = self.lm_backbone(**kwargs)
-        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
-        return reward
-
-
-class PolicyAndValueWrapper(nn.Module):
-    def __init__(self, policy, value_model) -> None:
-        super().__init__()
-        self.policy = policy
-        self.value_model = value_model
-        self.lm_backbone = value_model.lm_backbone
-
-    def forward(self, **kwargs):
-        output = self.lm_backbone(**kwargs)
-        logits = self.value_model.scalar_head(output.hidden_states[-1])
-        return self.policy(**kwargs), logits
-
-
-# def get_reward(model, query_responses, tokenizer, context_length):
-#     attention_mask = query_responses != tokenizer.pad_token_id
-#     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
-#     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
-#     reward_logits = model(
-#         input_ids=input_ids,
-#         attention_mask=attention_mask,
-#         # position_ids=position_ids,
-#         return_dict=True,
-#         output_hidden_states=True,
-#     )
-#     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
-#     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
-#     return (
-#         reward_logits,
-#         reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
-#         sequence_lengths,
-#     )
-
-def get_reward(model, query_responses, tokenizer, context_length):
-    attention_mask = query_responses != tokenizer.pad_token_id
-    # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
-    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
-    output = model.lm_backbone(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        # position_ids=position_ids,
-        return_dict=True,
-        output_hidden_states=True,
-    )
-    sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
-    reward_logits = model.scalar_head(output.hidden_states[-1])
-    # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
-    return (
-        reward_logits,
-        reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
-        sequence_lengths,
-    )
-
-# taken from https://github.com/OpenLMLab/MOSS-RLHF/blob/40b91eb2f2b71b16919addede0341d2bef70825d/ppo/ppo_trainer.py#L29
-# we did this we can do a single `model = accelerator.prepare(model)`
-# class PolicyAndValueWrapper(nn.Module):
-#     def __init__(self, policy, critic) -> None:
-#         super().__init__()
-#         self.policy = policy
-#         self.critic = critic
-#
-#     def forward(self, **kwargs):
-#         return self.policy(**kwargs), self.critic(**kwargs)
-
-
-def exact_div(a, b):
-    q = a // b
-    if a != q * b:
-        raise ValueError(f"Inexact division: {a} / {b} = {a / b}")
-    return q
-
-
-def generate(lm_backbone, queries, tokenizer, generation_config):
-    """generate in a way that does not affect padding tokens"""
-    context_length = queries.shape[1]
-    attention_mask = queries != tokenizer.pad_token_id
-    input_ids = torch.masked_fill(queries, ~attention_mask, 0)
-    output = lm_backbone.generate(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        # position_ids=attention_mask.cumsum(1) - attention_mask.long(), # generation collapsed if this was turned on. TODO: why does generation collapse with this?
-        generation_config=generation_config,
-        return_dict_in_generate=True,
-        output_scores=True
-    )
-    logits = torch.stack(output.scores, 1)
-    return torch.cat((queries, output.sequences[:, context_length:]), dim=1), logits
-
-
 def first_true_indices(bools, dtype=torch.long):
     """
     Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of
@@ -454,12 +444,10 @@ def truncate_response(args, tokenizer, responses):
 
 def forward(model, query_responses, tokenizer):
     attention_mask = query_responses != tokenizer.pad_token_id
-    # position_ids = attention_mask.cumsum(1) - attention_mask.long()
     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
     return model(
         input_ids=input_ids,
         attention_mask=attention_mask,
-        # position_ids=position_ids,
         return_dict=True,
         output_hidden_states=True,
     )
@@ -494,8 +482,8 @@ def evaluate_model(
 
     with torch.no_grad():
         for i, data in tqdm(enumerate(dataloader)):
-            # Evaluate reference response (i.e., human-written significance statement)
-            reference_scores = compute_uam_score(data['response'])
+            # evaluate reference response (i.e., human-written significance statement)
+            reference_scores = compute_uam_score_wrapper(data['response'])
             reference_sl_scores = reference_scores['sl_score']
             reference_wa_scores = reference_scores['wa_score']
             reference_total_scores = sl_coef * reference_sl_scores + wa_coef * reference_wa_scores
@@ -515,7 +503,7 @@ def evaluate_model(
                                                      skip_special_tokens=True)
 
             # calculate metrics
-            uam_scores = compute_uam_score(generated_texts)
+            uam_scores = compute_uam_score_wrapper(generated_texts)
             sl_scores = uam_scores['sl_score']
             wa_scores = uam_scores['wa_score']
             total_scores = sl_coef * sl_scores + wa_coef * wa_scores
@@ -582,7 +570,6 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
             tokenizer.save_pretrained(output_dir)
             unwrapped = accelerator.unwrap_model(model).policy
             unwrapped.save_pretrained(save_path, save_function=accelerator.save)
-
         # update saved models list
         saved_models.append({
             'path': save_path,
@@ -606,14 +593,29 @@ if __name__ == "__main__":
     args, accelerator = parse_args()
     local_seed = args.seed + accelerator.process_index * 100003  # a prime number
 
+    # init word accessibility predictor
+    # get word frequencies and the model to predict rare words' accessibility
+    token_freq = read_token_frequencies(WORD_FREQ_CSV)
+    top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
+    # load for making predictions word accessibility
+    wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
+    total_tokens = sum(token_freq.values())
+    compute_uam_score_wrapper = lambda responses: compute_uam_score(
+        responses,
+        top_100k_tokens=top_100k_tokens,
+        wa_model=wa_model,
+        total_tokens=total_tokens,
+        token_freq=token_freq
+    )
+
     # load dataset
-    # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response', 'source'])  # query_token: (bs, 512) left padded
+    dataset = dataset.with_format("torch", columns=["query_token",
+                                                    "reference_response_token",
+                                                    "query", 'response', 'source'])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
-    # fixme
-    for split in ["validation"]:  # fixme: no test for now
+    for split in ["validation"]:  # todo: no test for now
         eval_dataset = dataset[split]
         eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
@@ -665,16 +667,11 @@ if __name__ == "__main__":
     )
 
     value_model = ScalarModel(value_model_config)
-    # value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
-    #                                                                  torch_dtype=torch.bfloat16,
-    #                                                                  num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
-                                                      # torch_dtype=torch.bfloat16,
                                                       trust_remote_code=True)
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                   config=model_config,
-                                                  # torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
     for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
@@ -697,7 +694,7 @@ if __name__ == "__main__":
             yield from dataloader
 
     iter_dataloader = iter(repeat_generator())
-    # fixme: rm
+
     if args.deepspeed:
         import deepspeed
 
@@ -746,7 +743,7 @@ if __name__ == "__main__":
     global_step = 0
     start_time = time.time()
     eval_split = list(eval_dataloaders.keys())[0]
-    stats_shape = (args.ppo.noptepochs, args.nminibatches, args.gradient_accumulation_steps)
+    stats_shape = (args.rluam.noptepochs, args.nminibatches, args.gradient_accumulation_steps)
     approxkl_stats = torch.zeros(stats_shape, device=device)
     pg_clipfrac_stats = torch.zeros(stats_shape, device=device)
     pg_loss_stats = torch.zeros(stats_shape, device=device)
@@ -769,7 +766,7 @@ if __name__ == "__main__":
         data = next(iter_dataloader)
         with torch.no_grad():
             eval_storage, eval_df = evaluate_model(
-                args.sl_coef, args.wa_coef,
+                args.rluam.sl_coef, args.rluam.wa_coef,
                 accelerator.unwrap_model(model).policy,
                 tokenizer,
                 eval_dataloaders[eval_split],
@@ -779,12 +776,9 @@ if __name__ == "__main__":
             validation_score = eval_storage["total_scores"]
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
-                    # fixme: no need to save dfs
                     eval_ds = Dataset.from_pandas(eval_df)
-                    # eval_ds.save_to_disk(f"runs/{args.run_name}/{eval_split}_dataset_{global_step}")
-                    # fixme: rm
-                    # if args.track:
-                    wandb.log({f"sft_samples/{eval_split}_query_responses": wandb.Table(dataframe=eval_df)}, step=update)
+                    wandb.log({f"sft_samples/{eval_split}_query_responses":
+                                   wandb.Table(dataframe=eval_df)}, step=update)
             del eval_storage, eval_df
             torch.cuda.empty_cache()
             # rollout phase
@@ -834,8 +828,11 @@ if __name__ == "__main__":
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
                 generated_texts = tokenizer.batch_decode(postprocessed_response,
                                                          skip_special_tokens=True)
-                uam_score = compute_uam_score(generated_texts)
-                score = args.sl_coef * uam_score['sl_score'] + args.wa_coef * uam_score['wa_score']
+                if args.rluam.reward == 'uam':
+                    uam_score = compute_uam_score_wrapper(generated_texts)
+                    score = args.rluam.sl_coef * uam_score['sl_score'] + args.rluam.wa_coef * uam_score['wa_score']
+                else:
+                    score = compute_ari_score(generated_texts)
                 score = score.to(device=accelerator.device)
 
                 query_responses.append(query_response)
@@ -862,7 +859,8 @@ if __name__ == "__main__":
             # only query humans on responses that pass that filter
             contain_eos_token = torch.any(postprocessed_responses == tokenizer.eos_token_id, dim=-1)
             if args.non_eos_penalty:
-                scores = torch.where(contain_eos_token, scores, torch.full_like(scores, args.penalty_reward_value))
+                scores = torch.where(contain_eos_token, scores,
+                                     torch.full_like(scores, args.penalty_reward_value))
             accelerator.print(f"{scores=}, {(contain_eos_token.sum() / len(contain_eos_token))=}")
 
             # be very careful with `padding_mask_p1`
@@ -870,7 +868,8 @@ if __name__ == "__main__":
             # values are computed for each token in the entire sequence including the previouly generated tokens
             # whereas logprobs are computed only for the generated tokens
             sequence_lengths_p1 = sequence_lengths + 1
-            response_idxs = torch.arange(responses.shape[1], device=responses.device).repeat(responses.shape[0], 1)
+            response_idxs = torch.arange(responses.shape[1],
+                                         device=responses.device).repeat(responses.shape[0], 1)
             padding_mask = response_idxs > sequence_lengths.unsqueeze(1)
             padding_mask_p1 = response_idxs > (sequence_lengths_p1.unsqueeze(1))
             logprobs = torch.masked_fill(logprobs, padding_mask, INVALID_LOGPROB)
@@ -879,16 +878,18 @@ if __name__ == "__main__":
 
             # 4. compute rewards
             kl = logprobs - ref_logprobs  # (batch_size, gen_len)
-            non_score_reward = -args.ppo.kl_coef * kl  # (batch_size, gen_len)
+            non_score_reward = -args.rluam.kl_coef * kl  # (batch_size, gen_len)
             rewards = non_score_reward.clone()  # (batch_size, gen_len)
             actual_start = torch.arange(rewards.size(0), device=rewards.device)  # (batch_size,)
-            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
-            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1), sequence_lengths_p1, sequence_lengths)  # (batch_size,)
+            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1),
+                                     sequence_lengths_p1, sequence_lengths)  # (batch_size,)
+            actual_end = torch.where(sequence_lengths_p1 < rewards.size(1),
+                                     sequence_lengths_p1, sequence_lengths)  # (batch_size,)
             # add reward (from reward func) to the last position
             rewards[[actual_start, actual_end]] += scores  # (batch_size, gen_len)
 
             # 5. whiten rewards
-            if args.ppo.whiten_rewards:
+            if args.rluam.whiten_rewards:
                 rewards = masked_whiten(rewards, mask=~padding_mask_p1, shift_mean=False)
                 rewards = torch.masked_fill(rewards, padding_mask_p1, 0)
 
@@ -898,8 +899,8 @@ if __name__ == "__main__":
             gen_length = responses.shape[1]
             for t in reversed(range(gen_length)):
                 nextvalues = values[:, t + 1] if t < gen_length - 1 else 0.0
-                delta = rewards[:, t] + args.ppo.gamma * nextvalues - values[:, t]
-                lastgaelam = delta + args.ppo.gamma * args.ppo.lam * lastgaelam
+                delta = rewards[:, t] + args.rluam.gamma * nextvalues - values[:, t]
+                lastgaelam = delta + args.rluam.gamma * args.rluam.lam * lastgaelam
                 advantages_reversed.append(lastgaelam)
             advantages = torch.stack(advantages_reversed[::-1], axis=1)
             returns = advantages + values
@@ -913,14 +914,15 @@ if __name__ == "__main__":
             torch.cuda.empty_cache()
 
         # ppo training: iterate multiple epochs with a fresh random shuffle in each epoch
-        for ppo_epoch_idx in range(args.ppo.noptepochs):
+        for ppo_epoch_idx in range(args.rluam.noptepochs):
             b_inds = np.random.permutation(args.local_batch_size)
             minibatch_idx = 0
             for mini_batch_start in range(0, args.local_batch_size, args.local_mini_batch_size):
                 mini_batch_end = mini_batch_start + args.local_mini_batch_size
                 mini_batch_inds = b_inds[mini_batch_start:mini_batch_end]
                 gradient_accumulation_idx = 0
-                for micro_batch_start in range(0, args.local_mini_batch_size, args.local_micro_batch_size):
+                for micro_batch_start in range(0, args.local_mini_batch_size,
+                                               args.local_micro_batch_size):
                     with accelerator.accumulate(policy):
                         micro_batch_end = micro_batch_start + args.local_micro_batch_size
                         micro_batch_inds = mini_batch_inds[micro_batch_start:micro_batch_end]
@@ -935,28 +937,34 @@ if __name__ == "__main__":
                         logits = output.logits[:, context_length - 1 : -1]
                         logits /= args.temperature + 1e-7
                         new_all_logprobs = F.log_softmax(logits, dim=-1)
-                        new_logprobs = torch.gather(new_all_logprobs, 2, mb_responses.unsqueeze(-1)).squeeze(-1)
-                        new_logprobs = torch.masked_fill(new_logprobs, padding_mask[micro_batch_inds], INVALID_LOGPROB)
+                        new_logprobs = torch.gather(new_all_logprobs, 2,
+                                                    mb_responses.unsqueeze(-1)).squeeze(-1)
+                        new_logprobs = torch.masked_fill(new_logprobs,
+                                                         padding_mask[micro_batch_inds],
+                                                         INVALID_LOGPROB)
                         vpred = vpred_temp[:, context_length - 1 : -1].squeeze(-1)
                         vpred = torch.masked_fill(vpred, padding_mask_p1[micro_batch_inds], 0)
                         vpredclipped = torch.clamp(
                             vpred,
-                            mb_values - args.ppo.cliprange_value,
-                            mb_values + args.ppo.cliprange_value,
+                            mb_values - args.rluam.cliprange_value,
+                            mb_values + args.rluam.cliprange_value,
                         )
                         vf_losses1 = torch.square(vpred - mb_return)
                         vf_losses2 = torch.square(vpredclipped - mb_return)
                         vf_loss_max = torch.max(vf_losses1, vf_losses2)
-                        vf_loss = 0.5 * masked_mean(vf_loss_max, ~padding_mask_p1[micro_batch_inds])
-                        vf_clipfrac = masked_mean((vf_losses2 > vf_losses1).float(), ~padding_mask_p1[micro_batch_inds])
+                        vf_loss = 0.5 * masked_mean(vf_loss_max,
+                                                    ~padding_mask_p1[micro_batch_inds])
+                        vf_clipfrac = masked_mean((vf_losses2 > vf_losses1).float(),
+                                                  ~padding_mask_p1[micro_batch_inds])
                         logprobs_diff = new_logprobs - mb_logprobs
                         ratio = torch.exp(logprobs_diff)
                         pg_losses = -mb_advantage * ratio
-                        pg_losses2 = -mb_advantage * torch.clamp(ratio, 1.0 - args.ppo.cliprange, 1.0 + args.ppo.cliprange)
+                        pg_losses2 = -mb_advantage * torch.clamp(ratio, 1.0 - args.rluam.cliprange, 1.0 + args.rluam.cliprange)
                         pg_loss_max = torch.max(pg_losses, pg_losses2)
                         pg_loss = masked_mean(pg_loss_max, ~padding_mask[micro_batch_inds])
-                        pg_clipfrac = masked_mean((pg_losses2 > pg_losses).float(), ~padding_mask[micro_batch_inds])
-                        loss = pg_loss + args.ppo.vf_coef * vf_loss
+                        pg_clipfrac = masked_mean((pg_losses2 > pg_losses).float(),
+                                                  ~padding_mask[micro_batch_inds])
+                        loss = pg_loss + args.rluam.vf_coef * vf_loss
                         accelerator.backward(loss)
                         optimizer.step()
                         optimizer.zero_grad()
@@ -1023,18 +1031,18 @@ if __name__ == "__main__":
             writer.add_scalar("ppo/eps", eps, update)
             accelerator.print("ppo/eps", eps, update)
             # use of dynamic controller
-            if args.ppo.target_kl and args.ppo.k_beta:
-                et = np.clip(mean_kl.cpu().numpy() - args.ppo.target_kl - 1, -0.2, 0.2)
-                args.ppo.kl_coef *= 1 + args.ppo.kl_coef * et
-                args.ppo.kl_coef = max(args.ppo.kl_coef, 0.0)
-            writer.add_scalar("objective/kl_coef", args.ppo.kl_coef, update)
+            if args.rluam.target_kl and args.rluam.k_beta:
+                et = np.clip(mean_kl.cpu().numpy() - args.rluam.target_kl - 1, -0.2, 0.2)
+                args.rluam.kl_coef *= 1 + args.rluam.kl_coef * et
+                args.rluam.kl_coef = max(args.rluam.kl_coef, 0.0)
+            writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         torch.cuda.empty_cache()
 
         if args.run_eval and update % args.eval_steps == 0:
             for eval_split in eval_dataloaders:
                 eval_storage, eval_df = evaluate_model(
-                    args.sl_coef, args.wa_coef,
+                    args.rluam.sl_coef, args.rluam.wa_coef,
                     accelerator.unwrap_model(model).policy,
                     tokenizer,
                     eval_dataloaders[eval_split],
@@ -1044,7 +1052,7 @@ if __name__ == "__main__":
                 if args.run_eval and update % args.eval_steps == 0:
                     for eval_split in eval_dataloaders:
                         eval_storage, eval_df = evaluate_model(
-                            args.sl_coef, args.wa_coef,
+                            args.rluam.sl_coef, args.rluam.wa_coef,
                             accelerator.unwrap_model(model).policy,
                             tokenizer,
                             eval_dataloaders[eval_split],
