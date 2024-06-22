@@ -617,6 +617,10 @@ if __name__ == "__main__":
         )
         pprint(args)
     device = accelerator.device
+    accelerator.print('*'*99)
+    accelerator.print(f'{accelerator.device=}')
+    accelerator.print('*'*99)
+
     random.seed(local_seed)
     np.random.seed(local_seed)
     torch.manual_seed(local_seed)
@@ -640,9 +644,8 @@ if __name__ == "__main__":
                                                   torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
     accelerator.print('*'*99)
-    # accelerator.print(f'{model.device=}')
-    accelerator.print(f'{policy.device=}')
-    accelerator.print(f'{ref_policy.device=}')
+    accelerator.print(f'init: {policy.device=}, should be on gpu')
+    accelerator.print(f'init: {ref_policy.device=}, should be on cpu')
     accelerator.print('*'*99)
     for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
@@ -692,7 +695,7 @@ if __name__ == "__main__":
         ref_policy = ref_policy.to(device)
     ref_policy.eval()
     # debug print
-    accelerator.print(f'{ref_policy.device=}')
+    accelerator.print(f'after offload: {ref_policy.device=}, should still be cpu')
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
@@ -728,9 +731,9 @@ if __name__ == "__main__":
     model.train()
     # debug print
     accelerator.print('*'*99)
-    accelerator.print(f'{model.device=}')
-    accelerator.print(f'{policy.device=}')
-    accelerator.print(f'{ref_policy.device=}')
+    accelerator.print(f'before training: {model.device=}, should be on gpu')
+    accelerator.print(f'before training: {policy.device=}, should be on gpu')
+    accelerator.print(f'before training: {ref_policy.device=}, should be on cpu')
     accelerator.print('*'*99)
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
