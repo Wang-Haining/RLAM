@@ -638,6 +638,11 @@ if __name__ == "__main__":
                                                   config=model_config,
                                                   torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
+    accelerator.print('*'*99)
+    # accelerator.print(f'{model.device=}')
+    accelerator.print(f'{policy.device=}')
+    accelerator.print(f'{ref_policy.device=}')
+    accelerator.print('*'*99)
     for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
@@ -720,9 +725,11 @@ if __name__ == "__main__":
     ratio_stats = torch.zeros(stats_shape, device=device)
     model.train()
     # debug print
+    accelerator.print('*'*99)
     accelerator.print(f'{model.device=}')
     accelerator.print(f'{policy.device=}')
     accelerator.print(f'{ref_policy.device=}')
+    accelerator.print('*'*99)
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
         if global_step < args.warm_up_steps:
