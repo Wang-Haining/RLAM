@@ -43,5 +43,5 @@ ppo.py \
 --output_dir 'ckpts/ppo_gpt2-xl' \
 --local_rollout_forward_batch_size 64 \
 --gradient_accumulation_steps 16 \
---local_micro_batch_size 2 \
+--local_micro_batch_size 1 \
 --local_eval_batch_size 1

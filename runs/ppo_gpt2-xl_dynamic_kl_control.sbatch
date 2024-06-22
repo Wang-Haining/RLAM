@@ -43,7 +43,7 @@ ppo.py \
 --output_dir 'ckpts/ppo_gpt2-xl_dynamic_kl_control' \
 --local_rollout_forward_batch_size 64 \
 --gradient_accumulation_steps 16 \
---local_micro_batch_size 2 \
+--local_micro_batch_size 1 \
 --local_eval_batch_size 1 \
 --ppo.target_kl 4.0 \
 --ppo.k_beta 0.1
