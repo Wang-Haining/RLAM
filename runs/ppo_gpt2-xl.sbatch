@@ -26,9 +26,9 @@ ppo.py \
 --world_size 2 \
 --num_train_epochs 5 \
 --base_model 'openai-community/gpt2-xl' \
---response_length 223 \
+--response_length 244 \
 --truncate_token eos \
---truncate_token_id 50279 \
+--truncate_token_id 50256 \
 --temperature 0.7 \
 --penalty_reward_value -5 \
 --non_eos_penalty \
