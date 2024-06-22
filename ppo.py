@@ -233,7 +233,8 @@ class Args:
 
 def parse_args() -> tuple[Args, Accelerator]:
     args = tyro.cli(Args)
-    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
+    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps,
+                              mixed_precision='bf16')
     args.world_size = accelerator.num_processes
     args.local_batch_size = args.local_micro_batch_size * args.gradient_accumulation_steps * args.nminibatches
     args.micro_batch_size = int(args.local_micro_batch_size * args.world_size)
