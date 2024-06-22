@@ -423,9 +423,12 @@ def truncate_response(args, tokenizer, responses):
 
 
 def forward(model, query_responses, tokenizer):
-    attention_mask = query_responses != tokenizer.pad_token_id
+    # ensure query_responses are on the same device as the model
+    device = next(model.parameters()).device
+    query_responses = query_responses.to(device)
+    attention_mask = (query_responses != tokenizer.pad_token_id).to(device)
     # position_ids = attention_mask.cumsum(1) - attention_mask.long()
-    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0).to(device)
     return model(
         input_ids=input_ids,
         attention_mask=attention_mask,
@@ -648,6 +651,7 @@ if __name__ == "__main__":
                                                   trust_remote_code=True)
     accelerator.print('*'*99)
     accelerator.print(f'init: {policy.device=}, should be on gpu')
+    accelerator.print(f'init: {value_model.device=}, should be on gpu')
     accelerator.print(f'init: {ref_policy.device=}, should be on cpu')
     accelerator.print('*'*99)
     for module in [policy, ref_policy, value_model]:
