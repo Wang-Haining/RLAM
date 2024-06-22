@@ -1,10 +1,10 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_gemma-2b
+#SBATCH --job-name=name=ppo_uam_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
