@@ -16,7 +16,7 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 
 accelerate launch --config_file runs/deepspeed.yaml \
-ppo_shared_backbone.py \
+ppo.py \
 --project_name RLUAM \
 --run_name ppo_gemma-2b \
 --print_sample_output_freq 0 \
