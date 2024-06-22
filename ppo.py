@@ -135,6 +135,10 @@ class PpoHParams:
     lam: float = 0.95
     whiten_rewards: bool = False
     kl_coef: float = 0.2
+    target_kl: Optional[float] = None
+    k_beta: Optional[float] = None
+
+    """log-space proportional controller gain, e.g., 0.1, see https://arxiv.org/abs/1909.08593"""
 
 
 @dataclass
@@ -202,7 +206,7 @@ class Args:
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
-    truncate_token_id: Optional[int] = None  # 1 for gemma, 50279 for olmo
+    truncate_token_id: Optional[int] = None  # 1 for gemma; 50279 for olmo; 50256 for gpt2
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -216,7 +220,7 @@ class Args:
     # reward related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.0
+    wa_coef: float = 2.05
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
@@ -618,7 +622,8 @@ if __name__ == "__main__":
         padding_side="right",
         trust_remote_code=True,
     )
-
+    if 'gpt2' in args.base_model.lower():
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
@@ -1017,6 +1022,12 @@ if __name__ == "__main__":
             eps = int(global_step / (time.time() - start_time))
             writer.add_scalar("ppo/eps", eps, update)
             accelerator.print("ppo/eps", eps, update)
+            # use of dynamic controller
+            if args.ppo.target_kl and args.ppo.k_beta:
+                et = np.clip(mean_kl - args.ppo.target_kl - 1, -0.2, 0.2)
+                args.ppo.kl_coef *= 1 + args.ppo.kl_coef * et
+                args.ppo.kl_coef = max(args.ppo.kl_coef, 0.0)
+            writer.add_scalar("objective/kl_coef", args.ppo.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         torch.cuda.empty_cache()
 
