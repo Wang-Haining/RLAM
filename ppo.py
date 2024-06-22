@@ -41,19 +41,17 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          AutoTokenizer,
-                          GenerationConfig, PretrainedConfig, PreTrainedModel,
-                          PreTrainedTokenizerBase)
+                          AutoTokenizer, GenerationConfig, PretrainedConfig,
+                          PreTrainedModel, PreTrainedTokenizerBase)
 
-from utils import (SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_ppo_dataset, compute_ari, compute_sent_len,
-                   compute_token_accessibility, count_sent,
+from utils import (INVALID_LOGPROB, SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL,
+                   WORD_FREQ_CSV, build_ppo_dataset, compute_ari, PROJECT_NAME,
+                   compute_sent_len, compute_token_accessibility, count_sent,
                    read_token_frequencies)
 
 torch.set_printoptions(precision=3, sci_mode=False)
-bleu = BLEU()
 nltk.download('punkt')
-INVALID_LOGPROB = 1.0
+
 
 
 @dataclass
@@ -93,7 +91,7 @@ class RluamHParams:
 @dataclass
 class Args:
     # common args
-    project_name: str = "Reinforcement Learning From Uncombined Accessibility Measures"
+    project_name: str = PROJECT_NAME
     """the name of this experiment"""
     run_name: Optional[str] = None
     """a unique name of this run"""

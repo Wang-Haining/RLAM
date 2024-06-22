@@ -17,7 +17,6 @@ module load CUDA/12.2.0
 
 accelerate launch --config_file runs/ds_config.yaml \
 ppo.py \
---project_name RLUAM \
 --run_name ppo_gpt2-xl_dynamic_kl_control \
 --print_sample_output_freq 0 \
 --deepspeed \

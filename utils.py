@@ -20,15 +20,13 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
-PROJECT_NAME = "RLUAM"
+PROJECT_NAME = "Reinforcement_Learning_From_Uncombined_Accessibility_Measures"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
-SEED = 4230186
+SEED = 42
 GPT2_XL = 'openai-community/gpt2-xl'
 GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
-LLAMA3_8B = "meta-llama/Meta-Llama-3-8B"
-FLANT5_XL = "google/flan-t5-xl"
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
 RESPONSE_TEMP = "\nSimplified version:"  # no space after colon because the template takes care of this
 CKPTS_DIR = 'ckpts'
@@ -36,6 +34,7 @@ WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<\s>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
+INVALID_LOGPROB = 1.0
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
