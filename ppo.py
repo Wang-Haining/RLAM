@@ -802,7 +802,7 @@ if __name__ == "__main__":
                 torch.cuda.empty_cache()
 
                 query_response_cpu = query_response.to('cpu')
-                ref_output = forward(ref_policy, query_response_cpu, tokenizer)
+                ref_output = forward(ref_policy, query_response_cpu, tokenizer).to(accelerator.device)
                 ref_logits = ref_output.logits[:, context_length - 1: -1]
                 ref_logits /= args.temperature + 1e-7
                 ref_all_logprob = F.log_softmax(ref_logits, dim=-1)
