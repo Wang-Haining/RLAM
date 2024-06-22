@@ -684,6 +684,8 @@ if __name__ == "__main__":
     else:
         ref_policy = ref_policy.to(device)
     ref_policy.eval()
+    # debug print
+    accelerator.print(f'{ref_policy.device=}')
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
@@ -717,6 +719,10 @@ if __name__ == "__main__":
     entropy_stats = torch.zeros(stats_shape, device=device)
     ratio_stats = torch.zeros(stats_shape, device=device)
     model.train()
+    # debug print
+    accelerator.print(f'{model.device=}')
+    accelerator.print(f'{policy.device=}')
+    accelerator.print(f'{ref_policy.device=}')
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
         if global_step < args.warm_up_steps:
