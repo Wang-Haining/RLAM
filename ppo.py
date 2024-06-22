@@ -36,10 +36,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          # AutoModelForSequenceClassification,
-                          AutoTokenizer,
-                          GenerationConfig, PretrainedConfig, PreTrainedModel,
-                          PreTrainedTokenizerBase)
+                          AutoTokenizer, GenerationConfig, PretrainedConfig,
+                          PreTrainedModel, PreTrainedTokenizerBase)
 
 from utils import (SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_sent_len,
@@ -135,6 +133,9 @@ class PpoHParams:
     lam: float = 0.95
     whiten_rewards: bool = False
     kl_coef: float = 0.2
+    target_kl: Optional[float] = None
+    k_beta: Optional[float] = None
+    """log-space proportional controller gain, e.g., 0.1, see https://arxiv.org/abs/1909.08593"""
 
 
 @dataclass
@@ -994,9 +995,7 @@ if __name__ == "__main__":
             writer.add_scalar("objective/kl", accelerator.gather(mean_kl).mean().item(), update)
             writer.add_scalar("objective/entropy", accelerator.gather(mean_entropy).mean().item(), update)
             writer.add_scalar("objective/non_score_reward", accelerator.gather(mean_non_score_reward).mean().item(), update)
-            writer.add_scalar(
-                "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
-            )
+            writer.add_scalar("objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update)
             writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
             writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
             writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
@@ -1013,6 +1012,12 @@ if __name__ == "__main__":
             eps = int(global_step / (time.time() - start_time))
             writer.add_scalar("ppo/eps", eps, update)
             accelerator.print("ppo/eps", eps, update)
+            # use of dynamic controller
+            if args.ppo.target_kl and args.ppo.k_beta:
+                et = np.clip(mean_kl - args.ppo.target_kl - 1, -0.2, 0.2)
+                args.ppo.kl_coef *= 1 + args.ppo.kl_coef * et
+                args.ppo.kl_coef = max(args.ppo.kl_coef, 0.0)
+            writer.add_scalar("objective/kl_coef", args.ppo.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         torch.cuda.empty_cache()
 
