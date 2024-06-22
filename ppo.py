@@ -36,8 +36,10 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
-                          AutoTokenizer, GenerationConfig, PretrainedConfig,
-                          PreTrainedModel, PreTrainedTokenizerBase)
+                          # AutoModelForSequenceClassification,
+                          AutoTokenizer,
+                          GenerationConfig, PretrainedConfig, PreTrainedModel,
+                          PreTrainedTokenizerBase)
 
 from utils import (SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_sent_len,
@@ -133,9 +135,6 @@ class PpoHParams:
     lam: float = 0.95
     whiten_rewards: bool = False
     kl_coef: float = 0.2
-    target_kl: Optional[float] = None
-    k_beta: Optional[float] = None
-    """log-space proportional controller gain, e.g., 0.1, see https://arxiv.org/abs/1909.08593"""
 
 
 @dataclass
@@ -203,7 +202,7 @@ class Args:
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
-    truncate_token_id: Optional[int] = None  # 1 for gemma; 50279 for olmo; 50256 for gpt2
+    truncate_token_id: Optional[int] = None  # 1 for gemma, 50279 for olmo
     """the truncation token id"""
     temperature: float = 0.7
     """the sampling temperature"""
@@ -217,7 +216,7 @@ class Args:
     # reward related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.05
+    wa_coef: float = 2.0
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
@@ -233,8 +232,7 @@ class Args:
 
 def parse_args() -> tuple[Args, Accelerator]:
     args = tyro.cli(Args)
-    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps,
-                              mixed_precision='bf16')
+    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
     args.world_size = accelerator.num_processes
     args.local_batch_size = args.local_micro_batch_size * args.gradient_accumulation_steps * args.nminibatches
     args.micro_batch_size = int(args.local_micro_batch_size * args.world_size)
@@ -355,6 +353,25 @@ class PolicyAndValueWrapper(nn.Module):
         return self.policy(**kwargs), logits
 
 
+# def get_reward(model, query_responses, tokenizer, context_length):
+#     attention_mask = query_responses != tokenizer.pad_token_id
+#     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
+#     input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+#     reward_logits = model(
+#         input_ids=input_ids,
+#         attention_mask=attention_mask,
+#         # position_ids=position_ids,
+#         return_dict=True,
+#         output_hidden_states=True,
+#     )
+#     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
+#     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
+#     return (
+#         reward_logits,
+#         reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
+#         sequence_lengths,
+#     )
+
 def get_reward(model, query_responses, tokenizer, context_length):
     attention_mask = query_responses != tokenizer.pad_token_id
     # position_ids = attention_mask.cumsum(1) - attention_mask.long()  # exclusive cumsum
@@ -366,16 +383,25 @@ def get_reward(model, query_responses, tokenizer, context_length):
         return_dict=True,
         output_hidden_states=True,
     )
-    hidden_states = output.hidden_states[-1].to(dtype=torch.bfloat16)
-    reward_logits = model.scalar_head(hidden_states)
     sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
-    # reward_logits = model.scalar_head(output.hidden_states[-1])
+    reward_logits = model.scalar_head(output.hidden_states[-1])
     # https://github.com/huggingface/transformers/blob/dc68a39c8111217683bf49a4912d0c9018bab33d/src/transformers/models/gpt2/modeling_gpt2.py#L1454
     return (
         reward_logits,
         reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
         sequence_lengths,
     )
+
+# taken from https://github.com/OpenLMLab/MOSS-RLHF/blob/40b91eb2f2b71b16919addede0341d2bef70825d/ppo/ppo_trainer.py#L29
+# we did this we can do a single `model = accelerator.prepare(model)`
+# class PolicyAndValueWrapper(nn.Module):
+#     def __init__(self, policy, critic) -> None:
+#         super().__init__()
+#         self.policy = policy
+#         self.critic = critic
+#
+#     def forward(self, **kwargs):
+#         return self.policy(**kwargs), self.critic(**kwargs)
 
 
 def exact_div(a, b):
@@ -577,25 +603,22 @@ if __name__ == "__main__":
     local_seed = args.seed + accelerator.process_index * 100003  # a prime number
 
     # load dataset
+    # dataset = load_dataset(args.query_dataset, split="train")
     dataset = build_ppo_dataset(args.base_model)
-    dataset = dataset.with_format("torch", columns=["query_token",
-                                                    "reference_response_token",
-                                                    "query", 'response', 'source'])  # query_token: (bs, 512) left padded
+    dataset = dataset.with_format("torch", columns=["query_token", "reference_response_token", "query", 'response', 'source'])  # query_token: (bs, 512) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     # fixme
     for split in ["validation"]:  # fixme: no test for now
         eval_dataset = dataset[split]
-        eval_dataloaders[split] = DataLoader(eval_dataset,
-                                             batch_size=args.local_eval_batch_size)
+        eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.base_model,
         padding_side="right",
         trust_remote_code=True,
     )
-    if 'gpt2' in args.base_model.lower():
-        tokenizer.add_special_tokens({"pad_token": "<pad>"})
+
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
 
@@ -611,8 +634,12 @@ if __name__ == "__main__":
             name=args.run_name,
             save_code=True,
         )
-        file_extensions = [".toml", ".lock", ".py", ".sh", ".yaml"]
-        wandb.run.log_code(".", include_fn=lambda path: any([path.endswith(ext) for ext in file_extensions]))
+        def include_fn(path):
+            if ".venv" in path:
+                return False
+            file_extensions = [".py", ".sh", ".yaml", ".sbatch"]
+            return any(path.endswith(ext) for ext in file_extensions)
+        wandb.run.log_code(".", include_fn=include_fn)
         writer = SummaryWriter(f"logs/{args.run_name}")
         writer.add_text(
             "hyperparameters",
@@ -620,10 +647,6 @@ if __name__ == "__main__":
         )
         pprint(args)
     device = accelerator.device
-    accelerator.print('*'*99)
-    accelerator.print(f'{accelerator.device=}')
-    accelerator.print('*'*99)
-
     random.seed(local_seed)
     np.random.seed(local_seed)
     torch.manual_seed(local_seed)
@@ -637,20 +660,17 @@ if __name__ == "__main__":
     )
 
     value_model = ScalarModel(value_model_config)
+    # value_model = AutoModelForSequenceClassification.from_pretrained(args.sft_model_path,
+    #                                                                  torch_dtype=torch.bfloat16,
+    #                                                                  num_labels=1)
     ref_policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                       config=model_config,
                                                       torch_dtype=torch.bfloat16,
                                                       trust_remote_code=True)
-    ref_policy.to('cpu')
     policy = AutoModelForCausalLM.from_pretrained(args.sft_model_path,
                                                   config=model_config,
                                                   torch_dtype=torch.bfloat16,
                                                   trust_remote_code=True)
-    accelerator.print('*'*99)
-    accelerator.print(f'init: {policy.device=}, should be on gpu')
-    accelerator.print(f'init: {value_model.device=}, should be on gpu')
-    accelerator.print(f'init: {ref_policy.device=}, should be on cpu')
-    accelerator.print('*'*99)
     for module in [policy, ref_policy, value_model]:
         disable_dropout(module)
     # will output fixed-length sequences and tokens generated after an eos token will be ignored anyway
@@ -664,10 +684,6 @@ if __name__ == "__main__":
     # see https://gist.github.com/vwxyzjn/2581bff1e48e185e0b85b6dfe1def79c
     torch.manual_seed(args.seed)
     model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
-    # ref_policy = accelerator.prepare(ref_policy)
-    # accelerator.print('*'*99)
-    # accelerator.print(f'after accelerator.prepare: {ref_policy.device=}, should be on cpu')
-    # accelerator.print('*'*99)
     eval_dataloaders = {split: accelerator.prepare(eval_dataloader) for split, eval_dataloader in eval_dataloaders.items()}
     torch.manual_seed(local_seed)  # reset the local seed again
 
@@ -676,33 +692,31 @@ if __name__ == "__main__":
             yield from dataloader
 
     iter_dataloader = iter(repeat_generator())
-    # # fixme: rm
-    # if args.deepspeed:
-    #     import deepspeed
-    #
-    #     deepspeed_states = AcceleratorState().deepspeed_plugin
-    #     deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
-    #
-    #     eval_ds_config = {
-    #         "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
-    #         "bf16": {"enabled": True},
-    #         "prescale_gradients": False,
-    #         "wall_clock_breakdown": False,
-    #     }
-    #     if args.offload:
-    #         deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
-    #         eval_ds_config["zero_optimization"] = {
-    #             "stage": 3,
-    #             "stage3_param_persistence_threshold": 1e4,
-    #             "offload_param": {"device": "cpu"},
-    #         }
-    #     accelerator.print(f"{eval_ds_config=}")
-    #     ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
-    # else:
-    #     ref_policy = ref_policy.to(device)
+    # fixme: rm
+    if args.deepspeed:
+        import deepspeed
+
+        deepspeed_states = AcceleratorState().deepspeed_plugin
+        deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"] = args.local_micro_batch_size
+
+        eval_ds_config = {
+            "train_micro_batch_size_per_gpu": deepspeed_states.deepspeed_config["train_micro_batch_size_per_gpu"],
+            "bf16": {"enabled": True},
+            "prescale_gradients": False,
+            "wall_clock_breakdown": False,
+        }
+        if args.offload:
+            deepspeed_states.deepspeed_config["checkpoint"] = {"use_node_local_storage": True}
+            eval_ds_config["zero_optimization"] = {
+                "stage": 3,
+                "stage3_param_persistence_threshold": 1e4,
+                "offload_param": {"device": "cpu"},
+            }
+        accelerator.print(f"{eval_ds_config=}")
+        ref_policy, *_ = deepspeed.initialize(model=ref_policy, config=eval_ds_config)
+    else:
+        ref_policy = ref_policy.to(device)
     ref_policy.eval()
-    # debug print
-    accelerator.print(f'after offload: {ref_policy.device=}, should still be cpu')
 
     generation_config = GenerationConfig(
         max_new_tokens=args.response_length,
@@ -736,12 +750,6 @@ if __name__ == "__main__":
     entropy_stats = torch.zeros(stats_shape, device=device)
     ratio_stats = torch.zeros(stats_shape, device=device)
     model.train()
-    # debug print
-    accelerator.print('*'*99)
-    accelerator.print(f'before training: {model.device=}, should be on gpu')
-    accelerator.print(f'before training: {policy.device=}, should be on gpu')
-    accelerator.print(f'before training: {ref_policy.device=}, should be on cpu')
-    accelerator.print('*'*99)
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
         if global_step < args.warm_up_steps:
@@ -801,8 +809,7 @@ if __name__ == "__main__":
                 del logits, all_logprob
                 torch.cuda.empty_cache()
 
-                query_response_cpu = query_response.to('cpu')
-                ref_output = forward(ref_policy, query_response_cpu, tokenizer).to(accelerator.device)
+                ref_output = forward(ref_policy, query_response, tokenizer)
                 ref_logits = ref_output.logits[:, context_length - 1: -1]
                 ref_logits /= args.temperature + 1e-7
                 ref_all_logprob = F.log_softmax(ref_logits, dim=-1)
@@ -816,7 +823,7 @@ if __name__ == "__main__":
                 # run reward model on the truncated responses
                 sequence_length = first_true_indices(postprocessed_response == tokenizer.pad_token_id) - 1  # (batch_size,)
                 full_value, _, _ = get_reward(
-                    accelerator.unwrap_model(model).value_model, query_response.to(device), tokenizer, context_length
+                    accelerator.unwrap_model(model).value_model, query_response, tokenizer, context_length
                 )
                 # get value estimates for generated tokens, i.e., `value`
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
@@ -842,7 +849,7 @@ if __name__ == "__main__":
             values = torch.cat(values, 0)
             sequence_lengths = torch.cat(sequence_lengths, 0)
             scores = torch.cat(scores, 0)
-            del (logprob, ref_logprob, full_value, value, score, query_response_cpu)
+            del (logprob, ref_logprob, full_value, value, score)
             torch.cuda.empty_cache()
 
             # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
@@ -991,7 +998,9 @@ if __name__ == "__main__":
             writer.add_scalar("objective/kl", accelerator.gather(mean_kl).mean().item(), update)
             writer.add_scalar("objective/entropy", accelerator.gather(mean_entropy).mean().item(), update)
             writer.add_scalar("objective/non_score_reward", accelerator.gather(mean_non_score_reward).mean().item(), update)
-            writer.add_scalar("objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update)
+            writer.add_scalar(
+                "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
+            )
             writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
             writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
             writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
@@ -1008,12 +1017,6 @@ if __name__ == "__main__":
             eps = int(global_step / (time.time() - start_time))
             writer.add_scalar("ppo/eps", eps, update)
             accelerator.print("ppo/eps", eps, update)
-            # use of dynamic controller
-            if args.ppo.target_kl and args.ppo.k_beta:
-                et = np.clip(mean_kl - args.ppo.target_kl - 1, -0.2, 0.2)
-                args.ppo.kl_coef *= 1 + args.ppo.kl_coef * et
-                args.ppo.kl_coef = max(args.ppo.kl_coef, 0.0)
-            writer.add_scalar("objective/kl_coef", args.ppo.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         torch.cuda.empty_cache()
 

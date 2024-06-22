@@ -15,7 +15,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --config_file runs/deepspeed.yaml \
+accelerate launch --config_file runs/ds_config.yaml \
 ppo.py \
 --project_name RLUAM \
 --run_name ppo_olmo-1b \
