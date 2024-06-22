@@ -308,7 +308,7 @@ def compute_ari(text: str):
     """
     # check if the last sentence is complete
     if not text.endswith((".", "?", "!")):
-        # approximate the readability
+        # approximate the readability for incomplete sentence
         text += '.'
     mt = MosesTokenizer(lang='en')
     sentences = sent_tokenize(text)
@@ -322,7 +322,7 @@ def compute_ari(text: str):
 
     # avoid division by zero
     if sentences_count == 0 or words_count == 0:
-        raise RuntimeError(f'Zero sentences/words count found in {text}')
+        raise RuntimeError(f'Zero sentences/words count found in {text}.')
 
     # apply the ARI formula
     ari_score = (
