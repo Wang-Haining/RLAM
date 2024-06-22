@@ -32,13 +32,10 @@ FLANT5_XL = "google/flan-t5-xl"
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
 RESPONSE_TEMP = "\nSimplified version:"  # no space after colon because the template takes care of this
 CKPTS_DIR = 'ckpts'
-# TASK_PREFIX = "Rewrite this abstract in plain English for middle school students: ```"
-# RESPONSE_TEMP = "```\nLay summary:"
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<\s>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
-MAX_NEW_TOKENS = 256
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
@@ -377,63 +374,29 @@ def build_ppo_dataset(
         elif 'olmo' in model_name.lower():
             max_input_length = 531
             max_output_length = 223
+        elif 'gpt2' in model_name.lower():
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            max_input_length = 578
+            max_output_length = 244
         else:
             raise ValueError(f"Max lens should be computed beforehand for {model_name}.")
         query_token = tokenizer.encode(
             sample["query"],
             truncation=True,
-            max_length=max_input_length,  # max: 544 for gemma; 531 for olmo
+            max_length=max_input_length,
             padding='max_length'
         )
         reference_response_token = tokenizer.encode(
             sample["response"],
             truncation=True,
-            max_length=max_output_length,  # max: 241 for gemma; 223 for olmo
+            max_length=max_output_length,
             padding='max_length',
         )
         sample["query_token"] = torch.tensor(query_token)
         sample["reference_response_token"] = torch.tensor(reference_response_token)
         return sample
     ds = ds.map(tokenize, batched=False)
-    # ds.set_format(type="torch")
     return ds
-
-
-# def build_dataset(
-#     model_name: str,
-#     task_prefix: str = TASK_PREFIX,
-#     response_template: str = RESPONSE_TEMP,
-# ):
-#     """
-#     Build dataset for training. This function filters out too short samples and then
-#     extracts a specific number of samples for training.
-#
-#     Args:
-#         model_name: SFT'ed model name.
-#         task_prefix: The prefix to prepend to each abstract for task
-#         instruction.
-#         response_template: RESPONSE_TEMP
-#
-#     Returns:
-#         DataLoader: The DataLoader for the dataset.
-#     """
-#     tokenizer = AutoTokenizer.from_pretrained(model_name)
-#     ds = load_from_disk(DATASET_PATH)
-#     for split in ["train", "validation", "test"]:
-#         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
-#     def tokenize(sample):
-#         # prepend the task-specific prefix and trailing template
-#         sample["query"] = task_prefix + sample["source"] + response_template
-#         input_ids = tokenizer.encode(
-#             sample["query"],
-#             truncation=True,
-#             max_length=512,
-#         )
-#         sample["input_ids"] = torch.tensor(input_ids)
-#         return sample
-#     ds = ds.map(tokenize, batched=False)
-#     ds.set_format(type="torch")
-#     return ds
 
 
 def collator(data):
