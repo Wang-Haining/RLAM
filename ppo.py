@@ -1024,7 +1024,7 @@ if __name__ == "__main__":
             accelerator.print("ppo/eps", eps, update)
             # use of dynamic controller
             if args.ppo.target_kl and args.ppo.k_beta:
-                et = np.clip(mean_kl - args.ppo.target_kl - 1, -0.2, 0.2)
+                et = np.clip(mean_kl.cpu().numpy() - args.ppo.target_kl - 1, -0.2, 0.2)
                 args.ppo.kl_coef *= 1 + args.ppo.kl_coef * et
                 args.ppo.kl_coef = max(args.ppo.kl_coef, 0.0)
             writer.add_scalar("objective/kl_coef", args.ppo.kl_coef, update)
