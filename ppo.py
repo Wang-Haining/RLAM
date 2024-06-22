@@ -423,12 +423,9 @@ def truncate_response(args, tokenizer, responses):
 
 
 def forward(model, query_responses, tokenizer):
-    # ensure query_responses are on the same device as the model
-    device = next(model.parameters()).device
-    query_responses = query_responses.to(device)
-    attention_mask = (query_responses != tokenizer.pad_token_id).to(device)
+    attention_mask = query_responses != tokenizer.pad_token_id
     # position_ids = attention_mask.cumsum(1) - attention_mask.long()
-    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0).to(device)
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
     return model(
         input_ids=input_ids,
         attention_mask=attention_mask,
@@ -804,7 +801,8 @@ if __name__ == "__main__":
                 del logits, all_logprob
                 torch.cuda.empty_cache()
 
-                ref_output = forward(ref_policy, query_response, tokenizer)
+                query_response_cpu = query_response.to('cpu')
+                ref_output = forward(ref_policy, query_response_cpu, tokenizer)
                 ref_logits = ref_output.logits[:, context_length - 1: -1]
                 ref_logits /= args.temperature + 1e-7
                 ref_all_logprob = F.log_softmax(ref_logits, dim=-1)
@@ -844,7 +842,7 @@ if __name__ == "__main__":
             values = torch.cat(values, 0)
             sequence_lengths = torch.cat(sequence_lengths, 0)
             scores = torch.cat(scores, 0)
-            del (logprob, ref_logprob, full_value, value, score)
+            del (logprob, ref_logprob, full_value, value, score, query_response_cpu)
             torch.cuda.empty_cache()
 
             # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
