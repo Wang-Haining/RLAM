@@ -13,6 +13,8 @@
 
 JOB_NAME="ppo_uam_gpt2-xl"
 OUTPUT_DIR="ckpts/${JOB_NAME}"
+mkdir -p logs
+mkdir -p ckpts
 
 module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
