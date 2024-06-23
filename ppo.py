@@ -230,7 +230,7 @@ def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
     """
     ari_scores = [compute_ari(response) for response in responses]
     ari_scores_tensor = torch.stack(
-        [torch.tensor(score, dtype=torch.float32) for score in ari_scores])
+        [-1.0 * torch.tensor(score, dtype=torch.float32) for score in ari_scores])
 
     return {"ari_score": ari_scores_tensor}
 
