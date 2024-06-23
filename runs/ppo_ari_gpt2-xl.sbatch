@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_uam_gpt2-xl_dynamic_kl_control
+#SBATCH --job-name=ppo_ari_gpt2-xl
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_gpt2-xl_dynamic_kl_control"
+JOB_NAME="ppo_ari_gpt2-xl"
 OUTPUT_DIR="ckpts/${JOB_NAME}"
 
 module load Python/3.10.8-GCCcore-12.2.0
@@ -46,7 +46,6 @@ ppo.py \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 1 \
---rluam.target_kl 4.0 \
---rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05
+--rluam.wa_coef 2.05 \
+--rluam.reward 'ari'

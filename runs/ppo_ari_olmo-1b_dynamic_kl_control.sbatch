@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_uam_gpt2-xl_dynamic_kl_control
+#SBATCH --job-name=ppo_ari_olmo-1b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_gpt2-xl_dynamic_kl_control"
+JOB_NAME="ppo_ari_olmo-1b_dynamic_kl_control"
 OUTPUT_DIR="ckpts/${JOB_NAME}"
 
 module load Python/3.10.8-GCCcore-12.2.0
@@ -28,14 +28,14 @@ ppo.py \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
---base_model 'openai-community/gpt2-xl' \
---response_length 244 \
+--base_model 'allenai/OLMo-1B-hf' \
+--response_length 223 \
 --truncate_token eos \
---truncate_token_id 50256 \
+--truncate_token_id 50279 \
 --temperature 0.7 \
 --penalty_reward_value -5 \
 --non_eos_penalty \
---sft_model_path "ckpts/sft_gpt2-xl/checkpoint-1880" \
+--sft_model_path "ckpts/sft_OLMo-1B-hf/checkpoint-1100" \
 --logging_steps 2 \
 --save_steps 10 \
 --eval_steps 10 \
@@ -49,4 +49,6 @@ ppo.py \
 --rluam.target_kl 4.0 \
 --rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05
+--rluam.wa_coef 2.05 \
+--rluam.reward 'ari'
+

@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=name=ppo_uam_gemma-2b
+#SBATCH --job-name=ppo_uam_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
