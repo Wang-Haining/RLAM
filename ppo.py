@@ -851,7 +851,7 @@ if __name__ == "__main__":
                     uam_score = compute_uam_score_wrapper(generated_texts)
                     score = args.rluam.sl_coef * uam_score['sl_score'] + args.rluam.wa_coef * uam_score['wa_score']
                 else:
-                    score = compute_ari_score(generated_texts)
+                    score = compute_ari_score(generated_texts)["ari_score"]
                 score = score.to(device=accelerator.device)
 
                 query_responses.append(query_response)
