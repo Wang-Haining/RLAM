@@ -12,7 +12,6 @@
 #SBATCH --mail-type=ALL
 
 JOB_NAME="ppo_uam_gemma-2b_dynamic_kl_control"
-OUTPUT_DIR="ckpts/${JOB_NAME}"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -43,7 +42,6 @@ ppo.py \
 --eval_steps 10 \
 --num_eval_samples 64 \
 --save_total_limit 30 \
---output_dir $OUTPUT_DIR \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 2 \
