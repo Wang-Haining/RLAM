@@ -25,7 +25,6 @@ DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 42
 GPT2_XL = 'openai-community/gpt2-xl'
 GEMMA_2B = "google/gemma-2b"
-GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
 RESPONSE_TEMP = "\nSimplified version:"  # no space after colon because the template takes care of this
