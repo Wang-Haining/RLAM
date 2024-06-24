@@ -93,8 +93,8 @@ class Args:
     # common args
     project_name: str = PROJECT_NAME
     """The name of this experiment"""
-    run_name: Optional[str] = None
-    """A unique name of this run; will be used with a seed number and timestamp as a 
+    job_name: Optional[str] = None
+    """The job name of this run; will be used with a seed number and timestamp as a 
     folder under `output_dir` saving checkpoints"""
     seed: int = SEED
     """Seed of the experiment"""
@@ -197,7 +197,7 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.num_updates = args.total_episodes // args.batch_size
     time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
     time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
-    args.run_name = f"{args.run_name}__{args.seed}__{time_int}"
+    args.run_name = f"{args.job_name}__{args.seed}__{time_int}"
     return args, accelerator
 
 
