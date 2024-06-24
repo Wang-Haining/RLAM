@@ -82,7 +82,7 @@ class RluamHParams:
     """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`
     see https://arxiv.org/abs/1909.08593"""
     k_beta: Optional[float] = None
-    """log-space proportional controller gain, e.g., 0.1, set with `target_kl`
+    """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`
     see https://arxiv.org/abs/1909.08593"""
     whiten_rewards: bool = False
     """Normalize rewards before advantages estimation"""
@@ -92,11 +92,12 @@ class RluamHParams:
 class Args:
     # common args
     project_name: str = PROJECT_NAME
-    """the name of this experiment"""
+    """The name of this experiment"""
     run_name: Optional[str] = None
-    """a unique name of this run"""
+    """A unique name of this run; will be used with a seed number and timestamp as a 
+    folder under `output_dir` saving checkpoints"""
     seed: int = SEED
-    """seed of the experiment"""
+    """Seed of the experiment"""
     deepspeed: bool = False
     """Whether to use deepspeed to train the model"""
     offload: bool = False
@@ -108,9 +109,9 @@ class Args:
 
     # optimizer (adamw) args
     eps: float = 1e-5
-    """the epsilon value for adamw"""
+    """The epsilon value for adamw"""
     lr: float = 3e-6
-    """the learning rate for adamw"""
+    """The learning rate for adamw"""
     scheduler: str = "cosine"
     """Which scheduler to use"""
     warm_up_steps: int = 20
@@ -140,29 +141,29 @@ class Args:
     local_mini_batch_size: Optional[int] = None
     """the mini batch size per GPU"""
     mini_batch_size: Optional[int] = None
-    """the mini batch size across GPUs"""
+    """The mini batch size across GPUs"""
     local_eval_batch_size: int = 1
-    """per rank eval batch size"""
+    """Per rank eval batch size"""
     local_rollout_forward_batch_size: int = 1
-    """per rank no grad forward pass in the rollout phase"""
+    """Per rank no grad forward pass in the rollout phase"""
 
     # other args
     base_model: str = 'allenai/OLMo-1B-hf'
-    """the name of the pretrained model to use"""
+    """The name of the pretrained model to use"""
     response_length: int = 256
-    """the length of the response"""
+    """The length of the response"""
     truncate_token: Literal["eos"] = "eos"
-    """the truncate token"""
+    """The truncate token"""
     truncate_token_id: Optional[int] = None
-    """the truncation token id: 1 for gemma, 50279 for olmo, and 50256 for gpt2"""
+    """The truncation token id: 1 for gemma, 50279 for olmo, and 50256 for gpt2"""
     temperature: float = 0.7
-    """the sampling temperature"""
+    """The sampling temperature"""
     penalty_reward_value: int = -5  # todo: tune
-    """the reward value for responses that do not contain `truncate_token_id`"""
+    """The reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = True
-    """whether to penalize responses that do not contain `truncate_token_id`"""
+    """Whether to penalize responses that do not contain `truncate_token_id`"""
     sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
-    """the path to the sft model"""
+    """The path to the sft model"""
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
     logging_steps: int = 2
@@ -170,7 +171,8 @@ class Args:
     eval_steps: int = 10
     num_eval_samples: int = 64
     save_total_limit: Optional[int] = 3
-    output_dir: str = 'ckpts/test_run'
+    output_dir: str = 'ckpts'
+    """The parent folder of saved checkpoints"""
     early_stop: bool = True
     """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
     rluam: RluamHParams = field(default_factory=RluamHParams)
@@ -578,9 +580,10 @@ def evaluate_model(
     return eval_storage, eval_df
 
 
-def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_limit):
-    save_path = os.path.join(output_dir, f"model_step_{step}_ari_{ari}")
-    metadata_path = os.path.join(output_dir, "metadata.npz")
+def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, save_total_limit):
+    output_path = os.path.join(output_dir, run_name)
+    save_path = os.path.join(output_path, f"step_{step}_ari_{ari}")
+    metadata_path = os.path.join(output_path, "metadata.npz")
 
     # load existing metadata if available
     if os.path.exists(metadata_path):
@@ -593,7 +596,7 @@ def save_model(accelerator, tokenizer, model, output_dir, ari, step, save_total_
     if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
         # prepare model for saving
         if accelerator.is_main_process:
-            tokenizer.save_pretrained(output_dir)
+            tokenizer.save_pretrained(output_path)
             unwrapped = accelerator.unwrap_model(model).policy
             unwrapped.save_pretrained(save_path, save_function=accelerator.save)
         # update saved models list
@@ -1115,7 +1118,7 @@ if __name__ == "__main__":
                             if args.early_stop and early_stopping.should_stop(avg_ari):
                                 avg_ari = round(np.mean(eval_storage["ari"]), 2)
                                 save_model(accelerator, tokenizer, model,
-                                           args.output_dir, avg_ari, update,
+                                           args.output_dir, args.run_name, avg_ari, update,
                                            args.save_total_limit)
                                 print(f"Early stopping at step {update} with ARI {avg_ari}")
                                 exit()
@@ -1123,5 +1126,5 @@ if __name__ == "__main__":
         # save model
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
             avg_ari = round(np.mean(eval_storage["ari"]), 2)
-            save_model(accelerator, tokenizer, model, args.output_dir,
+            save_model(accelerator, tokenizer, model, args.output_dir, args.run_name,
                                 avg_ari, update, args.save_total_limit)

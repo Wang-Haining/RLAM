@@ -22,7 +22,7 @@ from transformers import AutoTokenizer
 
 PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures_(RLUAM)"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
-SEED = 42
+SEED = 0
 GPT2_XL = 'openai-community/gpt2-xl'
 GEMMA_2B = "google/gemma-2b"
 OLMO_1B = "allenai/OLMo-1B-hf"
