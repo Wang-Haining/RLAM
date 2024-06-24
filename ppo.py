@@ -1,10 +1,10 @@
 """
 This script implements a Proximal Policy Optimization (PPO) training loop for rewriting
-scholarly abstract into more accessbile version.
+scholarly abstract into more accessible version.
 
 References:
-- PPO Algorithm: https://arxiv.org/abs/1707.06347
-- Summarize from Feedback: https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
+- https://arxiv.org/abs/1707.06347
+- https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
 
 """
 
