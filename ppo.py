@@ -153,8 +153,8 @@ class Args:
     """the length of the response"""
     truncate_token: Literal["eos"] = "eos"
     """the truncate token"""
-    truncate_token_id: Optional[int] = None  # 1 for gemma; 50279 for olmo; 50256 for gpt2
-    """the truncation token id"""
+    truncate_token_id: Optional[int] = None
+    """the truncation token id: 1 for gemma, 50279 for olmo, and 50256 for gpt2"""
     temperature: float = 0.7
     """the sampling temperature"""
     penalty_reward_value: int = -5  # todo: tune
@@ -200,6 +200,14 @@ def parse_args() -> tuple[Args, Accelerator]:
 
 
 class EarlyStopping:
+    """
+    Implements early stopping to terminate training when performance metrics stop
+    improving.
+
+    Args:
+        patience: Number of epochs to wait for improvement before stopping.
+        min_ari: Minimum acceptable ARI score for early stopping.
+    """
     def __init__(self, patience: int = 10, min_ari: float = 8.0):
         self.patience = patience
         self.min_ari = min_ari
@@ -1105,6 +1113,7 @@ if __name__ == "__main__":
                             }, step=update)
                             # early stopping check
                             if args.early_stop and early_stopping.should_stop(avg_ari):
+                                avg_ari = round(np.mean(eval_storage["ari"]), 2)
                                 save_model(accelerator, tokenizer, model,
                                            args.output_dir, avg_ari, update,
                                            args.save_total_limit)
