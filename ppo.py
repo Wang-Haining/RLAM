@@ -202,7 +202,7 @@ def parse_args() -> tuple[Args, Accelerator]:
 class EarlyStopping:
     """
     Implements early stopping to terminate training when performance metrics stop
-    improving.
+    improving after several updates or lower than a thread.
 
     Args:
         patience: Number of epochs to wait for improvement before stopping.
@@ -211,13 +211,13 @@ class EarlyStopping:
     def __init__(self, patience: int = 10, min_ari: float = 8.0):
         self.patience = patience
         self.min_ari = min_ari
-        self.best_ari = float('-inf')
+        self.best_ari = float('inf')
         self.counter = 0
 
     def should_stop(self, current_ari: float) -> bool:
-        if current_ari < self.min_ari:
+        if current_ari <= self.min_ari:
             return True
-        if current_ari > self.best_ari:
+        if current_ari <= self.best_ari:
             self.best_ari = current_ari
             self.counter = 0
         else:
