@@ -25,7 +25,7 @@ ppo.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 5e-6 \
+--lr 1e-5 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
