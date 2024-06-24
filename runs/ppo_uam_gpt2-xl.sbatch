@@ -21,7 +21,7 @@ module load CUDA/12.2.0
 
 accelerate launch --config_file runs/ds_config.yaml \
 ppo.py \
---run_name $JOB_NAME \
+--job_name $JOB_NAME \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
