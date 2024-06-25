@@ -1062,8 +1062,11 @@ if __name__ == "__main__":
             accelerator.print("ppo/eps", eps, update)
             # use of dynamic controller
             if args.rluam.target_kl and args.rluam.k_beta:
-                et = torch.tensor(np.clip(mean_kl.cpu().numpy() - args.rluam.target_kl - 1, -0.2, 0.2), dtype=torch.float32)
-                args.rluam.kl_coef = args.rluam.kl_coef * (1 + args.rluam.kl_coef * et.item())
+                et = torch.tensor(
+                    np.clip(mean_kl.item() - args.rluam.target_kl - 1, -0.2, 0.2),
+                    dtype=torch.float32)
+                args.rluam.kl_coef = args.rluam.kl_coef * (
+                            1 + args.rluam.kl_coef * et.item())
                 args.rluam.kl_coef = max(args.rluam.kl_coef, 0.0)
             writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
