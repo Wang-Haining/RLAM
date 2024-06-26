@@ -20,7 +20,7 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoToken
 from trl import SFTTrainer, set_seed
 from peft import LoraConfig, get_peft_model
 
-from utils import (DATASET_PATH, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B, GPT2_XL,
+from utils import (DATASET_PATH, GEMMA_2B, OLMO_1B, LLAMA3_8B, GPT2_XL,
                    PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, CKPTS_DIR)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
