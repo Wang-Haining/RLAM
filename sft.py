@@ -57,6 +57,7 @@ if __name__ == "__main__":
                         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl"],
                         help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, or gpt2-xl")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--is_peft_model",
                         type=lambda x: (str(x).lower() == 'true'), default=False,
                         help="Whether to use LoRA for finetuning")
@@ -104,8 +105,8 @@ if __name__ == "__main__":
         do_eval=True,
         do_predict=True,
         evaluation_strategy="steps",
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_train_batch_size,  # same to training
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
         lr_scheduler_type='constant_with_warmup',
