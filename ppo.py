@@ -653,7 +653,7 @@ if __name__ == "__main__":
         padding_side="right",
         trust_remote_code=True,
     )
-    if 'gpt2' in args.base_model.lower():
+    if 'gpt2' in args.base_model.lower() or 'llama' in args.base_model.lower():
         tokenizer.add_special_tokens({"pad_token": "<pad>"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
