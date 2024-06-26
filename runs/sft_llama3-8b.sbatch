@@ -1,11 +1,11 @@
 #!/bin/sh
 #SBATCH --job-name=sft_gemma_2b
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=gpuunsafe
+#SBATCH --partition=nextgen-gpu-long
 #SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-6:00:00
+#SBATCH --time=0-12:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
