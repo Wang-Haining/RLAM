@@ -155,7 +155,7 @@ class Args:
     truncate_token: Literal["eos"] = "eos"
     """The truncate token"""
     truncate_token_id: Optional[int] = None
-    """The truncation token id: 1 for gemma, 50279 for olmo, and 50256 for gpt2"""
+    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2, and 128001 for llama3"""
     temperature: float = 0.7
     """The sampling temperature"""
     penalty_reward_value: int = -5  # todo: tune
