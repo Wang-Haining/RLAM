@@ -364,7 +364,7 @@ def build_ppo_dataset(
         ds[split] = ds[split].rename_column("target", "response")
         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
     def tokenize(sample):
-        # prepend the task-specific prefix and trailing template
+        # prepend the task-specific prefix and append trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
         if 'gemma' in model_name.lower():
             max_input_length = 544

@@ -641,7 +641,7 @@ if __name__ == "__main__":
     dataset = build_ppo_dataset(args.base_model)
     dataset = dataset.with_format("torch", columns=["query_token",
                                                     "reference_response_token",
-                                                    "query", 'response', 'source'])  # query_token: (bs, 512) left padded
+                                                    "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
     for split in ["validation"]:  # todo: no test for now
@@ -1063,10 +1063,10 @@ if __name__ == "__main__":
             # use of dynamic controller
             if args.rluam.target_kl and args.rluam.k_beta:
                 et = torch.tensor(
-                    np.clip(mean_kl.item() - args.rluam.target_kl - 1, -0.2, 0.2),
+                    np.clip(mean_kl.item() / args.rluam.target_kl - 1, -0.2, 0.2),
                     dtype=torch.float32)
                 args.rluam.kl_coef = args.rluam.kl_coef * (
-                            1 + args.rluam.kl_coef * et.item())
+                            1 + args.rluam.k_beta * et.item())
                 args.rluam.kl_coef = max(args.rluam.kl_coef, 0.0)
             writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
