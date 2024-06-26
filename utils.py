@@ -24,6 +24,7 @@ PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures_(R
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 0
 GPT2_XL = 'openai-community/gpt2-xl'
+LLAMA3_8B = 'meta-llama/Meta-Llama-3-8B'
 GEMMA_2B = "google/gemma-2b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
@@ -32,7 +33,7 @@ CKPTS_DIR = 'ckpts'
 WORD_FREQ_CSV = "word_freq/wiki_token_freq.csv"
 WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
-SEP_TOKENS = ['<eos>', '<|endoftext|>', '<\s>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
+SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
 
 
