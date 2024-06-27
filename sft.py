@@ -21,7 +21,7 @@ from trl import SFTTrainer, set_seed
 from peft import LoraConfig, get_peft_model
 
 from utils import (DATASET_PATH, OLMO_1B, GEMMA_2B, GEMMA_7B, LLAMA3_8B, GPT2_XL,
-                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, CKPTS_DIR)
+                   PHI2_3B, PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, CKPTS_DIR)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -52,10 +52,10 @@ if __name__ == "__main__":
 
     set_seed(SEED + 2122)
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with "
-                                                 "Gemma-2B/7B, OLMo-1B, or Llama3-8B.")
+                                                 "Gemma-2B/7B, OLMo-1B, Llama3-8B or Phi-2.")
     parser.add_argument("--model", type=str,
-                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl"],
-                        help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, or gpt2-xl")
+                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", 'phi2-3b'],
+                        help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi2-3b")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--is_peft_model",
@@ -73,6 +73,8 @@ if __name__ == "__main__":
         model_name = LLAMA3_8B
     elif args.model == "gpt2-xl":
         model_name = GPT2_XL
+    elif args.model == PHI2_3B:
+        args.model = "phi2-3b"
     else:
         raise ValueError(f"Invalid model name: {args.model}")
 
