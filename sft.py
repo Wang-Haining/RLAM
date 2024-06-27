@@ -74,7 +74,7 @@ if __name__ == "__main__":
     elif args.model == "gpt2-xl":
         model_name = GPT2_XL
     elif args.model == "phi2-3b":
-        args.model = PHI2_3B
+        model_name = PHI2_3B
     else:
         raise ValueError(f"Invalid model name: {args.model}")
 
