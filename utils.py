@@ -383,6 +383,10 @@ def build_ppo_dataset(
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             max_input_length = 546
             max_output_length = 240
+        elif 'phi' in model_name.lower():
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            max_input_length = 578
+            max_output_length = 244
         else:
             raise ValueError(f"Max lens should be computed beforehand for {model_name}.")
         query_token = tokenizer.encode(

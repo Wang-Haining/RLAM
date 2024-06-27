@@ -73,8 +73,8 @@ if __name__ == "__main__":
         model_name = LLAMA3_8B
     elif args.model == "gpt2-xl":
         model_name = GPT2_XL
-    elif args.model == PHI2_3B:
-        args.model = "phi2-3b"
+    elif args.model == "phi2-3b":
+        args.model = PHI2_3B
     else:
         raise ValueError(f"Invalid model name: {args.model}")
 
