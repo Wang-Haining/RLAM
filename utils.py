@@ -375,7 +375,7 @@ def build_ppo_dataset(
         elif 'olmo' in model_name.lower():
             max_input_length = 531
             max_output_length = 223
-        elif 'gpt2' in model_name.lower():
+        elif 'gpt2' in model_name.lower() or 'phi' in model_name.lower():
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             max_input_length = 578
             max_output_length = 244
@@ -383,10 +383,6 @@ def build_ppo_dataset(
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             max_input_length = 546
             max_output_length = 240
-        elif 'phi' in model_name.lower():
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
-            max_input_length = 578
-            max_output_length = 244
         else:
             raise ValueError(f"Max lens should be computed beforehand for {model_name}.")
         query_token = tokenizer.encode(

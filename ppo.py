@@ -155,7 +155,7 @@ class Args:
     truncate_token: Literal["eos"] = "eos"
     """The truncate token"""
     truncate_token_id: Optional[int] = None
-    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2, and 128001 for llama3"""
+    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2/phi2, and 128001 for llama3"""
     temperature: float = 0.7
     """The sampling temperature"""
     penalty_reward_value: int = -5  # todo: tune
@@ -653,7 +653,8 @@ if __name__ == "__main__":
         padding_side="right",
         trust_remote_code=True,
     )
-    if 'gpt2' in args.base_model.lower() or 'llama' in args.base_model.lower():
+    tokenizer_wt_pad_model_names = ('gpt2', 'llama', 'phi')
+    if any(model in args.base_model.lower() for model in tokenizer_wt_pad_model_names):
         tokenizer.add_special_tokens({"pad_token": "<pad>"})
     if args.truncate_token == "eos":
         args.truncate_token_id = tokenizer.eos_token_id
@@ -663,13 +664,11 @@ if __name__ == "__main__":
     writer.add_scalar = lambda x, y, z: None
     writer.add_histogram = lambda x, y, z: None
     if accelerator.is_main_process:
-        wandb.init(
-            project=args.project_name,
-            sync_tensorboard=True,
-            config=asdict(args),
-            name=args.run_name,
-            save_code=True,
-        )
+        wandb.init(project=args.project_name,
+                   sync_tensorboard=True,
+                   config=asdict(args),
+                   name=args.run_name,
+                   save_code=True)
         def include_fn(path):
             if ".venv" in path:
                 return False
