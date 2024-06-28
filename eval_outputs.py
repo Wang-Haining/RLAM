@@ -121,7 +121,7 @@ if __name__ == "__main__":
     print('*' * 90)
     parser = argparse.ArgumentParser(
         description="Evaluate SFT and policy model outputs given model type and validation ARI.")
-    parser.add_argument("--model", type=str, help="The model type (across runs) to evaluate")
+    parser.add_argument("--model", type=str, choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", 'phi2-3b'], help="The model type (across runs) to evaluate")
     parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--lower_ari_bound", type=float, default=10.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         if run.startswith(f"ppo_{args.reward}_{args.model}"):
             if run not in evaluated_runs:
                 relevant_runs.append(run)
-                print(f'{len(relevant_runs)} runs will be evaluated: {evaluated_runs}')
+    print(f'{len(relevant_runs)} PPO runs will be evaluated: {relevant_runs}')
 
     for run in relevant_runs:
         ckpt_dir = os.path.join("ckpts", run)
