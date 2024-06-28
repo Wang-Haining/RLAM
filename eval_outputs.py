@@ -119,6 +119,12 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
 
 if __name__ == "__main__":
     print('*' * 90)
+    parser = argparse.ArgumentParser(
+        description="Evaluate SFT and policy model outputs given model type and validation ARI.")
+    parser.add_argument("--model_type", type=str, help="The model type (across runs) to evaluate")
+    parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
+    parser.add_argument("--lower_ari_bound", type=float, default=10.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
+    parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
     args = parse_arguments()
     set_seed(SEED)
     SAVE_DIR = "eval_results"
