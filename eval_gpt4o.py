@@ -98,7 +98,7 @@ if __name__ == "__main__":
     MODEL = 'gpt-4o-2024-05-13'
     # system prompt adopted from
     # https://platform.openai.com/docs/guides/text-generation/json-mode
-    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON.'
+    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON with a single key "abstract".'
 
     ds = load_from_disk(DATASET_PATH)
     generated_texts = []
@@ -119,26 +119,26 @@ if __name__ == "__main__":
         generated_text = json.loads(response.choices[0].message.content)['abstract']
         generated_texts.append(generated_text)
 
-        # evaluate the generated texts using the function `calculate_metrics`
-        results = []
-        for generated_text, target_text, source_text in zip(generated_texts,
-                                                            ds['test']['target'][:5],
-                                                            ds['test']['source'][:5]):
-            metrics = calculate_metrics(generated_text, target_text, source_text)
-            results.append(metrics | {'generated_text': generated_text})
+    # evaluate the generated texts using the function `calculate_metrics`
+    results = []
+    for generated_text, target_text, source_text in zip(generated_texts,
+                                                        ds['test']['target'][:5],
+                                                        ds['test']['source'][:5]):
+        metrics = calculate_metrics(generated_text, target_text, source_text)
+        results.append(metrics | {'generated_text': generated_text})
 
-        # save the generated texts and metrics to a CSV file
-        file_path = os.path.join(SAVE_DIR, f'{MODEL}.csv')
-        with open(file_path, mode="w", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=results[0].keys())
-            writer.writeheader()
-            writer.writerows(results)
+    # save the generated texts and metrics to a CSV file
+    file_path = os.path.join(SAVE_DIR, f'{MODEL}.csv')
+    with open(file_path, mode="w", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=results[0].keys())
+        writer.writeheader()
+        writer.writerows(results)
 
-        # print out the metrics
-        avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in results]) for metric in results[0].keys() if metric not in ["generated_text"]}
-        std_scores = {f"std_{metric}": np.std([x[metric] for x in results]) for metric in results[0].keys() if metric not in ["generated_text"]}
+    # print out the metrics
+    avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in results]) for metric in results[0].keys() if metric not in ["generated_text"]}
+    std_scores = {f"std_{metric}": np.std([x[metric] for x in results]) for metric in results[0].keys() if metric not in ["generated_text"]}
 
-        print(f'Metrics for {MODEL}:')
-        print("Average scores:", avg_scores)
-        print("Standard deviation of scores:", std_scores)
-        print('*' * 90)
+    print(f'Metrics for {MODEL}:')
+    print("Average scores:", avg_scores)
+    print("Standard deviation of scores:", std_scores)
+    print('*' * 90)
