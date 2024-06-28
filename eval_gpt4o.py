@@ -116,7 +116,7 @@ if __name__ == "__main__":
             seed=SEED,
             n=1
         )
-        generated_text = json.loads(response.choices[0].message.content).values().pop()
+        generated_text = json.loads(response.choices[0].message.content).values()[0]
         generated_texts.append(generated_text)
 
     # evaluate the generated texts using the function `calculate_metrics`
