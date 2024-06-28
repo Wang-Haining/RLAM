@@ -129,7 +129,7 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(
             description="Evaluate SFT and policy model outputs given model type and "
                         "validation ARI.")
-        parser.add_argument("--model_type", type=str,
+        parser.add_argument("--model", type=str,
                             help="The model type (across runs) to evaluate")
         parser.add_argument("--upper_ari_bound", type=float, default=15.0,
                             help="The upper bound of evaluation ARI for a checkpoint to"
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     # generation config
     test_generation_config = GenerationConfig(
-        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model_type],
+        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
         temperature=(0.01 + 1e-7),
         top_k=0.0,
         top_p=1.0,
