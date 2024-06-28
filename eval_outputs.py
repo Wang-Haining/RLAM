@@ -67,7 +67,8 @@ def calculate_metrics(generated_text: str,
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
     bertscore_result = metric_bertscore.compute(predictions=generated_texts,
                                                 references=target_texts,
-                                                lang="en", device="cpu")
+                                                lang="en", device="cpu",
+                                                model_type='bert-large-uncased')
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
     # complexity measure
     word_accessibility_list = []
