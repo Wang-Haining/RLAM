@@ -117,6 +117,7 @@ if __name__ == "__main__":
             n=1
         )
         response_content = json.loads(response.choices[0].message.content)
+        print(f'{response_content=}')
         generated_text = list(response_content.values())[0]
         generated_texts.append(generated_text)
 
