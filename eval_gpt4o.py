@@ -112,7 +112,7 @@ if __name__ == "__main__":
                 {"role": "user", "content": query},
             ],
             temperature=0.01 + 1e-7,  # fair comparison
-            max_tokens=256,
+            max_tokens=512,
             seed=SEED,
             n=1
         )
