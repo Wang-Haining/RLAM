@@ -177,6 +177,7 @@ if __name__ == "__main__":
                 f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
         sft_checkpoint = sft_checkpoints[0]
         sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
+        print(f'Starting evaluation for {sft_ckpt_path}')
         model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path,
                                                      torch_dtype=torch.bfloat16)
         model.to(device)
