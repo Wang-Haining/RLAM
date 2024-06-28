@@ -184,7 +184,7 @@ if __name__ == "__main__":
             overview = [json.loads(line) for line in f]
     else:
         overview = []
-
+    evaluated_runs = {entry["ckpt_path"] for entry in overview}
     # check and evaluate SFT models
     # SFT runs have slightly different naming conventions
     sft_base_model = args.model.split("/")[-1]
