@@ -16,16 +16,16 @@ import evaluate
 import numpy as np
 import torch
 from nltk.tokenize import sent_tokenize
-# from sacrebleu.metrics import BLEU
+from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
+from transformers import (AutoModelForCausalLM, GenerationConfig,
                           AutoTokenizer)
 from trl import set_seed
 
-from utils import (FLANT5_XL, GEMMA_2B, GEMMA_7B, OLMO_1B, LLAMA3_8B, SEED, TASK_PREFIX,
-                   VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_dataset, compute_ari, compute_flesch_kincaid,
+from utils import (OLMO_1B, GEMMA_2B, GEMMA_7B, PHI2_3B, LLAMA3_8B, GPT2_XL,
+                   SEED, TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_ppo_dataset, compute_ari, compute_flesch_kincaid,
                    compute_sent_len, compute_token_accessibility,
                    read_token_frequencies, MAX_NEW_TOKENS)
 
@@ -48,14 +48,15 @@ mt = MosesTokenizer(lang='en')
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
 
 # generation config
-generation_kwargs = {
-    "top_k": 0.0,
-    "top_p": 1.0,
-    "max_new_tokens": MAX_NEW_TOKENS,
-    "do_sample": True,
-    "return_dict_in_generate": True,
-    "num_return_sequences": 1,
-}
+test_generation_config = GenerationConfig(
+    max_new_tokens=args.response_length,  # fixme : change this
+    temperature=(0.01 + 1e-7),
+    top_k=0.0,
+    top_p=1.0,
+    do_sample=True,
+    return_dict_in_generate=True,
+    num_return_sequences=1
+)
 
 
 def calculate_metrics(generated_text: str,
@@ -67,14 +68,14 @@ def calculate_metrics(generated_text: str,
     target_texts = [[target_text.strip()]]
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
     metrics_dict.update({"fk": compute_flesch_kincaid(generated_texts[0])})
-    # metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
-    #                                                       target_texts).score})
+    metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
+                                                          target_texts).score})
     metrics_dict.update(metric_sari.compute(sources=source_texts,
                                             predictions=generated_texts,
                                             references=target_texts))
-    # _rouge = metric_rouge.compute(predictions=generated_texts,
-    #                               references=target_texts)
-    # metrics_dict.update({"rougeL": _rouge["rougeL"]})
+    _rouge = metric_rouge.compute(predictions=generated_texts,
+                                  references=target_texts)
+    metrics_dict.update({"rougeL": _rouge["rougeL"]})
     bertscore_result = metric_bertscore.compute(predictions=generated_texts,
                                                 references=target_texts,
                                                 lang="en", device="cpu")
@@ -107,8 +108,7 @@ def calculate_metrics(generated_text: str,
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer,
-                   generation_kwargs, lm_type='clm') -> List[Dict]:
+def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
     results = []
     model.eval()
     with (torch.no_grad()):
@@ -116,78 +116,149 @@ def evaluate_model(model, dataset, tokenizer,
             input_ids = sample['input_ids'].unsqueeze(0).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 **generation_kwargs)
-            if lm_type == 'clm':
-                gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
-            else:
-                gen_tokens = response_token_ids[0].squeeze()
-            gen_text = tokenizer.decode(gen_tokens,
+            gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
+
+            generated_text = tokenizer.decode(gen_tokens,
                                         skip_special_tokens=True,
                                         clean_up_tokenization_spaces=True).strip()
-            result = calculate_metrics(gen_text,
-                                       sample['target'],
-                                       sample['source'])
-            results.append(result | {'gen_text': gen_text})
+            result = calculate_metrics(generated_text,
+                                       sample['response'],
+                                       sample['source'])  # the original abstract
+            results.append(result | {'generated_text': generated_text})
     return results
 
 
 if __name__ == "__main__":
     set_seed(SEED)
-    save_dir = "eval_results"
-    os.makedirs(save_dir, exist_ok=True)
+    SAVE_DIR = "eval_results"
+    os.makedirs(SAVE_DIR, exist_ok=True)
 
-    parser = argparse.ArgumentParser(description="Evaluating sft and policy model outputs.")
-    parser.add_argument("--ckpt_path", type=str, help="path to sft or policy model checkpoint")
-    args = parser.parse_args()
+    import argparse
 
-    if 'flan' in args.ckpt_path.lower():
-        AutoModelForGeneration = AutoModelForSeq2SeqLM
-        model_name = FLANT5_XL
-        lm_type = 'seq2seq'
+
+    def parse_arguments():
+        parser = argparse.ArgumentParser(
+            description="Evaluate SFT and policy model outputs given model type and "
+                        "validation ARI.")
+        parser.add_argument("--model_type", type=str,
+                            help="The model type (across runs) to evaluate")
+        parser.add_argument("--upper_ari_bound", type=float, default=15.0,
+                            help="The upper bound of evaluation ARI for a checkpoint to"
+                                 " be considered in the evaluation")
+        parser.add_argument("--lower_ari_bound", type=float, default=10.0,
+                            help="The lower bound of evaluation ARI for a checkpoint to"
+                                 " be considered in the evaluation")
+        parser.add_argument("--reward", type=str, default='uam',
+                            choices=['uam', 'ari'],
+                            help="Reward type")
+        return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    print(f'Starting evaluation: only newly added runs whose checkpoints met '
+          f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
+          f'will be evaluated')
+    if "gemma-2b" in args.model.lower():
+        base_model = GEMMA_2B
+    elif "gemma-7b" in args.model.lower():
+        base_model = GEMMA_7B
+    elif "olmo-1b" in args.model.lower():
+        base_model = OLMO_1B
+    # elif 'llama' in args.model.lower():
+    #     base_model = LLAMA3_8B
+    elif 'gpt2-xl' in args.model.lower():
+        base_model = GPT2_XL
+    elif 'phi2-3b' in args.model.lower():
+        base_model = PHI2_3B
     else:
-        AutoModelForGeneration = AutoModelForCausalLM
-        lm_type = 'clm'
-        if "gemma" in args.ckpt_path.lower():
-            if "2b" in args.ckpt_path.lower():
-                model_name = GEMMA_2B
-            elif "7b" in args.ckpt_path.lower():
-                model_name = GEMMA_7B
-        elif "olmo" in args.ckpt_path.lower():
-            model_name = OLMO_1B
-        elif 'llama' in args.ckpt_path.lower():
-            model_name = LLAMA3_8B
-        else:
-            raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
-    dataset = build_dataset(model_name, TASK_PREFIX)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForGeneration.from_pretrained(args.ckpt_path,
-                                                   torch_dtype=torch.bfloat16)
-    model.to(device)
+        raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
 
-    # evaluate with generation config
-    eval_results = evaluate_model(model, dataset["test"],
-                                   tokenizer, generation_kwargs, lm_type)
-    file_path = os.path.join(save_dir,
-                                   args.ckpt_path.split("/")[-2] + ".csv")
+    dataset = build_ppo_dataset(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
 
-    with open(file_path, mode="w", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
-        writer.writeheader()
-        writer.writerows(eval_results)
+    # first to find out if the run is already included in the overview.jsonl
+    overview_path = os.path.join(SAVE_DIR, "overview.jsonl")
+    if os.path.exists(overview_path):
+        with open(overview_path, mode='r', encoding='utf-8') as f:
+            overview = [json.loads(line) for line in f]
+    else:
+        overview = []
 
-    # print out results
-    avg_scores = {
-        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
-        for metric in eval_results[0].keys()
-        if metric not in ["gen_text"]
-    }
-    print("Average scores:", avg_scores)
-    std_scores = {
-        f"std_{metric}": np.std([x[metric] for x in eval_results])
-        for metric in eval_results[0].keys()
-        if metric not in ["gen_text"]
-    }
-    # save the overview in jsonl format
-    overview_path = os.path.join(save_dir, "overview.jsonl")
-    with open(overview_path, mode='a', encoding='utf-8') as f:
-        json.dump({"ckpt_path": args.ckpt_path} | avg_scores | std_scores, f)
-        f.write('\n')
+    # check and evaluate SFT models
+    # SFT runs have slightly different naming conventions
+    sft_base_model = model_name.split("/")[-1]
+    sft_model_dir = os.path.join("ckpts", f"sft_{sft_base_model}")
+    if os.path.exists(sft_model_dir) and sft_model_dir not in evaluated_runs:
+        sft_checkpoints = os.listdir(sft_model_dir)
+        if len(sft_checkpoints) != 1:
+            raise ValueError(f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
+        sft_checkpoint = sft_checkpoints[0]
+        sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
+        model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path, torch_dtype=torch.bfloat16)
+        model.to(device)
+
+        # evaluate with test generation config
+        eval_results = evaluate_model(model, dataset["test"], tokenizer, test_generation_config)
+
+        # modify this to make sure run_name and checkpoint names are both stored separately
+        file_path = os.path.join(SAVE_DIR, f"sft_{sft_base_model}_{sft_checkpoint}.csv")
+        with open(file_path, mode="w", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+            writer.writeheader()
+            writer.writerows(eval_results)
+
+        avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
+        std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
+        # save the overview in jsonl format
+        with open(overview_path, mode='a', encoding='utf-8') as f:
+            json.dump({"ckpt_path": sft_ckpt_path} | avg_scores | std_scores, f)
+            f.write('\n')
+        # print out results
+        print('*'*90)
+        print(f'SFT performance for {sft_base_model}:')
+        print("Average scores for {}: {}".format(sft_ckpt_path, avg_scores))
+        print("Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores))
+        print('*' * 90)
+
+    # get the relevant ppo runs using heuristics
+    relevant_runs = []
+    for run in os.listdir("ckpts"):
+        if run.startswith(f"ppo_{args.reward}_{base_model}"):
+            if run not in evaluated_runs:
+                relevant_runs.append(run)
+
+    for run in relevant_runs:
+        ckpt_dir = os.path.join("ckpts", run)
+        for ckpt in os.listdir(ckpt_dir):
+            if ckpt.startswith("step_") and ckpt.endswith("ari_{}.pt".format(args.upper_ari_bound)):
+                ari = float(ckpt.split("_ari_")[1])
+                if args.lower_ari_bound <= ari <= args.upper_ari_bound:
+                    ckpt_path = os.path.join(ckpt_dir, ckpt)
+                    model = AutoModelForCausalLM.from_pretrained(ckpt_path, torch_dtype=torch.bfloat16)
+                    model.to(device)
+
+                    # evaluate with test generation config
+                    eval_results = evaluate_model(model, dataset["test"], tokenizer, test_generation_config)
+
+                    # Modify this to make sure run_name and checkpoint names are both stored separately
+                    file_path = os.path.join(SAVE_DIR, f"{run}_{ckpt}.csv")
+                    with open(file_path, mode="w", encoding="utf-8") as file:
+                        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+                        writer.writeheader()
+                        writer.writerows(eval_results)
+
+                    avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
+                    std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
+
+                    # save the overview in jsonl format
+                    with open(overview_path, mode='a', encoding='utf-8') as f:
+                        json.dump({"ckpt_path": ckpt_path} | avg_scores | std_scores, f)
+                        f.write('\n')
+                    # print out results
+                    print('*' * 90)
+                    print(f'RLUAM performance for {run} {ckpt}:')
+                    print("Average scores for {}: {}".format(ckpt_path, avg_scores))
+                    print("Standard deviation of scores for {}: {}".format(ckpt_path, std_scores))
+                    print('*' * 90)
+
