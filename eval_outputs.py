@@ -107,7 +107,6 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
             response_token_ids = model.generate(input_ids=input_ids,
                                                 generation_config=generation_config)
             gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
-
             generated_text = tokenizer.decode(gen_tokens,
                                               skip_special_tokens=True,
                                               clean_up_tokenization_spaces=True).strip()
@@ -118,35 +117,12 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
     return results
 
 
-
 if __name__ == "__main__":
+    print('*' * 90)
+    args = parse_arguments()
     set_seed(SEED)
     SAVE_DIR = "eval_results"
-    os.makedirs(SAVE_DIR, exist_ok=True)
 
-    import argparse
-
-
-    def parse_arguments():
-        parser = argparse.ArgumentParser(
-            description="Evaluate SFT and policy model outputs given model type and "
-                        "validation ARI.")
-        parser.add_argument("--model", type=str,
-                            help="The model type (across runs) to evaluate")
-        parser.add_argument("--upper_ari_bound", type=float, default=15.0,
-                            help="The upper bound of evaluation ARI for a checkpoint to"
-                                 " be considered in the evaluation")
-        parser.add_argument("--lower_ari_bound", type=float, default=10.0,
-                            help="The lower bound of evaluation ARI for a checkpoint to"
-                                 " be considered in the evaluation")
-        parser.add_argument("--reward", type=str, default='uam',
-                            choices=['uam', 'ari'],
-                            help="Reward type")
-        return parser.parse_args()
-
-if __name__ == "__main__":
-    args = parse_arguments()
-    print('*' * 90)
     print(f'Starting evaluation: only newly added runs whose checkpoints met '
           f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
           f'will be evaluated')
@@ -210,7 +186,7 @@ if __name__ == "__main__":
                                       test_generation_config)
 
         # save evaluation results to CSV
-        file_path = os.path.join(SAVE_DIR, f"sft_{sft_base_model}_{sft_checkpoint}.csv")
+        file_path = os.path.join(SAVE_DIR, f"sft_{sft_base_model}___{sft_checkpoint}.csv")
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
             writer.writeheader()
@@ -240,9 +216,10 @@ if __name__ == "__main__":
     # get the relevant PPO runs using heuristics
     relevant_runs = []
     for run in os.listdir("ckpts"):
-        if run.startswith(f"ppo_{args.reward}_{base_model}"):
+        if run.startswith(f"ppo_{args.reward}_{args.model}"):
             if run not in evaluated_runs:
                 relevant_runs.append(run)
+                print(f'{len(relevant_runs)} runs will be evaluated: {evaluated_runs}')
 
     for run in relevant_runs:
         ckpt_dir = os.path.join("ckpts", run)
@@ -252,6 +229,7 @@ if __name__ == "__main__":
                 ari = float(ckpt.split("_ari_")[1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
                     ckpt_path = os.path.join(ckpt_dir, ckpt)
+                    print(f'Starting evaluation for {ckpt_path}')
                     model = AutoModelForCausalLM.from_pretrained(ckpt_path,
                                                                  torch_dtype=torch.bfloat16)
                     model.to(device)
@@ -261,7 +239,7 @@ if __name__ == "__main__":
                                                   test_generation_config)
 
                     # save evaluation results to CSV
-                    file_path = os.path.join(SAVE_DIR, f"{run}_{ckpt}.csv")
+                    file_path = os.path.join(SAVE_DIR, f"{run}___{ckpt}.csv")
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
                         writer.writeheader()
