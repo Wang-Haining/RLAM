@@ -98,7 +98,7 @@ if __name__ == "__main__":
     MODEL = 'gpt-4o-2024-05-13'
     # system prompt adopted from
     # https://platform.openai.com/docs/guides/text-generation/json-mode
-    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON.'
+    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON with a single key.'
 
     ds = load_from_disk(DATASET_PATH)
     generated_texts = []
