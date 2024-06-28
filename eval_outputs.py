@@ -102,7 +102,7 @@ def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
     model.eval()
     with (torch.no_grad()):
         for i, sample in tqdm(enumerate(dataset)):
-            input_ids = sample['input_ids'].unsqueeze(0).to(device)
+            input_ids = sample['query_token'].unsqueeze(0).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 **generation_kwargs)
             gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
