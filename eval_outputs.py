@@ -125,7 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--lower_ari_bound", type=float, default=10.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
-    args = parse_arguments()
+    args = parser.parse_args()
     set_seed(SEED)
     SAVE_DIR = "eval_results"
 
