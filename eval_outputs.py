@@ -144,12 +144,13 @@ if __name__ == "__main__":
                             help="Reward type")
         return parser.parse_args()
 
-
 if __name__ == "__main__":
     args = parse_arguments()
     print(f'Starting evaluation: only newly added runs whose checkpoints met '
           f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
           f'will be evaluated')
+
+    # identify the base model based on the provided model type argument
     if "gemma-2b" in args.model.lower():
         base_model = GEMMA_2B
     elif "gemma-7b" in args.model.lower():
@@ -165,7 +166,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
 
-    # generation config
+    # define the generation configuration
     test_generation_config = GenerationConfig(
         max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
         temperature=(0.01 + 1e-7),
@@ -179,7 +180,7 @@ if __name__ == "__main__":
     dataset = build_ppo_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
-    # first to find out if the run is already included in the overview.jsonl
+    # load the overview file if it exists
     overview_path = os.path.join(SAVE_DIR, "overview.jsonl")
     if os.path.exists(overview_path):
         with open(overview_path, mode='r', encoding='utf-8') as f:
@@ -187,6 +188,7 @@ if __name__ == "__main__":
     else:
         overview = []
     evaluated_runs = {entry["ckpt_path"] for entry in overview}
+
     # check and evaluate SFT models
     # SFT runs have slightly different naming conventions
     sft_base_model = args.model.split("/")[-1]
@@ -194,36 +196,47 @@ if __name__ == "__main__":
     if os.path.exists(sft_model_dir) and sft_model_dir not in evaluated_runs:
         sft_checkpoints = os.listdir(sft_model_dir)
         if len(sft_checkpoints) != 1:
-            raise ValueError(f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
+            raise ValueError(
+                f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
         sft_checkpoint = sft_checkpoints[0]
         sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
-        model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path, torch_dtype=torch.bfloat16)
+        model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path,
+                                                     torch_dtype=torch.bfloat16)
         model.to(device)
 
         # evaluate with test generation config
-        eval_results = evaluate_model(model, dataset["test"], tokenizer, test_generation_config)
+        eval_results = evaluate_model(model, dataset["test"], tokenizer,
+                                      test_generation_config)
 
-        # modify this to make sure run_name and checkpoint names are both stored separately
+        # save evaluation results to CSV
         file_path = os.path.join(SAVE_DIR, f"sft_{sft_base_model}_{sft_checkpoint}.csv")
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
             writer.writeheader()
             writer.writerows(eval_results)
 
-        avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
-        std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
-        # save the overview in jsonl format
+        # calculate average and standard deviation of scores
+        avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for
+                      metric in eval_results[0].keys() if
+                      metric not in ["generated_text"]}
+        std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for
+                      metric in eval_results[0].keys() if
+                      metric not in ["generated_text"]}
+
+        # save the overview in JSONL format
         with open(overview_path, mode='a', encoding='utf-8') as f:
             json.dump({"ckpt_path": sft_ckpt_path} | avg_scores | std_scores, f)
             f.write('\n')
+
         # print out results
-        print('*'*90)
+        print('*' * 90)
         print(f'SFT performance for {sft_base_model}:')
         print("Average scores for {}: {}".format(sft_ckpt_path, avg_scores))
-        print("Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores))
+        print(
+            "Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores))
         print('*' * 90)
 
-    # get the relevant ppo runs using heuristics
+    # get the relevant PPO runs using heuristics
     relevant_runs = []
     for run in os.listdir("ckpts"):
         if run.startswith(f"ppo_{args.reward}_{base_model}"):
@@ -233,34 +246,46 @@ if __name__ == "__main__":
     for run in relevant_runs:
         ckpt_dir = os.path.join("ckpts", run)
         for ckpt in os.listdir(ckpt_dir):
-            if ckpt.startswith("step_") and ckpt.endswith("ari_{}.pt".format(args.upper_ari_bound)):
+            if ckpt.startswith("step_") and ckpt.endswith(
+                    "ari_{}.pt".format(args.upper_ari_bound)):
                 ari = float(ckpt.split("_ari_")[1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
                     ckpt_path = os.path.join(ckpt_dir, ckpt)
-                    model = AutoModelForCausalLM.from_pretrained(ckpt_path, torch_dtype=torch.bfloat16)
+                    model = AutoModelForCausalLM.from_pretrained(ckpt_path,
+                                                                 torch_dtype=torch.bfloat16)
                     model.to(device)
 
                     # evaluate with test generation config
-                    eval_results = evaluate_model(model, dataset["test"], tokenizer, test_generation_config)
+                    eval_results = evaluate_model(model, dataset["test"], tokenizer,
+                                                  test_generation_config)
 
-                    # Modify this to make sure run_name and checkpoint names are both stored separately
+                    # save evaluation results to CSV
                     file_path = os.path.join(SAVE_DIR, f"{run}_{ckpt}.csv")
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
                         writer.writeheader()
                         writer.writerows(eval_results)
 
-                    avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
-                    std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for metric in eval_results[0].keys() if metric not in ["generated_text"]}
+                    # calculate average and standard deviation of scores
+                    avg_scores = {
+                        f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for
+                        metric in eval_results[0].keys() if
+                        metric not in ["generated_text"]}
+                    std_scores = {
+                        f"std_{metric}": np.std([x[metric] for x in eval_results]) for
+                        metric in eval_results[0].keys() if
+                        metric not in ["generated_text"]}
 
-                    # save the overview in jsonl format
+                    # save the overview in JSONL format
                     with open(overview_path, mode='a', encoding='utf-8') as f:
                         json.dump({"ckpt_path": ckpt_path} | avg_scores | std_scores, f)
                         f.write('\n')
+
                     # print out results
                     print('*' * 90)
                     print(f'RLUAM performance for {run} {ckpt}:')
                     print("Average scores for {}: {}".format(ckpt_path, avg_scores))
-                    print("Standard deviation of scores for {}: {}".format(ckpt_path, std_scores))
+                    print("Standard deviation of scores for {}: {}".format(ckpt_path,
+                                                                           std_scores))
                     print('*' * 90)
 
