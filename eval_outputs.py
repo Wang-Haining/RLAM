@@ -176,13 +176,13 @@ if __name__ == "__main__":
     # SFT runs have slightly different naming conventions
     sft_base_model = base_model.split("/")[-1]
     sft_model_dir = os.path.join("ckpts", f"sft_{sft_base_model}")
-    if os.path.exists(sft_model_dir) and sft_model_dir not in evaluated_runs:
-        sft_checkpoints = os.listdir(sft_model_dir)
-        if len(sft_checkpoints) != 1:
-            raise ValueError(
-                f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
-        sft_checkpoint = sft_checkpoints[0]
-        sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
+    sft_checkpoints = os.listdir(sft_model_dir)
+    if len(sft_checkpoints) != 1:
+        raise ValueError(
+            f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
+    sft_checkpoint = sft_checkpoints[0]
+    sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
+    if os.path.exists(sft_model_dir) and sft_ckpt_path not in evaluated_runs:
         print(f'Starting evaluation for {sft_ckpt_path}')
         model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path,
                                                      torch_dtype=torch.bfloat16)
