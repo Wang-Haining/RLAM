@@ -174,11 +174,10 @@ if __name__ == "__main__":
 
     # check and evaluate SFT models
     # SFT runs have slightly different naming conventions
-    sft_base_model = args.model.split("/")[-1]
+    sft_base_model = base_model.split("/")[-1]
     sft_model_dir = os.path.join("ckpts", f"sft_{sft_base_model}")
     if os.path.exists(sft_model_dir) and sft_model_dir not in evaluated_runs:
         sft_checkpoints = os.listdir(sft_model_dir)
-        print(f'DEBUG: STF DIR {sft_checkpoints}')
         if len(sft_checkpoints) != 1:
             raise ValueError(
                 f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
