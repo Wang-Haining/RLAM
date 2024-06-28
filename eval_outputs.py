@@ -97,14 +97,14 @@ def calculate_metrics(generated_text: str,
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer, generation_kwargs) -> List[Dict]:
+def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
     results = []
     model.eval()
     with torch.no_grad():
         for i, sample in tqdm(enumerate(dataset)):
             input_ids = torch.tensor(sample['query_token']).unsqueeze(0).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
-                                                **generation_kwargs)
+                                                generation_config=generation_config)
             gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
 
             generated_text = tokenizer.decode(gen_tokens,
