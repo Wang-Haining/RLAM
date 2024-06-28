@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     ds = load_from_disk(DATASET_PATH)
     generated_texts = []
-    for abstract in ds['test']['source'][:5]:
+    for abstract in ds['test']['source']:
         query = TASK_PREFIX + abstract + RESPONSE_TEMP
         response = client.chat.completions.create(
             model=MODEL,
@@ -124,8 +124,8 @@ if __name__ == "__main__":
     # evaluate the generated texts using the function `calculate_metrics`
     results = []
     for generated_text, target_text, source_text in zip(generated_texts,
-                                                        ds['test']['target'][:5],
-                                                        ds['test']['source'][:5]):
+                                                        ds['test']['target'],
+                                                        ds['test']['source']):
         metrics = calculate_metrics(generated_text, target_text, source_text)
         results.append(metrics | {'generated_text': generated_text})
 
