@@ -27,7 +27,7 @@ from utils import (OLMO_1B, GEMMA_2B, GEMMA_7B, PHI2_3B, LLAMA3_8B, GPT2_XL,
                    SEED, TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_ppo_dataset, compute_ari, compute_flesch_kincaid,
                    compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies, MAX_NEW_TOKENS)
+                   read_token_frequencies, MAX_NEW_TOKENS, MAX_OUTPUT_LENGTHS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,17 +46,6 @@ mt = MosesTokenizer(lang='en')
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
-
-# generation config
-test_generation_config = GenerationConfig(
-    max_new_tokens=args.response_length,  # fixme : change this
-    temperature=(0.01 + 1e-7),
-    top_k=0.0,
-    top_p=1.0,
-    do_sample=True,
-    return_dict_in_generate=True,
-    num_return_sequences=1
-)
 
 
 def calculate_metrics(generated_text: str,
@@ -165,14 +154,25 @@ if __name__ == "__main__":
         base_model = GEMMA_7B
     elif "olmo-1b" in args.model.lower():
         base_model = OLMO_1B
-    # elif 'llama' in args.model.lower():
-    #     base_model = LLAMA3_8B
+    elif 'llama' in args.model.lower():
+        base_model = LLAMA3_8B
     elif 'gpt2-xl' in args.model.lower():
         base_model = GPT2_XL
     elif 'phi2-3b' in args.model.lower():
         base_model = PHI2_3B
     else:
         raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
+
+    # generation config
+    test_generation_config = GenerationConfig(
+        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model_type],
+        temperature=(0.01 + 1e-7),
+        top_k=0.0,
+        top_p=1.0,
+        do_sample=True,
+        return_dict_in_generate=True,
+        num_return_sequences=1
+    )
 
     dataset = build_ppo_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
