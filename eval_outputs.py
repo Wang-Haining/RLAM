@@ -31,9 +31,9 @@ from utils import (OLMO_1B, GEMMA_2B, GEMMA_7B, PHI2_3B, LLAMA3_8B, GPT2_XL,
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# metric_bleu = BLEU()
+metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
-# metric_rouge = evaluate.load("rouge")
+metric_rouge = evaluate.load("rouge")
 metric_bertscore = evaluate.load("bertscore")
 # get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
