@@ -146,6 +146,7 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     args = parse_arguments()
+    print('*' * 90)
     print(f'Starting evaluation: only newly added runs whose checkpoints met '
           f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
           f'will be evaluated')
@@ -288,4 +289,4 @@ if __name__ == "__main__":
                     print("Standard deviation of scores for {}: {}".format(ckpt_path,
                                                                            std_scores))
                     print('*' * 90)
-
+    print('*' * 90)
