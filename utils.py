@@ -37,6 +37,8 @@ WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
+MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'gpt2-xl': 578, 'phi2-3b': 578, 'llama3-8b': 546}
+MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'gpt2-xl': 244, 'phi2-3b': 244, 'llama3-8b': 240}
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
