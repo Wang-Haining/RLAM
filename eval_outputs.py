@@ -231,8 +231,7 @@ if __name__ == "__main__":
     for run in relevant_runs:
         ckpt_dir = os.path.join("ckpts", run)
         for ckpt in os.listdir(ckpt_dir):
-            if ckpt.startswith("model_step_") and ckpt.endswith(
-                    "ari_{}.pt".format(args.upper_ari_bound)):
+            if ckpt.startswith("model_step_"):
                 ari = float(ckpt.split("_ari_")[1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
                     ckpt_path = os.path.join(ckpt_dir, ckpt)
