@@ -36,7 +36,7 @@ ppo.py \
 --temperature 0.7 \
 --penalty_reward_value -5 \
 --non_eos_penalty \
---sft_model_path "ckpts/sft_phi-2//checkpoint-1140" \
+--sft_model_path "ckpts/sft_phi-2/checkpoint-1140" \
 --logging_steps 2 \
 --save_steps 10 \
 --eval_steps 10 \
