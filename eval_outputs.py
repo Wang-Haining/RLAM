@@ -170,19 +170,19 @@ if __name__ == "__main__":
             overview = [json.loads(line) for line in f]
     else:
         overview = []
-    evaluated_runs = {entry["ckpt_path"] for entry in overview}
+    evaluated_runs = {entry["run_path"] for entry in overview}
 
     # check and evaluate SFT models
     # SFT runs have slightly different naming conventions
     sft_base_model = base_model.split("/")[-1]
-    sft_model_dir = os.path.join("ckpts", f"sft_{sft_base_model}")
-    sft_checkpoints = os.listdir(sft_model_dir)
+    sft_run_dir = os.path.join("ckpts", f"sft_{sft_base_model}")
+    sft_checkpoints = os.listdir(sft_run_dir)
     if len(sft_checkpoints) != 1:
         raise ValueError(
-            f"Expected exactly one checkpoint in {sft_model_dir}, but found {len(sft_checkpoints)}.")
+            f"Expected exactly one checkpoint in {sft_run_dir}, but found {len(sft_checkpoints)}.")
     sft_checkpoint = sft_checkpoints[0]
-    sft_ckpt_path = os.path.join(sft_model_dir, sft_checkpoint)
-    if os.path.exists(sft_model_dir) and sft_ckpt_path not in evaluated_runs:
+    sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
+    if sft_run_dir not in evaluated_runs:
         print(f'Starting evaluation for {sft_ckpt_path}')
         model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path,
                                                      torch_dtype=torch.bfloat16)
@@ -193,7 +193,7 @@ if __name__ == "__main__":
                                       test_generation_config)
 
         # save evaluation results to CSV
-        file_path = os.path.join(SAVE_DIR, f"sft_{sft_base_model}___{sft_checkpoint}.csv")
+        file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path}.csv")
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
             writer.writeheader()
@@ -209,12 +209,12 @@ if __name__ == "__main__":
 
         # save the overview in JSONL format
         with open(overview_path, mode='a', encoding='utf-8') as f:
-            json.dump({"ckpt_path": sft_ckpt_path} | avg_scores | std_scores, f)
+            json.dump({"run_path": sft_run_dir} | {"ckpt_path": sft_ckpt_path} | avg_scores | std_scores, f)
             f.write('\n')
 
         # print out results
         print('*' * 90)
-        print(f'SFT performance for {sft_base_model}:')
+        print(f'SFT performance for {sft_ckpt_path}:')
         print("Average scores for {}: {}".format(sft_ckpt_path, avg_scores))
         print(
             "Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores))
@@ -229,12 +229,13 @@ if __name__ == "__main__":
     print(f'{len(relevant_runs)} PPO runs will be evaluated: {relevant_runs}')
 
     for run in relevant_runs:
-        ckpt_dir = os.path.join("ckpts", run)
-        for ckpt in os.listdir(ckpt_dir):
+        run_dir = os.path.join("ckpts", run)
+        print(f'Starting evaluation for {run_dir}')
+        for ckpt in os.listdir(run_dir):
             if ckpt.startswith("model_step_"):
                 ari = float(ckpt.split("_ari_")[1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
-                    ckpt_path = os.path.join(ckpt_dir, ckpt)
+                    ckpt_path = os.path.join(run_dir, ckpt)
                     print(f'Starting evaluation for {ckpt_path}')
                     model = AutoModelForCausalLM.from_pretrained(ckpt_path,
                                                                  torch_dtype=torch.bfloat16)
@@ -243,9 +244,8 @@ if __name__ == "__main__":
                     # evaluate with test generation config
                     eval_results = evaluate_model(model, dataset["test"], tokenizer,
                                                   test_generation_config)
-
                     # save evaluation results to CSV
-                    file_path = os.path.join(SAVE_DIR, f"{run}___{ckpt}.csv")
+                    file_path = os.path.join(SAVE_DIR, f"{ckpt_path}.csv")
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
                         writer.writeheader()
@@ -263,12 +263,12 @@ if __name__ == "__main__":
 
                     # save the overview in JSONL format
                     with open(overview_path, mode='a', encoding='utf-8') as f:
-                        json.dump({"ckpt_path": ckpt_path} | avg_scores | std_scores, f)
+                        json.dump({"run_path": run_dir} | {"ckpt_path": ckpt_path} | avg_scores | std_scores, f)
                         f.write('\n')
 
                     # print out results
                     print('*' * 90)
-                    print(f'RLUAM performance for {run} {ckpt}:')
+                    print(f'RLUAM performance for {ckpt_path}:')
                     print("Average scores for {}: {}".format(ckpt_path, avg_scores))
                     print("Standard deviation of scores for {}: {}".format(ckpt_path,
                                                                            std_scores))
