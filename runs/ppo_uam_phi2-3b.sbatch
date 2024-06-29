@@ -25,7 +25,7 @@ ppo.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 5e-7 \
+--lr 1e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
@@ -47,4 +47,5 @@ ppo.py \
 --local_micro_batch_size 2 \
 --local_eval_batch_size 1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05
+--rluam.wa_coef 2.05 \
+--early_stop_patience 50
