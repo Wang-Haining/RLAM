@@ -193,7 +193,7 @@ if __name__ == "__main__":
                                       test_generation_config)
 
         # save evaluation results to CSV
-        file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path}.csv")
+        file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path.replace('/', '|')}.csv")
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
             writer.writeheader()
@@ -245,7 +245,7 @@ if __name__ == "__main__":
                     eval_results = evaluate_model(model, dataset["test"], tokenizer,
                                                   test_generation_config)
                     # save evaluation results to CSV
-                    file_path = os.path.join(SAVE_DIR, f"{ckpt_path}.csv")
+                    file_path = os.path.join(SAVE_DIR, f"{ckpt_path.replace('/', '|')}.csv")
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
                         writer.writeheader()
