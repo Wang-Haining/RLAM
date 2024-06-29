@@ -46,6 +46,7 @@ mt = MosesTokenizer(lang='en')
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
+INFERENCE_BATCH_SIZE = 2
 
 
 def calculate_metrics(generated_text: str,
@@ -101,19 +102,22 @@ def calculate_metrics(generated_text: str,
 def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
     results = []
     model.eval()
+    batch_size = INFERENCE_BATCH_SIZE
     with torch.no_grad():
-        for i, sample in tqdm(enumerate(dataset)):
-            input_ids = torch.tensor(sample['query_token']).unsqueeze(0).to(device)
+        for i in tqdm(range(0, len(dataset), batch_size)):
+            batch_samples = dataset[i:i+batch_size]
+            input_ids = torch.tensor([sample['query_token'] for sample in batch_samples]).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 generation_config=generation_config)
-            gen_tokens = response_token_ids[0].squeeze()[input_ids.size(1):]
-            generated_text = tokenizer.decode(gen_tokens,
-                                              skip_special_tokens=True,
-                                              clean_up_tokenization_spaces=True).strip()
-            result = calculate_metrics(generated_text,
-                                       sample['response'],
-                                       sample['source'])  # the original abstract
-            results.append(result | {'generated_text': generated_text})
+            for j, sample in enumerate(batch_samples):
+                gen_tokens = response_token_ids[j].squeeze()[input_ids.size(1):]
+                generated_text = tokenizer.decode(gen_tokens,
+                                                  skip_special_tokens=True,
+                                                  clean_up_tokenization_spaces=True).strip()
+                result = calculate_metrics(generated_text,
+                                           sample['response'],
+                                           sample['source'])  # the original abstract
+                results.append(result | {'generated_text': generated_text})
     return results
 
 
