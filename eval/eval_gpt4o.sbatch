@@ -13,4 +13,4 @@
 module load Python/3.10.8-GCCcore-12.2.0
 
 . .venv/bin/activate
-python -m eval_gpt4o
+python -m eval_openai_models
