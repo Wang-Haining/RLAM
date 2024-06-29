@@ -175,6 +175,8 @@ class Args:
     """The parent folder of saved checkpoints"""
     early_stop: bool = True
     """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
+    early_stop_min_ari: float = 8.0
+    early_stop_patience: int = 10
     rluam: RluamHParams = field(default_factory=RluamHParams)
     """Default values will be used to create a RluamHParams"""
 
@@ -766,7 +768,7 @@ if __name__ == "__main__":
         top_p=1.0,
         do_sample=True,
     )
-    early_stopping = EarlyStopping(patience=10, min_ari=8.0)
+    early_stopping = EarlyStopping(patience=args.early_stop_patience, min_ari=args.early_stop_min_ari)
 
     accelerator.print("===training policy===")
     global_step = 0
