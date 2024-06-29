@@ -109,7 +109,7 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 generation_config=generation_config)
-            print(f'{reponse_token_ids.shape=}')
+            print(f'{response_token_ids.shape=}')
             for j, sample in enumerate(batch_samples):
                 gen_tokens = response_token_ids[j].squeeze()[input_ids.size(1):]
                 print(f'{gen_tokens=}')
