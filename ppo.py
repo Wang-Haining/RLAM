@@ -63,7 +63,7 @@ class RluamHParams:
     cliprange: float = 0.2
     """PPO policy gradient clipping range"""
     cliprange_value: float = 0.2
-    """Clip value estimaiton for stability"""
+    """Clip value estimation for stability"""
     gamma: float = 1
     """Gamma for GAE"""
     lam: float = 0.95
