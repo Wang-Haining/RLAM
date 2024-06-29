@@ -98,7 +98,7 @@ if __name__ == "__main__":
     models = ['gpt-4o-2024-05-13', 'gpt-3.5-turbo-0125']
     # system prompt modified from
     # https://platform.openai.com/docs/guides/text-generation/json-mode
-    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON with a single key "simplified_version".'
+    SYSTEM_PROMPT = 'You are a helpful assistant designed to output JSON with a single key "simplified_version". Ensure there is no nesting in the JSON structure.'
 
     ds = load_from_disk(DATASET_PATH)
     for model in models:
