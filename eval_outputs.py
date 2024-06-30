@@ -107,10 +107,10 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i:i+batch_size]
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
-            response_token_ids = model.generate(input_ids=input_ids,
+            output = model.generate(input_ids=input_ids,
                                                 generation_config=generation_config)
-            # print(f'{response_token_ids=}')
-            generated_texts = tokenizer.batch_decode(response_token_ids,
+            print(f'{output[0]=}')
+            generated_texts = tokenizer.batch_decode(output[0],
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
             for j, generated_text in enumerate(generated_texts):
