@@ -99,7 +99,7 @@ def calculate_metrics(generated_text: str,
     return metrics_dict
 
 
-def evaluate_model(model: PreTrainedModel, dataset, tokenizer: PreTrainedTokenizer,
+def evaluate_model(model, dataset, tokenizer,
                    generation_config) -> List[Dict]:
     results = []
     model.eval()
