@@ -99,28 +99,40 @@ def calculate_metrics(generated_text: str,
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
+def evaluate_model(model: PreTrainedModel, dataset, tokenizer: PreTrainedTokenizer,
+                   generation_config) -> List[Dict]:
     results = []
     model.eval()
     batch_size = INFERENCE_BATCH_SIZE
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
-            batch_samples = dataset[i:i+batch_size]
+            batch_samples = dataset[i:i + batch_size]
+
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
+            print(f'input_ids shape: {input_ids.shape}')
+
             output = model.generate(input_ids=input_ids,
                                     generation_config=generation_config)
-            # slice out the generated part
+            print(f'output shape: {output.shape}')
+
+            # Debugging dimensions of the output and input length
             input_len = input_ids.size(1)
-            generated_tokens = [output[0][k][input_len:] for k in enumerate(output[0])]
-            generated_texts = tokenizer.batch_decode(generated_tokens,
-                                                     skip_special_tokens=True,
-                                                     clean_up_tokenization_spaces=True)
+            generated_tokens = [o[input_len:] for o in output[0]]
+            print(f'generated_tokens length: {[len(g) for g in generated_tokens]}')
+
+            generated_texts = tokenizer.batch_decode(
+                generated_tokens,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True
+            )
             for j, generated_text in enumerate(generated_texts):
-                print(f'{generated_text=}')
+                print(f'Generated text: {generated_text}')
                 generated_text = generated_text.strip()
-                result = calculate_metrics(generated_text,
-                                           batch_samples['response'][j],
-                                           batch_samples['source'][j])
+                result = calculate_metrics(
+                    generated_text,
+                    batch_samples['response'][j],
+                    batch_samples['source'][j]
+                )
                 results.append(result | {'generated_text': generated_text})
     return results
 
