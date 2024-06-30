@@ -21,7 +21,6 @@ from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, GenerationConfig,
                           AutoTokenizer)
-from trl import set_seed
 
 from utils import (OLMO_1B, GEMMA_2B, GEMMA_7B, PHI2_3B, LLAMA3_8B, GPT2_XL,
                    SEED, TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
@@ -46,7 +45,6 @@ mt = MosesTokenizer(lang='en')
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
-INFERENCE_BATCH_SIZE = 2
 
 
 def calculate_metrics(generated_text: str,
@@ -100,25 +98,21 @@ def calculate_metrics(generated_text: str,
 
 
 def evaluate_model(model, dataset, tokenizer,
-                   generation_config) -> List[Dict]:
+                   generation_config, batch_size) -> List[Dict]:
     results = []
     model.eval()
-    batch_size = INFERENCE_BATCH_SIZE
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i:i + batch_size]
-
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
             generated_tokens = model.generate(input_ids=input_ids,
                                               generation_config=generation_config)
+            # only newly generated text are returned
             generated_texts = tokenizer.batch_decode(
                 generated_tokens[:, input_ids.shape[1]:],
                 skip_special_tokens=True,
-                clean_up_tokenization_spaces=True
             )
-            print(f'{generated_texts=}')
             for j, generated_text in enumerate(generated_texts):
-                print(f'Generated text: {generated_text}')
                 generated_text = generated_text.strip()
                 result = calculate_metrics(
                     generated_text,
@@ -138,7 +132,9 @@ if __name__ == "__main__":
     parser.add_argument("--lower_ari_bound", type=float, default=8.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
     args = parser.parse_args()
-    set_seed(SEED)
+    parser.add_argument("--batch_size", type=int, default=20,
+                        help="Batch size for inference")
+    torch.manual_seed(SEED)
     SAVE_DIR = "eval_results"
 
     print(f'Starting evaluation: only newly added runs whose checkpoints met '
@@ -164,12 +160,13 @@ if __name__ == "__main__":
     # define the generation configuration
     test_generation_config = GenerationConfig(
         max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
-        temperature=0.7 + 1e-7,
+        temperature=0.01 + 1e-7,
         top_k=0.0,
         top_p=1.0,
         do_sample=True,
         num_return_sequences=1
     )
+    print(f'{test_generation_config=}')
 
     dataset = build_ppo_dataset(base_model, padding_side='right')
     tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -201,7 +198,7 @@ if __name__ == "__main__":
 
         # evaluate with test generation config
         eval_results = evaluate_model(model, dataset["test"], tokenizer,
-                                      test_generation_config)
+                                      test_generation_config, batch_size=args.batch_size)
 
         # save evaluation results to CSV
         file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path.replace('/', '|')}.csv")
