@@ -160,7 +160,7 @@ class Args:
     """The sampling temperature"""
     penalty_reward_value: int = -5  # todo: tune
     """The reward value for responses that do not contain `truncate_token_id`"""
-    non_eos_penalty: bool = True
+    non_eos_penalty: bool = False
     """Whether to penalize responses that do not contain `truncate_token_id`"""
     sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """The path to the sft model"""

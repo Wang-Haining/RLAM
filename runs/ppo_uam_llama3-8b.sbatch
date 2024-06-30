@@ -34,8 +34,6 @@ ppo.py \
 --truncate_token eos \
 --truncate_token_id 128001 \
 --temperature 0.7 \
---penalty_reward_value -5 \
---non_eos_penalty \
 --sft_model_path "ckpts/sft_Meta-Llama-3-8B/checkpoint-1480" \
 --logging_steps 2 \
 --save_steps 10 \
