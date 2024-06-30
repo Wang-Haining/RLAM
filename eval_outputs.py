@@ -117,7 +117,7 @@ def evaluate_model(model, dataset, tokenizer,
 
             # Debugging dimensions of the output and input length
             input_len = input_ids.size(1)
-            generated_tokens = [o[input_len:] for o in output[0]]
+            generated_tokens = [o[input_len:] for o in output]
             print(f'generated_tokens length: {[len(g) for g in generated_tokens]}')
 
             generated_texts = tokenizer.batch_decode(
@@ -176,7 +176,6 @@ if __name__ == "__main__":
         top_k=0.0,
         top_p=1.0,
         do_sample=True,
-        return_dict_in_generate=True,
         num_return_sequences=1
     )
 
