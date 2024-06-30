@@ -109,15 +109,16 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
             response_token_ids = model.generate(input_ids=input_ids,
                                                 generation_config=generation_config)
-            print(f'{response_token_ids=}')
+            # print(f'{response_token_ids=}')
             for j, sample in enumerate(batch_samples):
                 gen_tokens = response_token_ids[0][j].squeeze()[input_ids.size(1):]
-                print(f'{gen_tokens=}')
-                print(f'{gen_tokens.shape=}')
+                # print(f'{gen_tokens=}')
+                # print(f'{gen_tokens.shape=}')
                 generated_text = tokenizer.decode(gen_tokens,
                                                   skip_special_tokens=True,
                                                   clean_up_tokenization_spaces=True).strip()
-                result = calculate_metrics(generated_text, sample['response'], sample['source'])  # the original abstract
+                print(f'{generated_text=}')
+                result = calculate_metrics(generated_text, batch_samples['response'][j], batch_samples['source'][j])  # the original abstract
                 results.append(result | {'generated_text': generated_text})
     return results
 
