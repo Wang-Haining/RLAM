@@ -64,7 +64,7 @@ def compute_sent_len(sent: str) -> int:
 
 
 def compute_token_accessibility(
-    token, top_100k_tokens, wd_model, total_tokens, token_freq
+    token, top_100k_tokens, wa_model, total_tokens, token_freq
 ):
     """
     Fetch a token's accessibility score if it is among the most frequent 100,000 types
@@ -90,7 +90,7 @@ def compute_token_accessibility(
         token: The **lowercased** token for which the accessibility score is to be
             determined.
         top_100k_tokens: A set containing the most frequent 100,000 tokens.
-        wd_model: Trained machine learning model to estimate token accessibility.
+        wa_model: Trained machine learning model to estimate token accessibility.
         total_tokens: Total number of tokens in the corpus for normalization.
         token_freq: A dictionary containing the occurrence of each token in the English
             Wikipedia corpus.
@@ -102,7 +102,7 @@ def compute_token_accessibility(
         wiki_freq = token_freq[token]
     else:
         df = pd.DataFrame({"tokens": [token.lower()], "token_len": [len(token)]})
-        wiki_freq = np.exp(wd_model.predict(df)[0])
+        wiki_freq = np.exp(wa_model.predict(df)[0])
     freq_per_billion = wiki_freq / total_tokens * 1e9
     return np.log(freq_per_billion)
 

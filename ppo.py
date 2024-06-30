@@ -286,7 +286,7 @@ def compute_uam_score(responses: List[str],
         # penalize too short generations
         if len(response.strip()) <= 50:
             sent_len_rewards.append(28.0)
-            word_accessibility_rewards.append(7.0)
+            word_accessibility_rewards.append(10.0)
         else:
             sent_len_list = []
             word_accessibility_list = []
@@ -303,7 +303,7 @@ def compute_uam_score(responses: List[str],
                                                     top_100k_tokens,
                                                     wa_model,
                                                     total_tokens,
-                                                    token_freq))
+                                                    token_freq) if token != '-' else 10.0)  # prevent excessive presence of '-' in olmo
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
@@ -1063,12 +1063,10 @@ if __name__ == "__main__":
             accelerator.print("ppo/eps", eps, update)
             # use of dynamic controller
             if args.rluam.target_kl and args.rluam.k_beta:
-                et = torch.tensor(
-                    np.clip(mean_kl.item() / args.rluam.target_kl - 1, -0.2, 0.2),
-                    dtype=torch.float32)
-                args.rluam.kl_coef = args.rluam.kl_coef * (
-                            1 + args.rluam.k_beta * et.item())
-                args.rluam.kl_coef = max(args.rluam.kl_coef, 0.0)
+                et = torch.clamp(mean_kl / args.rluam.target_kl - 1, min=-0.2, max=0.2)
+                args.rluam.kl_coef = args.rluam.kl_coef * (1 + args.rluam.k_beta * et.item())
+                # further constrain kl_coef within a reasonable range (.15 - .35) observed from pilot runs
+                args.rluam.kl_coef = np.clip(args.rluam.kl_coef, 0.15, 0.35)
             writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         if args.rluam.target_kl and args.rluam.k_beta:
