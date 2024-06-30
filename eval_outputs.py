@@ -110,8 +110,8 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
             output = model.generate(input_ids=input_ids,
                                     generation_config=generation_config)
             # slice out the generated part
-            input_length = input_ids.size(1)
-            generated_tokens = [output[j][input_length:] for j in range(len(output))]
+            input_lens = input_ids.size(1)
+            generated_tokens = [output[0][k][input_len:] for k, input_len in enumerate(input_lens)]
             generated_texts = tokenizer.batch_decode(generated_tokens,
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
