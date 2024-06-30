@@ -20,9 +20,9 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer
 from transformers import AutoTokenizer
 
-PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures_(RLUAM)"
+PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
-SEED = 0
+SEED = 42
 GPT2_XL = 'openai-community/gpt2-xl'
 LLAMA3_8B = 'meta-llama/Meta-Llama-3-8B'
 GEMMA_2B = "google/gemma-2b"
