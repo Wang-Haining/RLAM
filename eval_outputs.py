@@ -109,7 +109,8 @@ def evaluate_model(model, dataset, tokenizer,
             batch_samples = dataset[i:i + batch_size]
 
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
-
+            generated_tokens = model.generate(input_ids=input_ids,
+                                              generation_config=generation_config)
             generated_texts = tokenizer.batch_decode(
                 generated_tokens[:, input_ids.shape[1]:],
                 skip_special_tokens=True,
