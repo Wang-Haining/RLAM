@@ -111,7 +111,7 @@ def evaluate_model(model, dataset, tokenizer, generation_config) -> List[Dict]:
                                                 generation_config=generation_config)
             print(f'{response_token_ids=}')
             for j, sample in enumerate(batch_samples):
-                gen_tokens = response_token_ids[j].squeeze()[input_ids.size(1):]
+                gen_tokens = response_token_ids[0][j].squeeze()[input_ids.size(1):]
                 print(f'{gen_tokens=}')
                 print(f'{gen_tokens.shape=}')
                 generated_text = tokenizer.decode(gen_tokens,
