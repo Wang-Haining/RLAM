@@ -109,22 +109,13 @@ def evaluate_model(model, dataset, tokenizer,
             batch_samples = dataset[i:i + batch_size]
 
             input_ids = torch.tensor(batch_samples['query_token']).to(device)
-            print(f'input_ids shape: {input_ids.shape}')
-
-            output = model.generate(input_ids=input_ids,
-                                    generation_config=generation_config)
-            print(f'output shape: {output.shape}')
-
-            # Debugging dimensions of the output and input length
-            input_len = input_ids.size(1)
-            generated_tokens = [o[input_len:] for o in output]
-            print(f'generated_tokens length: {[len(g) for g in generated_tokens]}')
 
             generated_texts = tokenizer.batch_decode(
-                generated_tokens,
+                generated_tokens[:, input_ids.shape[1]:],
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=True
             )
+            print(f'{generated_texts=}')
             for j, generated_text in enumerate(generated_texts):
                 print(f'Generated text: {generated_text}')
                 generated_text = generated_text.strip()
