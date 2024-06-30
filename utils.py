@@ -346,6 +346,7 @@ def build_ppo_dataset(
     model_name: str,
     task_prefix: str = TASK_PREFIX,
     response_template: str = RESPONSE_TEMP,
+    padding_side: str = 'left'
 ):
     """
     Build dataset for training. This function filters out too short samples and then
@@ -359,11 +360,13 @@ def build_ppo_dataset(
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
         response_template: RESPONSE_TEMP
+        padding_side: for ppo training, pad from left; during generation, pad from right
+            (for intuitive extraction of newly added tokens).
 
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side=padding_side)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")

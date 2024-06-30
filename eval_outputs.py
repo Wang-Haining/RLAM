@@ -168,7 +168,7 @@ if __name__ == "__main__":
         num_return_sequences=1
     )
 
-    dataset = build_ppo_dataset(base_model)
+    dataset = build_ppo_dataset(base_model, padding_side='right')
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists
