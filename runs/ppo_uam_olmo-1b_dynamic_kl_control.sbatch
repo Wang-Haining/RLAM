@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a40:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -36,8 +36,8 @@ ppo.py \
 --temperature 0.7 \
 --sft_model_path "ckpts/sft_OLMo-1B-hf/checkpoint-1100" \
 --logging_steps 2 \
---save_steps 10 \
---eval_steps 10 \
+--save_steps 20 \
+--eval_steps 20 \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
