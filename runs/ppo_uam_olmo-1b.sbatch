@@ -2,7 +2,7 @@
 #SBATCH --job-name=ppo_uam_olmo-1b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
-#SBATCH --gres=gpu:a40:8
+#SBATCH --gres=gpu:a40:4
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
 #SBATCH --time=1-00:00:00
@@ -27,7 +27,7 @@ ppo.py \
 --offload \
 --lr 5e-7 \
 --warm_up_steps 50 \
---world_size 8 \
+--world_size 4 \
 --num_train_epochs 5 \
 --base_model 'allenai/OLMo-1B-hf' \
 --response_length 223 \
