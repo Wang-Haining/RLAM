@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_uam_phi2-3b
+#SBATCH --job-name=ppo_uam_phi2-3b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_phi2-3b"
+JOB_NAME="ppo_uam_phi2-3b_dynamic_kl_control"
 mkdir -p logs
 mkdir -p ckpts
 
