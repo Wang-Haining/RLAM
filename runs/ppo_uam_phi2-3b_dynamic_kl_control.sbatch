@@ -44,5 +44,7 @@ ppo.py \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 2 \
 --local_eval_batch_size 1 \
+--rluam.target_kl 4.0 \
+--rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
 --rluam.wa_coef 2.05
