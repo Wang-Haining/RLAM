@@ -84,7 +84,7 @@ class RluamHParams:
     k_beta: Optional[float] = None
     """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`
     see https://arxiv.org/abs/1909.08593"""
-    whiten_rewards: bool = False
+    whiten_rewards: bool = True
     """Normalize rewards before advantages estimation"""
 
 
@@ -158,9 +158,9 @@ class Args:
     """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2/phi2, and 128001 for llama3"""
     temperature: float = 0.7
     """The sampling temperature"""
-    penalty_reward_value: int = -5  # todo: tune
+    penalty_reward_value: int = -1
     """The reward value for responses that do not contain `truncate_token_id`"""
-    non_eos_penalty: bool = False
+    non_eos_penalty: bool = True
     """Whether to penalize responses that do not contain `truncate_token_id`"""
     sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """The path to the sft model"""
