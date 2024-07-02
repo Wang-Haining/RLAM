@@ -47,4 +47,4 @@ ppo.py \
 --rluam.target_kl 4.0 \
 --rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05
+--rluam.wa_coef 2.1

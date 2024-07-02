@@ -25,7 +25,7 @@ ppo.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 1e-6 \
+--lr 2e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
@@ -47,4 +47,4 @@ ppo.py \
 --rluam.target_kl 4.0 \
 --rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05
+--rluam.wa_coef 2.1
