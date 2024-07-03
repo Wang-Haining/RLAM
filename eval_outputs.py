@@ -131,9 +131,8 @@ if __name__ == "__main__":
     parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--lower_ari_bound", type=float, default=8.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
+    parser.add_argument("--batch_size", type=int, default=20, help="Batch size for inference")
     args = parser.parse_args()
-    parser.add_argument("--batch_size", type=int, default=20,
-                        help="Batch size for inference")
     torch.manual_seed(SEED)
     SAVE_DIR = "eval_results"
 
