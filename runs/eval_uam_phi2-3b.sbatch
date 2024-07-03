@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --model gemma-2b --reward uam --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40
+python -m eval_outputs --model phi-3b --reward uam --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 20
