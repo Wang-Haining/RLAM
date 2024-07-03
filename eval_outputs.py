@@ -167,7 +167,7 @@ if __name__ == "__main__":
     )
     print(f'{test_generation_config=}')
 
-    dataset = build_ppo_dataset(base_model, padding_side='left')
+    dataset = build_ppo_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists
