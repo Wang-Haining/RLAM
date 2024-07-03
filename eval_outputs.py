@@ -88,7 +88,7 @@ def calculate_metrics(generated_text: str,
                                                                        wa_model,
                                                                        total_tokens,
                                                                        token_freq))
-    p = num_voa_words / num_words + 1e-12
+    p = num_voa_words / num_words
     metrics_dict.update({"voa_log_ratio": np.log(p / (1 - p))})
     metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     )
     print(f'{test_generation_config=}')
 
-    dataset = build_ppo_dataset(base_model, padding_side='right')
+    dataset = build_ppo_dataset(base_model, padding_side='left')
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists
