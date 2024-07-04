@@ -1,17 +1,17 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_ari_gemma-2b
+#SBATCH --job-name=ppo_ari_gemma-2b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_ari_gemma-2b"
+JOB_NAME="ppo_ari_gemma-2b_dynamic_kl_control"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -25,7 +25,7 @@ ppo.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 5e-7 \
+--lr 1e-6 \
 --warm_up_steps 50 \
 --world_size 2 \
 --num_train_epochs 5 \
@@ -44,6 +44,8 @@ ppo.py \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 2 \
 --local_eval_batch_size 1 \
+--rluam.target_kl 4.0 \
+--rluam.k_beta 0.1 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.05 \
---rluam.reward 'ari'
+--rluam.wa_coef 2.1 \
+--rluam.reward ari
