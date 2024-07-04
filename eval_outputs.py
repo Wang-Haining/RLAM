@@ -233,14 +233,14 @@ if __name__ == "__main__":
         if run.startswith(f"ppo_{args.reward}_{args.model}"):
             if run not in evaluated_runs:
                 relevant_runs.append(run)
-    print(f'{len(relevant_runs)} PPO runs will be evaluated: {relevant_runs}')
+    print(f'{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}')
 
     for run in relevant_runs:
         run_dir = os.path.join("ckpts", run)
         print(f'Starting evaluation for {run_dir}')
         for ckpt in os.listdir(run_dir):
-            if ckpt.startswith("model_step_"):
-                ari = float(ckpt.split("_ari_")[1])
+            if ckpt.startswith("step_"):
+                ari = float(ckpt.split("_ari_")[-1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
                     ckpt_path = os.path.join(run_dir, ckpt)
                     print(f'Starting evaluation for {ckpt_path}')
@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
                     # evaluate with test generation config
                     eval_results = evaluate_model(model, dataset["test"], tokenizer,
-                                                  test_generation_config)
+                                                  test_generation_config, batch_size=args.batch_size)
                     # save evaluation results to CSV
                     file_path = os.path.join(SAVE_DIR, f"{ckpt_path.replace('/', '|')}.csv")
                     with open(file_path, mode="w", encoding="utf-8") as file:
