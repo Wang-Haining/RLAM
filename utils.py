@@ -23,7 +23,6 @@ from transformers import AutoTokenizer
 PROJECT_NAME = "Reinforcement_Learning_from_Uncombined_Accessibility_Measures"
 DATASET_PATH = "resources/scientific_abstract_simplification_corpus"
 SEED = 42
-GPT2_XL = 'openai-community/gpt2-xl'
 LLAMA3_8B = 'meta-llama/Meta-Llama-3-8B'
 GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
@@ -37,8 +36,9 @@ WORD_ACCESSIBILITY_MODEL = "word_freq/model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
-MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'gpt2-xl': 578, 'phi2-3b': 578, 'llama3-8b': 546}
-MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'gpt2-xl': 244, 'phi2-3b': 244, 'llama3-8b': 240}
+MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi2-3b': 578, 'llama3-8b': 546}
+MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'phi2-3b': 244, 'llama3-8b': 240,
+                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240}
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
@@ -377,7 +377,7 @@ def build_ppo_dataset(
         elif 'olmo' in model_name.lower():
             max_input_length = 531
             max_output_length = 223
-        elif 'gpt2' in model_name.lower() or 'phi' in model_name.lower():
+        elif 'phi' in model_name.lower():
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             max_input_length = 578
             max_output_length = 244
