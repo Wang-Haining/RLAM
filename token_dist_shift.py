@@ -12,21 +12,25 @@ import numpy as np
 from utils import MAX_OUTPUT_LENGTHS, build_ppo_dataset, OLMO_1B
 
 
-def load_models_and_tokenizer(base_model: str, sft_ckpt: str, ppo_ckpt: str) -> Tuple:
+def load_models_and_tokenizer(base_model: str,
+                              sft_ckpt: str,
+                              ppo_ckpt: str,
+                              device: str) -> Tuple:
     """
-    Load the tokenizer and models for base, SFT, and PPO.
+    Load the tokenizer and models for base, SFT, and PPO with bf16 precision on cuda:0.
 
     Args:
         base_model: The base model identifier.
         sft_ckpt: Checkpoint for the SFT model.
         ppo_ckpt: Checkpoint for the PPO model.
+        device: Cuda or cpu.
 
     Returns:
         tuple: Tokenizer, SFT model, and PPO model.
     """
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    sft_model = AutoModelForCausalLM.from_pretrained(sft_ckpt)
-    ppo_model = AutoModelForCausalLM.from_pretrained(ppo_ckpt)
+    sft_model = AutoModelForCausalLM.from_pretrained(sft_ckpt, torch_dtype=torch.bfloat16).to(device)
+    ppo_model = AutoModelForCausalLM.from_pretrained(ppo_ckpt, torch_dtype=torch.bfloat16).to(device)
     return tokenizer, sft_model, ppo_model
 
 
@@ -51,7 +55,7 @@ def generate_output(model: AutoModelForCausalLM,
     except KeyError:
         raise KeyError(f'Illegal {base_model}.')
     with torch.no_grad():
-        output = model.generate(input_ids,
+        output = model.generate(input_ids.to(model.device),
                                 max_length=input_ids.shape[1] + output_len,
                                 do_sample=False)
     return output, tokenizer.decode(output[0], skip_special_tokens=True)
@@ -87,8 +91,8 @@ def analyze_token_distribution_shift(base_model: str,
         context_ids_sft = tokenizer(context_text, return_tensors='pt')['input_ids']
 
         with torch.no_grad():
-            sft_logits = sft_model(context_ids_sft).logits
-            ppo_logits = ppo_model(ppo_tokens.unsqueeze(0)).logits
+            sft_logits = sft_model(context_ids_sft.to(sft_model.device)).logits
+            ppo_logits = ppo_model(ppo_tokens.unsqueeze(0).to(ppo_model.device)).logits
 
         sft_probs = torch.softmax(sft_logits[:, -1, :], dim=-1).cpu().numpy().flatten()
         ppo_probs = torch.softmax(ppo_logits[:, t - 1, :], dim=-1).cpu().numpy().flatten()
@@ -118,7 +122,9 @@ def analyze_token_distribution_shift(base_model: str,
 #                         type=lambda x: (str(x).lower() == 'true'), default=False,
 #                         help="Whether to use LoRA for finetuning")
 #     args = parser.parse_args()
-# define the model paths and dataset
+
+# Define the model paths and dataset
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 base_model = OLMO_1B
 sft_ckpt = 'ckpts/sft_OLMo-1B-hf/checkpoint-1100'
 ppo_ckpt = 'ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_220_ari_12.06'
@@ -128,7 +134,7 @@ dataset = build_ppo_dataset(OLMO_1B)['test']
 query = dataset['query'][0]
 
 # load the tokenizer and models
-tokenizer, sft_model, ppo_model = load_models_and_tokenizer(base_model, sft_ckpt, ppo_ckpt)
+tokenizer, sft_model, ppo_model = load_models_and_tokenizer(base_model, sft_ckpt, ppo_ckpt, device)
 
 # analyze the token distribution shift for the given query
 token_shifts = analyze_token_distribution_shift(base_model, sft_model, ppo_model, tokenizer, query)
@@ -137,4 +143,3 @@ token_shifts = analyze_token_distribution_shift(base_model, sft_model, ppo_model
 for token_id, sft_rank, ppo_rank, shift_category in token_shifts:
     token = tokenizer.decode([token_id])
     print(f"Token: {token}, SFT Rank: {sft_rank}, PPO Rank: {ppo_rank}, Category: {shift_category}")
-
