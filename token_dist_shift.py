@@ -147,8 +147,10 @@ def analyze_token_distribution_shift(
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 base_model = OLMO_1B
 sft_ckpt = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
-ppo_ckpt = "ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_220_ari_12.06"
+# ppo_ckpt = "ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_220_ari_12.06"
+ppo_ckpt = "ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_480_ari_9.08"
 dataset = build_ppo_dataset(OLMO_1B)["test"]
+
 
 # extract a query from the dataset
 query = dataset["query"][0]
