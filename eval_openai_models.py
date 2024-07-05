@@ -112,7 +112,7 @@ if __name__ == "__main__":
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": query},
                 ],
-                temperature=0.7 + 1e-7,  # fair comparison
+                temperature=0.7,  # fair comparison
                 max_tokens=512,
                 seed=SEED,
                 n=1
