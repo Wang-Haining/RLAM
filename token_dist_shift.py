@@ -125,7 +125,7 @@ def analyze_token_distribution_shift(
 
         token_shifts.append((ppo_token_id, sft_rank, ppo_rank, shift_category))
 
-    return token_shifts
+    return token_shifts, ppo_text
 
 
 # if __name__ == '__main__':
@@ -159,9 +159,12 @@ tokenizer, sft_model, ppo_model = load_models_and_tokenizer(
 )
 
 # analyze the token distribution shift for the given query
-token_shifts = analyze_token_distribution_shift(
+token_shifts, ppo_text = analyze_token_distribution_shift(
     base_model, sft_model, ppo_model, tokenizer, query
 )
+
+# print the whole generated text first
+print(f"Generated Text: {ppo_text}\n")
 
 # print the results
 for token_id, sft_rank, ppo_rank, shift_category in token_shifts:
