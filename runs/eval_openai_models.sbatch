@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=eval_gpt4o
+#SBATCH --job-name=eval_openai_models
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=unsafe
 #SBATCH --cpus-per-task=2
@@ -13,4 +13,4 @@
 module load Python/3.10.8-GCCcore-12.2.0
 
 . .venv/bin/activate
-python -m eval_openai_models
+python -m eval_openai_models --temperature 0.01
