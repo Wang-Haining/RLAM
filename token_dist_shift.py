@@ -14,6 +14,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils import MAX_OUTPUT_LENGTHS, OLMO_1B, build_ppo_dataset
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 def load_models_and_tokenizer(
     base_model: str, sft_ckpt: str, ppo_ckpt: str, device: str
