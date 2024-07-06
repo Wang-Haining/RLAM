@@ -1,3 +1,8 @@
+"""
+This module estimates token frequency from the English Wikipedia for training a word
+accessibility estimator to predict the frequency of an arbitrary token.
+"""
+
 import csv
 import multiprocessing as mp
 from collections import Counter
@@ -13,6 +18,8 @@ split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuff
 split_dataset['val'] = split_dataset.pop('test')
 
 tokenizer = MosesTokenizer(lang="en", escape=False)
+result_dir = 'word_freq'
+os.makedirs(result_dir, exist_ok=True)
 
 
 def process_text(text):
@@ -75,6 +82,7 @@ print(
 # Training set - Total Tokens: 3459351600 Types: 14118606
 # Validation set - Total Tokens: 181880582 Types: 2147992
 
+
 def save_counter_to_csv(counter, filename):
     """Save a Counter object to a CSV file."""
     with open(filename, mode="w", newline="", encoding="utf-8") as file:
@@ -85,5 +93,5 @@ def save_counter_to_csv(counter, filename):
 
 
 # save the token counters to CSV files
-save_counter_to_csv(train_token_counter, "outputs/wiki_train_token_frequencies.csv")
-save_counter_to_csv(val_token_counter, "outputs/wiki_val_token_frequencies.csv")
+save_counter_to_csv(train_token_counter, f"{result_dir}/wiki_train_token_frequencies.csv")
+save_counter_to_csv(val_token_counter, f"{result_dir}/wiki_val_token_frequencies.csv")

@@ -1,16 +1,21 @@
+"""
+This module fit an estimator for word accessibility using word frequency from the
+English Wikipedia corpus.
+"""
+
 import pickle
 import random
 
 from sacremoses import MosesTokenizer
 
 from utils import (WORD_ACCESSIBILITY_MODEL, prepare_data, read_token_frequencies,
-                   split_data, train_regression_model)
+                   split_data, train_regression_model, SEED)
 
 tokenizer = MosesTokenizer(lang="en", escape=False)
-random.seed(42)
+random.seed(SEED)
 
 if __name__ == "__main__":
-    # Total Tokens: 3,641,232,182 Types: 14,569,875
+    # total Tokens: 3,641,232,182 Types: 14,569,875
     token_freq = read_token_frequencies()
     total_tokens = sum(token_freq.values())
 
