@@ -159,7 +159,7 @@ if __name__ == "__main__":
         "--batch_size", type=int, default=20, help="Batch size for inference"
     )
     parser.add_argument(
-        "--temperature", type=int, default=0.7, help="Sampling temperature"
+        "--temperature", type=float, default=0.7, help="Sampling temperature"
     )
     args = parser.parse_args()
     torch.manual_seed(SEED)

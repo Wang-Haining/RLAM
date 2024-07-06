@@ -103,7 +103,7 @@ if __name__ == "__main__":
         description="Evaluate OpenAI models on SASS test set"
     )
     parser.add_argument(
-        "--temperature", type=int, default=0.7, help="Sampling temperature"
+        "--temperature", type=float, default=0.7, help="Sampling temperature"
     )
     args = parser.parse_args()
     save_dir = f"eval_results_temp_{args.temperature}"
