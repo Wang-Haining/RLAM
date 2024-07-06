@@ -1,3 +1,8 @@
+"""
+This module is used to simplify SASS test set using OpenAI's models and evaluate it
+with our metrics.
+"""
+
 import csv
 import heapq
 import json
@@ -18,7 +23,6 @@ from utils import (DATASET_PATH, RESPONSE_TEMP, SEED, TASK_PREFIX, VOA1500,
                    compute_flesch_kincaid, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
 
-# eval
 device = "cpu"
 metric_bleu = BLEU()
 metric_sari = evaluate.load("sari")
