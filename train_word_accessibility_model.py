@@ -6,7 +6,7 @@ from sacremoses import MosesTokenizer
 from utils import (WORD_ACCESSIBILITY_MODEL, prepare_data, read_token_frequencies,
                    split_data, train_regression_model)
 
-tokenizer = MosesTokenizer(lang="en")
+tokenizer = MosesTokenizer(lang="en", escape=False)
 random.seed(42)
 
 if __name__ == "__main__":

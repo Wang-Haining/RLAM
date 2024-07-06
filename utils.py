@@ -57,7 +57,7 @@ def compute_sent_len(sent: str) -> int:
     Returns:
         Sentence length.
     """
-    mt = MosesTokenizer(lang="en")
+    mt = MosesTokenizer(lang="en", escape=False)
     tokens = mt.tokenize(sent)
     word_pattern = re.compile(r"^'?[\w-]+$")
     return len([t for t in tokens if word_pattern.match(t)])
@@ -273,7 +273,7 @@ def compute_flesch_kincaid(text: str):
     if not text.endswith((".", "?", "!")):
         # approximate the readability
         text += '.'
-    mt = MosesTokenizer(lang='en')
+    mt = MosesTokenizer(lang='en', escape=False)
     sentences = sent_tokenize(text)
     words = mt.tokenize(text)
     # remove punctuation marks
@@ -313,7 +313,7 @@ def compute_ari(text: str):
     if not text.endswith((".", "?", "!")):
         # approximate the readability for incomplete sentence
         text += '.'
-    mt = MosesTokenizer(lang='en')
+    mt = MosesTokenizer(lang='en', escape=False)
     sentences = sent_tokenize(text)
     words = mt.tokenize(text)
     # remove punctuation marks

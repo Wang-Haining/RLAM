@@ -39,7 +39,7 @@ top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, "rb"))
 total_tokens = sum(token_freq.values())
-mt = MosesTokenizer(lang="en")
+mt = MosesTokenizer(lang="en", escape=False)
 # VOA Word Book, Section A-Z, Science programs, and Organs of the body (1517 in total)
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
