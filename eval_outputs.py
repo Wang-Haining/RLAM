@@ -37,36 +37,41 @@ metric_bertscore = evaluate.load("bertscore")
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
 top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
-wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
+wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, "rb"))
 total_tokens = sum(token_freq.values())
-mt = MosesTokenizer(lang='en')
+mt = MosesTokenizer(lang="en")
 # VOA Word Book, Section A-Z, Science programs, and Organs of the body (1517 in total)
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
-voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
+voa1500 = json.load(open(VOA1500, "r", encoding="utf-8"))
 
 
-def calculate_metrics(generated_text: str,
-                      target_text: str,
-                      source_text: str) -> Dict[str, float]:
+def calculate_metrics(
+    generated_text: str, target_text: str, source_text: str
+) -> Dict[str, float]:
     metrics_dict = {}
     generated_texts = [generated_text.strip()]
     source_texts = [source_text.strip()]
     target_texts = [[target_text.strip()]]
     metrics_dict.update({"ari": compute_ari(generated_texts[0])})
     metrics_dict.update({"fk": compute_flesch_kincaid(generated_texts[0])})
-    metrics_dict.update({"bleu": metric_bleu.corpus_score(generated_texts,
-                                                          target_texts).score})
-    metrics_dict.update(metric_sari.compute(sources=source_texts,
-                                            predictions=generated_texts,
-                                            references=target_texts))
-    _rouge = metric_rouge.compute(predictions=generated_texts,
-                                  references=target_texts)
+    metrics_dict.update(
+        {"bleu": metric_bleu.corpus_score(generated_texts, target_texts).score}
+    )
+    metrics_dict.update(
+        metric_sari.compute(
+            sources=source_texts, predictions=generated_texts, references=target_texts
+        )
+    )
+    _rouge = metric_rouge.compute(predictions=generated_texts, references=target_texts)
     metrics_dict.update({"rougeL": _rouge["rougeL"]})
-    bertscore_result = metric_bertscore.compute(predictions=generated_texts,
-                                                references=target_texts,
-                                                lang="en", device="cpu",
-                                                model_type='bert-large-uncased')
+    bertscore_result = metric_bertscore.compute(
+        predictions=generated_texts,
+        references=target_texts,
+        lang="en",
+        device="cpu",
+        model_type="bert-large-uncased",
+    )
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
     # complexity measure
     word_accessibility_list = []
@@ -82,71 +87,97 @@ def calculate_metrics(generated_text: str,
             num_chars += len(token)
             if token.lower() in voa1500:
                 num_voa_words += 1
-            word_accessibility_list.append(compute_token_accessibility(token,
-                                                                       top_100k_tokens,
-                                                                       wa_model,
-                                                                       total_tokens,
-                                                                       token_freq))
+            word_accessibility_list.append(
+                compute_token_accessibility(
+                    token, top_100k_tokens, wa_model, total_tokens, token_freq
+                )
+            )
     p = num_voa_words / num_words
     metrics_dict.update({"voa_log_ratio": np.log(p / (1 - p))})
     metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
-    metrics_dict.update({'num_sents': len(sents)})
-    metrics_dict.update({'avg_word_len': num_chars/num_words})
+    metrics_dict.update({"num_sents": len(sents)})
+    metrics_dict.update({"avg_word_len": num_chars / num_words})
     return metrics_dict
 
 
-def evaluate_model(model, dataset, tokenizer,
-                   generation_config, batch_size) -> List[Dict]:
+def evaluate_model(
+    model, dataset, tokenizer, generation_config, batch_size
+) -> List[Dict]:
     results = []
     model.eval()
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
-            batch_samples = dataset[i:i + batch_size]
-            input_ids = torch.tensor(batch_samples['query_token']).to(device)
-            generated_tokens = model.generate(input_ids=input_ids,
-                                              generation_config=generation_config)
+            batch_samples = dataset[i : i + batch_size]
+            input_ids = torch.tensor(batch_samples["query_token"]).to(device)
+            generated_tokens = model.generate(
+                input_ids=input_ids, generation_config=generation_config
+            )
             # only newly generated text are returned
             generated_texts = tokenizer.batch_decode(
-                generated_tokens[:, input_ids.shape[1]:],
+                generated_tokens[:, input_ids.shape[1] :],
                 skip_special_tokens=True,
             )
             for j, generated_text in enumerate(generated_texts):
                 generated_text = generated_text.strip()
                 result = calculate_metrics(
                     generated_text,
-                    batch_samples['response'][j],
-                    batch_samples['source'][j]
+                    batch_samples["response"][j],
+                    batch_samples["source"][j],
                 )
-                results.append(result | {'generated_text': generated_text})
+                results.append(result | {"generated_text": generated_text})
     return results
 
 
 if __name__ == "__main__":
-    print('*' * 90)
+    print("*" * 90)
     parser = argparse.ArgumentParser(
-        description="Evaluate SFT and policy model outputs given model type and validation ARI")
-    parser.add_argument("--model", type=str, choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", 'phi2-3b'], help="The model type (across runs) to evaluate")
-    parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
-    parser.add_argument("--lower_ari_bound", type=float, default=8.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
-    parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
-    parser.add_argument("--batch_size", type=int, default=20, help="Batch size for inference")
-    parser.add_argument("--temperature", type=int, default=0.7, help="Sampling temperature")
+        description="Evaluate SFT and policy model outputs given model type and validation ARI"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b"],
+        help="The model type (across runs) to evaluate",
+    )
+    parser.add_argument(
+        "--upper_ari_bound",
+        type=float,
+        default=15.0,
+        help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation",
+    )
+    parser.add_argument(
+        "--lower_ari_bound",
+        type=float,
+        default=8.0,
+        help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation",
+    )
+    parser.add_argument(
+        "--reward", type=str, default="uam", choices=["uam", "ari"], help="Reward type"
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=20, help="Batch size for inference"
+    )
+    parser.add_argument(
+        "--temperature", type=int, default=0.7, help="Sampling temperature"
+    )
     args = parser.parse_args()
     torch.manual_seed(SEED)
     SAVE_DIR = f"eval_results_temp_{args.temperature}"
     os.makedirs(save_dir, exist_ok=True)
 
-    print(f'Starting evaluation: only newly added runs whose checkpoints met '
-          f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
-          f'will be evaluated')
+    print(
+        f"Starting evaluation: only newly added runs whose checkpoints met "
+        f"{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} "
+        f"will be evaluated"
+    )
 
     # identify the base model based on the provided model type argument
     if "gemma-2b" in args.model.lower():
         base_model = GEMMA_2B
     elif "olmo-1b" in args.model.lower():
         base_model = OLMO_1B
-    elif 'phi2-3b' in args.model.lower():
+    elif "phi2-3b" in args.model.lower():
         base_model = PHI2_3B
     else:
         raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
@@ -158,9 +189,9 @@ if __name__ == "__main__":
         top_k=0.0,
         top_p=1.0,
         do_sample=True,
-        num_return_sequences=1
+        num_return_sequences=1,
     )
-    print(f'{test_generation_config=}')
+    print(f"{test_generation_config=}")
 
     dataset = build_ppo_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -168,7 +199,7 @@ if __name__ == "__main__":
     # load the overview file if it exists
     overview_path = os.path.join(SAVE_DIR, "overview.jsonl")
     if os.path.exists(overview_path):
-        with open(overview_path, mode='r', encoding='utf-8') as f:
+        with open(overview_path, mode="r", encoding="utf-8") as f:
             overview = [json.loads(line) for line in f]
     else:
         overview = []
@@ -181,18 +212,25 @@ if __name__ == "__main__":
     sft_checkpoints = os.listdir(sft_run_dir)
     if len(sft_checkpoints) != 1:
         raise ValueError(
-            f"Expected exactly one checkpoint in {sft_run_dir}, but found {len(sft_checkpoints)}.")
+            f"Expected exactly one checkpoint in {sft_run_dir}, but found {len(sft_checkpoints)}."
+        )
     sft_checkpoint = sft_checkpoints[0]
     sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
     if sft_run_dir not in evaluated_runs:
-        print(f'Starting evaluation for {sft_ckpt_path}')
-        model = AutoModelForCausalLM.from_pretrained(sft_ckpt_path,
-                                                     torch_dtype=torch.bfloat16)
+        print(f"Starting evaluation for {sft_ckpt_path}")
+        model = AutoModelForCausalLM.from_pretrained(
+            sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
         model.to(device)
 
         # evaluate with test generation config
-        eval_results = evaluate_model(model, dataset["test"], tokenizer,
-                                      test_generation_config, batch_size=args.batch_size)
+        eval_results = evaluate_model(
+            model,
+            dataset["test"],
+            tokenizer,
+            test_generation_config,
+            batch_size=args.batch_size,
+        )
 
         # save evaluation results to CSV
         file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path.replace('/', '|')}.csv")
@@ -202,25 +240,36 @@ if __name__ == "__main__":
             writer.writerows(eval_results)
 
         # calculate average and standard deviation of scores
-        avg_scores = {f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for
-                      metric in eval_results[0].keys() if
-                      metric not in ["generated_text"]}
-        std_scores = {f"std_{metric}": np.std([x[metric] for x in eval_results]) for
-                      metric in eval_results[0].keys() if
-                      metric not in ["generated_text"]}
+        avg_scores = {
+            f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+            for metric in eval_results[0].keys()
+            if metric not in ["generated_text"]
+        }
+        std_scores = {
+            f"std_{metric}": np.std([x[metric] for x in eval_results])
+            for metric in eval_results[0].keys()
+            if metric not in ["generated_text"]
+        }
 
         # save the overview in JSONL format
-        with open(overview_path, mode='a', encoding='utf-8') as f:
-            json.dump({"run_path": sft_run_dir} | {"ckpt_path": sft_ckpt_path} | avg_scores | std_scores, f)
-            f.write('\n')
+        with open(overview_path, mode="a", encoding="utf-8") as f:
+            json.dump(
+                {"run_path": sft_run_dir}
+                | {"ckpt_path": sft_ckpt_path}
+                | avg_scores
+                | std_scores,
+                f,
+            )
+            f.write("\n")
 
         # print out results
-        print('*' * 90)
-        print(f'SFT performance for {sft_ckpt_path}:')
+        print("*" * 90)
+        print(f"SFT performance for {sft_ckpt_path} in temperature {args.temperature}:")
         print("Average scores for {}: {}".format(sft_ckpt_path, avg_scores))
         print(
-            "Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores))
-        print('*' * 90)
+            "Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores)
+        )
+        print("*" * 90)
 
     # get the relevant PPO runs using heuristics
     relevant_runs = []
@@ -228,26 +277,34 @@ if __name__ == "__main__":
         if run.startswith(f"ppo_{args.reward}_{args.model}"):
             if run not in evaluated_runs:
                 relevant_runs.append(run)
-    print(f'{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}')
+    print(f"{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}")
 
     for run in relevant_runs:
         run_dir = os.path.join("ckpts", run)
-        print(f'Starting evaluation for {run_dir}')
+        print(f"Starting evaluation for {run_dir}")
         for ckpt in os.listdir(run_dir):
             if ckpt.startswith("step_"):
                 ari = float(ckpt.split("_ari_")[-1])
                 if args.lower_ari_bound <= ari <= args.upper_ari_bound:
                     ckpt_path = os.path.join(run_dir, ckpt)
-                    print(f'Starting evaluation for {ckpt_path}')
-                    model = AutoModelForCausalLM.from_pretrained(ckpt_path,
-                                                                 torch_dtype=torch.bfloat16)
+                    print(f"Starting evaluation for {ckpt_path}")
+                    model = AutoModelForCausalLM.from_pretrained(
+                        ckpt_path, torch_dtype=torch.bfloat16
+                    )
                     model.to(device)
 
                     # evaluate with test generation config
-                    eval_results = evaluate_model(model, dataset["test"], tokenizer,
-                                                  test_generation_config, batch_size=args.batch_size)
+                    eval_results = evaluate_model(
+                        model,
+                        dataset["test"],
+                        tokenizer,
+                        test_generation_config,
+                        batch_size=args.batch_size,
+                    )
                     # save evaluation results to CSV
-                    file_path = os.path.join(SAVE_DIR, f"{ckpt_path.replace('/', '|')}.csv")
+                    file_path = os.path.join(
+                        SAVE_DIR, f"{ckpt_path.replace('/', '|')}.csv"
+                    )
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
                         writer.writeheader()
@@ -255,24 +312,37 @@ if __name__ == "__main__":
 
                     # calculate average and standard deviation of scores
                     avg_scores = {
-                        f"avg_{metric}": np.mean([x[metric] for x in eval_results]) for
-                        metric in eval_results[0].keys() if
-                        metric not in ["generated_text"]}
+                        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+                        for metric in eval_results[0].keys()
+                        if metric not in ["generated_text"]
+                    }
                     std_scores = {
-                        f"std_{metric}": np.std([x[metric] for x in eval_results]) for
-                        metric in eval_results[0].keys() if
-                        metric not in ["generated_text"]}
+                        f"std_{metric}": np.std([x[metric] for x in eval_results])
+                        for metric in eval_results[0].keys()
+                        if metric not in ["generated_text"]
+                    }
 
                     # save the overview in JSONL format
-                    with open(overview_path, mode='a', encoding='utf-8') as f:
-                        json.dump({"run_path": run_dir} | {"ckpt_path": ckpt_path} | avg_scores | std_scores, f)
-                        f.write('\n')
+                    with open(overview_path, mode="a", encoding="utf-8") as f:
+                        json.dump(
+                            {"run_path": run_dir}
+                            | {"ckpt_path": ckpt_path}
+                            | avg_scores
+                            | std_scores,
+                            f,
+                        )
+                        f.write("\n")
 
                     # print out results
-                    print('*' * 90)
-                    print(f'RLUAM performance for {ckpt_path}:')
+                    print("*" * 90)
+                    print(
+                        f"RLUAM performance for {ckpt_path} in temperature {args.temperature}::"
+                    )
                     print("Average scores for {}: {}".format(ckpt_path, avg_scores))
-                    print("Standard deviation of scores for {}: {}".format(ckpt_path,
-                                                                           std_scores))
-                    print('*' * 90)
-    print('*' * 90)
+                    print(
+                        "Standard deviation of scores for {}: {}".format(
+                            ckpt_path, std_scores
+                        )
+                    )
+                    print("*" * 90)
+    print("*" * 90)
