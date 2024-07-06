@@ -91,6 +91,7 @@ def calculate_metrics(generated_text: str,
 
 if __name__ == "__main__":
     print('*' * 90)
+    print('Getting and Evaluating GP4O generation')
     parser = argparse.ArgumentParser(description="Evaluate OpenAI models on SASS test set")
     parser.add_argument("--temperature", type=int, default=0.7, help="Sampling temperature")
     args = parser.parse_args()
@@ -98,8 +99,6 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)
 
     # get openai models' outputs
-    print('*' * 90)
-    print('Getting and Evaluating GP4O generation')
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "Set up OPENAI API Key"))
     models = ['gpt-4o-2024-05-13', 'gpt-3.5-turbo-0125']
     # system prompt modified from
