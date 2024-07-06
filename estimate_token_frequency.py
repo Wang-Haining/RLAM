@@ -3,6 +3,7 @@ This module estimates token frequency from the English Wikipedia for training a 
 accessibility estimator to predict the frequency of an arbitrary token.
 """
 
+import os
 import csv
 import multiprocessing as mp
 from collections import Counter
