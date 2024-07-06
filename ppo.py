@@ -281,7 +281,7 @@ def compute_uam_score(responses: List[str],
     """
     sent_len_rewards = []
     word_accessibility_rewards = []
-    mt = MosesTokenizer(lang='en')
+    mt = MosesTokenizer(lang='en', escape=False)
     for response in responses:
         # penalize too short generations
         if len(response.strip()) <= 50:
