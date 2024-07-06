@@ -19,14 +19,13 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import (AutoModelForCausalLM, GenerationConfig,
-                          AutoTokenizer)
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
-from utils import (OLMO_1B, GEMMA_2B, GEMMA_7B, PHI2_3B, LLAMA3_8B, GPT2_XL,
-                   SEED, TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_ppo_dataset, compute_ari, compute_flesch_kincaid,
-                   compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies, MAX_OUTPUT_LENGTHS)
+from utils import (GEMMA_2B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B, SEED,
+                   TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL,
+                   WORD_FREQ_CSV, build_ppo_dataset, compute_ari,
+                   compute_flesch_kincaid, compute_sent_len,
+                   compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
