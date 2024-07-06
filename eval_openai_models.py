@@ -36,8 +36,7 @@ mt = MosesTokenizer(lang='en')
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, 'r', encoding='utf-8'))
-SAVE_DIR = "eval_results"
-os.makedirs(SAVE_DIR, exist_ok=True)
+
 
 
 def calculate_metrics(generated_text: str,
@@ -91,6 +90,13 @@ def calculate_metrics(generated_text: str,
 
 
 if __name__ == "__main__":
+    print('*' * 90)
+    parser = argparse.ArgumentParser(description="Evaluate OpenAI models on SASS test set")
+    parser.add_argument("--temperature", type=int, default=0.7, help="Sampling temperature")
+    args = parser.parse_args()
+    save_dir = f"eval_results_temp_{args.temperature}"
+    os.makedirs(save_dir, exist_ok=True)
+
     # get openai models' outputs
     print('*' * 90)
     print('Getting and Evaluating GP4O generation')
@@ -131,7 +137,7 @@ if __name__ == "__main__":
             results.append(metrics | {'generated_text': generated_text})
 
         # save the generated texts and metrics to a CSV file
-        file_path = os.path.join(SAVE_DIR, f'{model}.csv')
+        file_path = os.path.join(save_dir, f'{model}.csv')
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys())
             writer.writeheader()

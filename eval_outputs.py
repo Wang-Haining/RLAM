@@ -125,15 +125,17 @@ def evaluate_model(model, dataset, tokenizer,
 if __name__ == "__main__":
     print('*' * 90)
     parser = argparse.ArgumentParser(
-        description="Evaluate SFT and policy model outputs given model type and validation ARI.")
+        description="Evaluate SFT and policy model outputs given model type and validation ARI")
     parser.add_argument("--model", type=str, choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", 'phi2-3b'], help="The model type (across runs) to evaluate")
     parser.add_argument("--upper_ari_bound", type=float, default=15.0, help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--lower_ari_bound", type=float, default=8.0, help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation")
     parser.add_argument("--reward", type=str, default='uam', choices=['uam', 'ari'], help="Reward type")
     parser.add_argument("--batch_size", type=int, default=20, help="Batch size for inference")
+    parser.add_argument("--temperature", type=int, default=0.7, help="Sampling temperature")
     args = parser.parse_args()
     torch.manual_seed(SEED)
-    SAVE_DIR = "eval_results"
+    SAVE_DIR = f"eval_results_temp_{args.temperature}"
+    os.makedirs(save_dir, exist_ok=True)
 
     print(f'Starting evaluation: only newly added runs whose checkpoints met '
           f'{args.lower_ari_bound} <= validation ARI <= {args.upper_ari_bound} '
@@ -142,14 +144,8 @@ if __name__ == "__main__":
     # identify the base model based on the provided model type argument
     if "gemma-2b" in args.model.lower():
         base_model = GEMMA_2B
-    elif "gemma-7b" in args.model.lower():
-        base_model = GEMMA_7B
     elif "olmo-1b" in args.model.lower():
         base_model = OLMO_1B
-    elif 'llama' in args.model.lower():
-        base_model = LLAMA3_8B
-    elif 'gpt2-xl' in args.model.lower():
-        base_model = GPT2_XL
     elif 'phi2-3b' in args.model.lower():
         base_model = PHI2_3B
     else:
@@ -158,7 +154,7 @@ if __name__ == "__main__":
     # define the generation configuration
     test_generation_config = GenerationConfig(
         max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
-        temperature=0.7,
+        temperature=args.temperature,
         top_k=0.0,
         top_p=1.0,
         do_sample=True,
