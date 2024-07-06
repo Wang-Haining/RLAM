@@ -39,7 +39,7 @@ top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 # load for making predictions word accessibility
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, "rb"))
 total_tokens = sum(token_freq.values())
-mt = MosesTokenizer(lang="en", escape=False)
+mt = MosesTokenizer(lang="en")
 # VOA Word Book, Section A-Z, Science programs, and Organs of the body (1517 in total)
 # from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
 # scraped on May 15, 2024
@@ -82,7 +82,7 @@ def calculate_metrics(
     sents = sent_tokenize(generated_text)
     for sent in sents:
         sent_len_list.append(compute_sent_len(sent))
-        for token in mt.tokenize(sent):
+        for token in mt.tokenize(sent, escape=False):
             num_words += 1
             num_chars += len(token)
             if token.lower() in voa1500:
