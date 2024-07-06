@@ -17,7 +17,7 @@ dataset = load_dataset("wikipedia", "20220301.en", trust_remote_code=True)
 split_dataset = dataset["train"].train_test_split(test_size=0.05, seed=42, shuffle=True)
 split_dataset['val'] = split_dataset.pop('test')
 
-tokenizer = MosesTokenizer(lang="en", escape=False)
+tokenizer = MosesTokenizer(lang="en")
 result_dir = 'word_freq'
 os.makedirs(result_dir, exist_ok=True)
 
@@ -27,7 +27,7 @@ def process_text(text):
     token_counter = Counter()
     sents = sent_tokenize(text)
     for sent in sents:
-        tokens = tokenizer.tokenize(sent)
+        tokens = tokenizer.tokenize(sent, escape=False)
         token_counter.update(tokens)
     return token_counter
 
