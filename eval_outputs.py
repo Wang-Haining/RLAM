@@ -163,7 +163,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     torch.manual_seed(SEED)
-    SAVE_DIR = f"eval_results_temp_{args.temperature}"
+    save_dir = f"eval_results_temp_{args.temperature}"
     os.makedirs(save_dir, exist_ok=True)
 
     print(
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists
-    overview_path = os.path.join(SAVE_DIR, "overview.jsonl")
+    overview_path = os.path.join(save_dir, "overview.jsonl")
     if os.path.exists(overview_path):
         with open(overview_path, mode="r", encoding="utf-8") as f:
             overview = [json.loads(line) for line in f]
@@ -233,7 +233,7 @@ if __name__ == "__main__":
         )
 
         # save evaluation results to CSV
-        file_path = os.path.join(SAVE_DIR, f"{sft_ckpt_path.replace('/', '|')}.csv")
+        file_path = os.path.join(save_dir, f"{sft_ckpt_path.replace('/', '|')}.csv")
         with open(file_path, mode="w", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
             writer.writeheader()
@@ -303,7 +303,7 @@ if __name__ == "__main__":
                     )
                     # save evaluation results to CSV
                     file_path = os.path.join(
-                        SAVE_DIR, f"{ckpt_path.replace('/', '|')}.csv"
+                        save_dir, f"{ckpt_path.replace('/', '|')}.csv"
                     )
                     with open(file_path, mode="w", encoding="utf-8") as file:
                         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
