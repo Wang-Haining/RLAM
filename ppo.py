@@ -78,6 +78,10 @@ class RluamHParams:
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
     kl_coef: float = 0.2
     """KL penalty coefficient"""
+    kl_coef_upper_bound: float = 0.8
+    """KL penalty coefficient"""
+    kl_coef_lower_bound: float = 0.2
+    """KL penalty coefficient"""
     target_kl: Optional[float] = None
     """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`
     see https://arxiv.org/abs/1909.08593"""
@@ -1066,7 +1070,9 @@ if __name__ == "__main__":
                 et = torch.clamp(mean_kl / args.rluam.target_kl - 1, min=-0.2, max=0.2)
                 args.rluam.kl_coef = args.rluam.kl_coef * (1 + args.rluam.k_beta * et.item())
                 # further constrain kl_coef within a reasonable range (.15 - .35) observed from pilot runs
-                args.rluam.kl_coef = np.clip(args.rluam.kl_coef, 0.15, 0.35)
+                args.rluam.kl_coef = np.clip(args.rluam.kl_coef,
+                                             args.rluam.kl_coef_lower_bound,
+                                             args.rluam.kl_coef_upper_bound)
             writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
         if args.rluam.target_kl and args.rluam.k_beta:
