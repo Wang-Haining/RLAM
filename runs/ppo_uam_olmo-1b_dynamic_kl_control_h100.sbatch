@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_olmo-1b_dynamic_kl_control_coef2.2_h100"
+JOB_NAME="ppo_uam_olmo-1b_dynamic_kl_control_wa_coef2.2_h100"
 mkdir -p logs
 mkdir -p ckpts
 
