@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_uam_olmo-1b_dynamic_kl_control_wa_coef2.5
+#SBATCH --job-name=ppo_uam_olmo-1b_dynamic_kl_control_wa_coef2.2_k_beta_0.01_h100
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_olmo-1b_dynamic_kl_control_wa_coef2.5"
+JOB_NAME="ppo_uam_olmo-1b_dynamic_kl_control_wa_coef2.2_k_beta_0.01_h100"
 mkdir -p logs
 mkdir -p ckpts
 
