@@ -45,9 +45,9 @@ ppo.py \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 1 \
 --rluam.target_kl 2.0 \
---rluam.kl_coef 0.6 \
+--rluam.kl_coef 0.7 \
 --rluam.kl_coef_lower_bound 0.6 \
---rluam.kl_coef_upper_bound 0.8 \
---rluam.k_beta 0.1 \
+--rluam.kl_coef_upper_bound 0.9 \
+--rluam.k_beta 0.01 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.5
+--rluam.wa_coef 2.2
