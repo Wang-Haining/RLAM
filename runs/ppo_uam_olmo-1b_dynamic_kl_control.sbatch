@@ -1,8 +1,8 @@
 #!/bin/sh
 #SBATCH --job-name=ppo_uam_olmo-1b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=gpuunsafe
-#SBATCH --gres=gpu:a40:2
+#SBATCH --partition=nextgen-gpu
+#SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
 #SBATCH --time=2-00:00:00
@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29501 --config_file runs/ds_config.yaml \
 ppo.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
@@ -42,12 +42,13 @@ ppo.py \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 4 \
---local_eval_batch_size 1 \
+--local_micro_batch_size 8 \
+--local_eval_batch_size 8 \
 --rluam.target_kl 2.0 \
---rluam.kl_coef 0.6 \
---rluam.kl_coef_lower_bound 0.6 \
---rluam.kl_coef_upper_bound 0.8 \
---rluam.k_beta 0.1 \
+--rluam.kl_coef 0.8 \
+--rluam.kl_coef_lower_bound 0.75 \
+--rluam.kl_coef_upper_bound 0.95 \
+--rluam.k_beta 0.01 \
 --rluam.sl_coef 1.0 \
 --rluam.wa_coef 2.1
+

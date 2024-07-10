@@ -1,8 +1,8 @@
 #!/bin/sh
 #SBATCH --job-name=ppo_uam_phi2-3b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=gpuunsafe
-#SBATCH --gres=gpu:a40:2
+#SBATCH --partition=nextgen-gpu
+#SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
 #SBATCH --time=2-00:00:00
@@ -42,12 +42,12 @@ ppo.py \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 2 \
---local_eval_batch_size 1 \
+--local_micro_batch_size 4 \
+--local_eval_batch_size 4 \
 --rluam.target_kl 2.0 \
---rluam.kl_coef 0.6 \
---rluam.kl_coef_lower_bound 0.6 \
---rluam.kl_coef_upper_bound 0.8 \
---rluam.k_beta 0.1 \
+--rluam.kl_coef 0.8 \
+--rluam.kl_coef_lower_bound 0.75 \
+--rluam.kl_coef_upper_bound 0.95 \
+--rluam.k_beta 0.01 \
 --rluam.sl_coef 1.0 \
 --rluam.wa_coef 2.1
