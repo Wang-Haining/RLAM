@@ -225,6 +225,7 @@ if __name__ == "__main__":
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
         if args.model == "llama3-8b":
+            tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="left")
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             # tokenizer.pad_token = tokenizer.eos_token
             # model.generation_config.pad_token_id = tokenizer.pad_token_id
