@@ -198,6 +198,7 @@ if __name__ == "__main__":
     dataset = build_sass_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     if args.model == "llama3-8b":
+        tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="right")
         tokenizer.add_special_tokens({'pad_token': '<pad>'})  # only work for sft
 
     # load the overview file if it exists
