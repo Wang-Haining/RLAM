@@ -92,7 +92,7 @@ def calculate_metrics(
                     token, top_100k_tokens, wa_model, total_tokens, token_freq
                 )
             )
-    p = num_voa_words / num_words
+    p = (num_voa_words / num_words) + 1e-12
     metrics_dict.update({"voa_log_ratio": np.log(p / (1 - p))})
     metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
