@@ -125,6 +125,7 @@ def evaluate_model(
                     batch_samples["response"][j],
                     batch_samples["source"][j],
                 )
+                print(generated_text)
                 results.append(result | {"generated_text": generated_text})
     return results
 
