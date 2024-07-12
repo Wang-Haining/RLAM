@@ -23,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 from utils import (GEMMA_2B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B, LLAMA3_8B, SEED,
                    TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_ppo_dataset, compute_ari,
+                   WORD_FREQ_CSV, build_sass_dataset, compute_ari,
                    compute_flesch_kincaid, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
 
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     )
     print(f"{test_generation_config=}")
 
-    dataset = build_ppo_dataset(base_model)
+    dataset = build_sass_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists

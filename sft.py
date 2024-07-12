@@ -21,7 +21,7 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                           TrainingArguments)
 from trl import SFTTrainer, set_seed
 
-from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, OLMO_1B, PHI2_3B,
+from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, OLMO_1B, PHI2_3B, LLAMA3_8B,
                    PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

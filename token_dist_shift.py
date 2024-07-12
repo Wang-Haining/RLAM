@@ -12,7 +12,7 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from utils import MAX_OUTPUT_LENGTHS, OLMO_1B, build_ppo_dataset
+from utils import MAX_OUTPUT_LENGTHS, OLMO_1B, build_sass_dataset
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -151,7 +151,7 @@ base_model = OLMO_1B
 sft_ckpt = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
 # ppo_ckpt = "ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_220_ari_12.06"
 ppo_ckpt = "ckpts/ppo_uam_olmo-1b_dynamic_kl_control__42__1719962332/step_480_ari_9.08"
-dataset = build_ppo_dataset(OLMO_1B)["test"]
+dataset = build_sass_dataset(OLMO_1B)["test"]
 
 
 # extract a query from the dataset

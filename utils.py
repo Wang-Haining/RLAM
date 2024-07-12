@@ -342,7 +342,7 @@ def count_sent(text: str) -> int:
     return len(sents)
 
 
-def build_ppo_dataset(
+def build_sass_dataset(
     model_name: str,
     task_prefix: str = TASK_PREFIX,
     response_template: str = RESPONSE_TEMP,
