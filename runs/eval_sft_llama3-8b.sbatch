@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --model llama3-8b --temperature 0.7
+python -m eval_outputs --model llama3-8b --temperature 0.7 --top_p 0.95

@@ -165,6 +165,9 @@ if __name__ == "__main__":
         "--batch_size", type=int, default=20, help="Batch size for inference"
     )
     parser.add_argument(
+        "--top_p", type=float, default=1.0, help="Sampling top_p"
+    )
+    parser.add_argument(
         "--temperature", type=float, default=0.7, help="Sampling temperature"
     )
     args = parser.parse_args()
@@ -195,7 +198,7 @@ if __name__ == "__main__":
         max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
         temperature=args.temperature + 1e-7,
         top_k=0.0,
-        top_p=1.0,
+        top_p=args.top_p,
         do_sample=True,
         num_return_sequences=1,
     )
