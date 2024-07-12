@@ -96,6 +96,9 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name,
                                                  torch_dtype=torch.bfloat16)
+    if 'llama' in args.base_model.lower():
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        model.resize_token_embeddings(len(tokenizer))
 
     if args.is_peft_model:
         model = get_peft_model(model, lora_config)
