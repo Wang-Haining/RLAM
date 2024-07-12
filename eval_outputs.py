@@ -21,7 +21,7 @@ from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
-from utils import (GEMMA_2B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B, SEED,
+from utils import (GEMMA_2B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B, LLAMA3_8B, SEED,
                    TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL,
                    WORD_FREQ_CSV, build_ppo_dataset, compute_ari,
                    compute_flesch_kincaid, compute_sent_len,
@@ -179,6 +179,8 @@ if __name__ == "__main__":
         base_model = OLMO_1B
     elif "phi2-3b" in args.model.lower():
         base_model = PHI2_3B
+    elif "llama3-8b" in args.model.lower():
+        base_model = LLAMA3_8B
     else:
         raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
 
