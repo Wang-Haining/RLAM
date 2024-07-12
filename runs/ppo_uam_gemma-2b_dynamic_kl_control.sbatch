@@ -47,7 +47,7 @@ ppo.py \
 --rluam.target_kl 2.0 \
 --rluam.kl_coef 0.8 \
 --rluam.kl_coef_lower_bound 0.75 \
---rluam.kl_coef_upper_bound 0.90 \
---rluam.k_beta 1e-3 \
+--rluam.kl_coef_upper_bound 0.85 \
+--rluam.k_beta 1e-4 \
 --rluam.sl_coef 1.0 \
 --rluam.wa_coef 2.1
