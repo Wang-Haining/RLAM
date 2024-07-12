@@ -226,6 +226,7 @@ if __name__ == "__main__":
         if args.model == "llama3-8b":
             tokenizer.pad_token = tokenizer.eos_token
             model.generation_config.pad_token_id = tokenizer.pad_token_id
+            model.resize_token_embeddings(len(tokenizer))
         model.to(device)
 
         # evaluate with test generation config
