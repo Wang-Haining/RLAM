@@ -96,7 +96,7 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name,
                                                  torch_dtype=torch.bfloat16)
-    if 'llama' in args.base_model.lower():
+    if 'llama' in args.model.lower():
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
         model.resize_token_embeddings(len(tokenizer))
 
