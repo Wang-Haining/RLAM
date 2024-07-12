@@ -197,9 +197,6 @@ if __name__ == "__main__":
 
     dataset = build_sass_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    if args.model == "llama3-8b":
-        tokenizer.pad_token = tokenizer.eos_token
-        model.generation_config.pad_token_id = tokenizer.pad_token_id
 
     # load the overview file if it exists
     overview_path = os.path.join(save_dir, "overview.jsonl")
@@ -226,6 +223,9 @@ if __name__ == "__main__":
         model = AutoModelForCausalLM.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
+        if args.model == "llama3-8b":
+            tokenizer.pad_token = tokenizer.eos_token
+            model.generation_config.pad_token_id = tokenizer.pad_token_id
         model.to(device)
 
         # evaluate with test generation config
