@@ -45,7 +45,7 @@ from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           PreTrainedModel, PreTrainedTokenizerBase)
 
 from utils import (INVALID_LOGPROB, SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_ppo_dataset, compute_ari, PROJECT_NAME,
+                   WORD_FREQ_CSV, build_sass_dataset, compute_ari, PROJECT_NAME,
                    compute_sent_len, compute_token_accessibility, count_sent,
                    read_token_frequencies)
 
@@ -644,7 +644,7 @@ if __name__ == "__main__":
     )
 
     # load dataset
-    dataset = build_ppo_dataset(args.base_model)
+    dataset = build_sass_dataset(args.base_model)
     dataset = dataset.with_format("torch", columns=["query_token",
                                                     "reference_response_token",
                                                     "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded
