@@ -280,78 +280,78 @@ if __name__ == "__main__":
         )
         print("*" * 90)
 
-    # get the relevant PPO runs using heuristics
-    relevant_runs = []
-    for run in os.listdir("ckpts"):
-        if run.startswith(f"ppo_{args.reward}_{args.model}"):
-            if run not in evaluated_runs:
-                relevant_runs.append(run)
-    print(f"{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}")
-
-    for run in relevant_runs:
-        run_dir = os.path.join("ckpts", run)
-        print(f"Starting evaluation for {run_dir}")
-        for ckpt in os.listdir(run_dir):
-            if ckpt.startswith("step_"):
-                ari = float(ckpt.split("_ari_")[-1])
-                if args.lower_ari_bound <= ari <= args.upper_ari_bound:
-                    ckpt_path = os.path.join(run_dir, ckpt)
-                    print(f"Starting evaluation for {ckpt_path}")
-                    model = AutoModelForCausalLM.from_pretrained(
-                        ckpt_path, torch_dtype=torch.bfloat16
-                    )
-                    model.to(device)
-
-                    # evaluate with test generation config
-                    eval_results = evaluate_model(
-                        model,
-                        dataset["test"],
-                        tokenizer,
-                        test_generation_config,
-                        batch_size=args.batch_size,
-                    )
-                    # save evaluation results to CSV
-                    file_path = os.path.join(
-                        save_dir, f"{ckpt_path.replace('/', '|')}.csv"
-                    )
-                    with open(file_path, mode="w", encoding="utf-8") as file:
-                        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
-                        writer.writeheader()
-                        writer.writerows(eval_results)
-
-                    # calculate average and standard deviation of scores
-                    avg_scores = {
-                        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
-                        for metric in eval_results[0].keys()
-                        if metric not in ["generated_text"]
-                    }
-                    std_scores = {
-                        f"std_{metric}": np.std([x[metric] for x in eval_results])
-                        for metric in eval_results[0].keys()
-                        if metric not in ["generated_text"]
-                    }
-
-                    # save the overview in JSONL format
-                    with open(overview_path, mode="a", encoding="utf-8") as f:
-                        json.dump(
-                            {"run_path": run_dir}
-                            | {"ckpt_path": ckpt_path}
-                            | avg_scores
-                            | std_scores,
-                            f,
-                        )
-                        f.write("\n")
-
-                    # print out results
-                    print("*" * 90)
-                    print(
-                        f"RLUAM performance for {ckpt_path} in temperature {args.temperature}::"
-                    )
-                    print("Average scores for {}: {}".format(ckpt_path, avg_scores))
-                    print(
-                        "Standard deviation of scores for {}: {}".format(
-                            ckpt_path, std_scores
-                        )
-                    )
-                    print("*" * 90)
+    # # get the relevant PPO runs using heuristics
+    # relevant_runs = []
+    # for run in os.listdir("ckpts"):
+    #     if run.startswith(f"ppo_{args.reward}_{args.model}"):
+    #         if run not in evaluated_runs:
+    #             relevant_runs.append(run)
+    # print(f"{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}")
+    #
+    # for run in relevant_runs:
+    #     run_dir = os.path.join("ckpts", run)
+    #     print(f"Starting evaluation for {run_dir}")
+    #     for ckpt in os.listdir(run_dir):
+    #         if ckpt.startswith("step_"):
+    #             ari = float(ckpt.split("_ari_")[-1])
+    #             if args.lower_ari_bound <= ari <= args.upper_ari_bound:
+    #                 ckpt_path = os.path.join(run_dir, ckpt)
+    #                 print(f"Starting evaluation for {ckpt_path}")
+    #                 model = AutoModelForCausalLM.from_pretrained(
+    #                     ckpt_path, torch_dtype=torch.bfloat16
+    #                 )
+    #                 model.to(device)
+    #
+    #                 # evaluate with test generation config
+    #                 eval_results = evaluate_model(
+    #                     model,
+    #                     dataset["test"],
+    #                     tokenizer,
+    #                     test_generation_config,
+    #                     batch_size=args.batch_size,
+    #                 )
+    #                 # save evaluation results to CSV
+    #                 file_path = os.path.join(
+    #                     save_dir, f"{ckpt_path.replace('/', '|')}.csv"
+    #                 )
+    #                 with open(file_path, mode="w", encoding="utf-8") as file:
+    #                     writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+    #                     writer.writeheader()
+    #                     writer.writerows(eval_results)
+    #
+    #                 # calculate average and standard deviation of scores
+    #                 avg_scores = {
+    #                     f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+    #                     for metric in eval_results[0].keys()
+    #                     if metric not in ["generated_text"]
+    #                 }
+    #                 std_scores = {
+    #                     f"std_{metric}": np.std([x[metric] for x in eval_results])
+    #                     for metric in eval_results[0].keys()
+    #                     if metric not in ["generated_text"]
+    #                 }
+    #
+    #                 # save the overview in JSONL format
+    #                 with open(overview_path, mode="a", encoding="utf-8") as f:
+    #                     json.dump(
+    #                         {"run_path": run_dir}
+    #                         | {"ckpt_path": ckpt_path}
+    #                         | avg_scores
+    #                         | std_scores,
+    #                         f,
+    #                     )
+    #                     f.write("\n")
+    #
+    #                 # print out results
+    #                 print("*" * 90)
+    #                 print(
+    #                     f"RLUAM performance for {ckpt_path} in temperature {args.temperature}::"
+    #                 )
+    #                 print("Average scores for {}: {}".format(ckpt_path, avg_scores))
+    #                 print(
+    #                     "Standard deviation of scores for {}: {}".format(
+    #                         ckpt_path, std_scores
+    #                     )
+    #                 )
+    #                 print("*" * 90)
     print("*" * 90)
