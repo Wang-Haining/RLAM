@@ -197,8 +197,9 @@ if __name__ == "__main__":
 
     dataset = build_sass_dataset(base_model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    if args.model.lower() == "llama3-8b":
+    if args.model == "llama3-8b":
         tokenizer.pad_token = tokenizer.eos_token  # only work for sft
+        print('Set pad token to eos token.')
 
     # load the overview file if it exists
     overview_path = os.path.join(save_dir, "overview.jsonl")
