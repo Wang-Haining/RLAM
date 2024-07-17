@@ -15,7 +15,7 @@ import wandb
 from datasets import DatasetDict, load_from_disk
 from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
-                          Trainer, TrainingArguments)
+                          Trainer, TrainingArguments, set_seed)
 
 from utils import DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX
 
