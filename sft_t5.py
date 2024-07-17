@@ -8,17 +8,18 @@ __author__ = "hw56@indiana.edu"
 __version__ = "0.0.1"
 __license__ = "0BSD"
 
-import os
 import argparse
+import os
 
 import torch
 import wandb
-from datasets import DatasetDict, load_from_disk
+from datasets import load_from_disk
 from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
                           Trainer, TrainingArguments, set_seed)
 
-from utils import DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX
+from utils import (CKPTS_DIR, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
+                   TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 T5_MODEL_NAME = "google/flan-t5-xl"
@@ -58,7 +59,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with google/flan-t5-xl.")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
-
+    args = parser.parse_args()
 
     dataset = load_from_disk(DATASET_PATH)
     train_dataset = dataset["train"].map(
@@ -78,8 +79,8 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=True,
         evaluation_strategy="steps",
-        per_device_train_batch_size=arg.per_device_train_batch_size,
-        per_device_eval_batch_size=arg.per_device_train_batch_size,
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
         lr_scheduler_type='constant_with_warmup',
