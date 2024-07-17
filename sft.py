@@ -22,7 +22,8 @@ from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
 from trl import SFTTrainer, set_seed
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, OLMO_1B, PHI2_3B, LLAMA3_8B,
-                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
+                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, MAX_INPUT_LENGTHS,
+                   MAX_OUTPUT_LENGTHS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -133,7 +134,7 @@ if __name__ == "__main__":
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
         formatting_func=formatting_func,
-        max_seq_length=1024,
+        max_seq_length=MAX_INPUT_LENGTHS[args.model] + MAX_OUTPUT_LENGTHS[args.model] + 10,
         args=training_args,
         peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
