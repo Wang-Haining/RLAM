@@ -78,7 +78,7 @@ if __name__ == "__main__":
         num_train_epochs=10.0,
         do_train=True,
         do_eval=True,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=4,
