@@ -102,7 +102,7 @@ def calculate_metrics(
 
 
 def evaluate_model(
-    model, dataset, tokenizer, generation_config, batch_size
+    model, dataset, tokenizer, generation_config, batch_size, verbose=False
 ) -> List[Dict]:
     results = []
     model.eval()
@@ -125,7 +125,8 @@ def evaluate_model(
                     batch_samples["response"][j],
                     batch_samples["source"][j],
                 )
-                print(generated_text)
+                if verbose:
+                    print(f'{generated_text=}')
                 results.append(result | {"generated_text": generated_text})
     return results
 
@@ -168,7 +169,12 @@ if __name__ == "__main__":
         "--top_p", type=float, default=1.0, help="Sampling top_p"
     )
     parser.add_argument(
-        "--temperature", type=float, default=0.7, help="Sampling temperature"
+        "--temperature", type=float, default=0.01, help="Sampling temperature"
+    )
+    parser.add_argument(
+        "--verbose",
+        action='store_true',
+        help="Flag to print generated texts during evaluation. Defaults to False.",
     )
     args = parser.parse_args()
     torch.manual_seed(SEED)
