@@ -106,15 +106,14 @@ if __name__ == "__main__":
     training_args = TrainingArguments(
         output_dir=f"{CKPTS_DIR}/{run_name}",
         overwrite_output_dir=False,
-        num_train_epochs=5.0,
+        num_train_epochs=10.0,
         do_train=True,
         do_eval=True,
-        do_predict=True,
         evaluation_strategy="steps",
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_train_batch_size,  # same to training
         gradient_accumulation_steps=4,
-        learning_rate=1e-5,
+        learning_rate=args.learning_rate,
         lr_scheduler_type='constant_with_warmup',
         warmup_steps=50,
         weight_decay=1e-1,
