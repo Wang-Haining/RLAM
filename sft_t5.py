@@ -92,7 +92,7 @@ if __name__ == "__main__":
         report_to="wandb",
         load_best_model_at_end=True,
         save_steps=20,
-        save_total_limit=3,
+        save_total_limit=1,
         remove_unused_columns=True,
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
