@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
     # define the generation configuration
     test_generation_config = GenerationConfig(
-        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model],
+        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model.split('/')[-1]],
         temperature=args.temperature + 1e-7,
         top_k=0.0,
         top_p=args.top_p,
