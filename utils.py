@@ -378,7 +378,7 @@ def build_sass_dataset(
         # prepend the task-specific prefix and append trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
         if any(keyword in model_name.lower() for keyword in
-               ['gemma', 'olmo', 'phi', 'llama', 'long-t5']):
+               ['gemma', 'olmo', 'phi-2', 'llama', 'long-t5']):
             max_input_length = MAX_INPUT_LENGTHS[model_name]
             max_output_length = MAX_OUTPUT_LENGTHS[model_name]
 
