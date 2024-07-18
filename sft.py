@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Supervise Fine-tuning with "
                                                  "Gemma-2B/7B, OLMo-1B, Llama3-8B or Phi-2.")
     parser.add_argument("--model", type=str,
-                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", 'phi2-3b'],
+                        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", 'phi-2'],
                         help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi2-3b")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         model_name = LLAMA3_8B
     elif args.model == "gpt2-xl":
         model_name = GPT2_XL
-    elif args.model == "phi2-3b":
+    elif args.model == "phi-2":
         model_name = PHI2_3B
     else:
         raise ValueError(f"Invalid model name: {args.model}")

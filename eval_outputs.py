@@ -146,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b",
+        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi-2",
                  'long-t5-xl'],
         help="The model type (across runs) to evaluate",
     )
@@ -241,8 +241,8 @@ if __name__ == "__main__":
     sft_checkpoints = os.listdir(sft_run_dir)
     if len(sft_checkpoints) != 1:
         raise ValueError(
-            f"Expected exactly one checkpoint in {sft_run_dir}, but f"
-            f"ound {len(sft_checkpoints)}."
+            f"Expected exactly one checkpoint in {sft_run_dir}, but "
+            f"found {len(sft_checkpoints)}."
         )
     sft_checkpoint = sft_checkpoints[0]
     sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
@@ -257,7 +257,7 @@ if __name__ == "__main__":
         model = T5ForConditionalGeneration.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
-    if args.model == "llama3-8b":
+    if args.model in ["llama3-8b", 'phi-2']:
         # tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="left")
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
         # tokenizer.pad_token = tokenizer.eos_token
