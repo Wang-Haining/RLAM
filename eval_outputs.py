@@ -259,7 +259,7 @@ if __name__ == "__main__":
             model.resize_token_embeddings(len(tokenizer))
             from peft import PeftModel
 
-            model = PeftModel.from_pretrained(sft_ckpt_path)
+            model = PeftModel.from_pretrained(model, sft_ckpt_path)
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(
