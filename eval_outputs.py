@@ -254,9 +254,10 @@ if __name__ == "__main__":
             model = AutoModelForCausalLM.from_pretrained(
                 sft_ckpt_path, torch_dtype=torch.bfloat16
             )
+        else:
+            # resize embedding size for loading peft model
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             model.resize_token_embeddings(len(tokenizer))
-        else:
             from peft import AutoPeftModelForCausalLM
 
             model = AutoPeftModelForCausalLM.from_pretrained(sft_ckpt_path)
