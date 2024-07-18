@@ -39,10 +39,10 @@ WORD_ACCESSIBILITY_MODEL = "word_freq/wa_model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
-MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi-2': 578, 'llama3-8b': 546,
-                     'long-t5-tglobal-xl': 611}
+MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi-2': 578,
+                     'meta-llama-3-8b': 546, 'long-t5-tglobal-xl': 611}
 MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'phi2-3b': 244, 'llama3-8b': 240,
-                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240,
+                      'phi-2': 244, 'OLMo-1B-hf': 223, 'meta-llama-3-8b': 240,
                       'long-t5-tglobal-xl': 275}
 
 
@@ -379,8 +379,8 @@ def build_sass_dataset(
         sample["query"] = task_prefix + sample["source"] + response_template
         if any(keyword in model_name.lower() for keyword in
                ['gemma', 'olmo', 'phi-2', 'llama', 'long-t5']):
-            max_input_length = MAX_INPUT_LENGTHS[model_name.split('/')[-1]]
-            max_output_length = MAX_OUTPUT_LENGTHS[model_name.split('/')[-1]]
+            max_input_length = MAX_INPUT_LENGTHS[model_name.split('/')[-1].lower()]
+            max_output_length = MAX_OUTPUT_LENGTHS[model_name.split('/')[-1].lower()]
 
             # add special tokens if required by the model
             if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
