@@ -28,7 +28,7 @@ GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 PHI2_3B = "microsoft/phi-2"
-FLAN_T5_XL = "google/flan-t5-xl"
+LONG_T5_XL = "google/long-t5-tglobal-xl"
 T5_MAX_INPUT_LEN = 512  # max length == 661
 T5_MAX_OUTPUT_LEN = 275
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
@@ -39,10 +39,9 @@ WORD_ACCESSIBILITY_MODEL = "word_freq/wa_model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
-# flan-t5-xl has a maximum of 611 tokens as input
-MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi2-3b': 578, 'llama3-8b': 546, 'flan-t5-xl': 512}
+MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi2-3b': 578, 'llama3-8b': 546, 'long-t5-xl': 611}
 MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'phi2-3b': 244, 'llama3-8b': 240,
-                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240, 'flan-t5-xl': 275}
+                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240, 'long-t5-xl': 275}
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):
@@ -372,28 +371,22 @@ def build_sass_dataset(
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")
         ds[split] = ds[split].add_column("query", len(ds[split])*[''])
+
     def tokenize(sample):
         # prepend the task-specific prefix and append trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
-        if 'gemma' in model_name.lower():
-            max_input_length = 544
-            max_output_length = 241
-        elif 'olmo' in model_name.lower():
-            max_input_length = 531
-            max_output_length = 223
-        elif 'phi' in model_name.lower():
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
-            max_input_length = 578
-            max_output_length = 244
-        elif 'llama' in model_name.lower():
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
-            max_input_length = 546
-            max_output_length = 240
-        elif 'flan' in model_name.lower():
-            max_input_length = 512
-            max_output_length = 275
+        if any(keyword in model_name.lower() for keyword in
+               ['gemma', 'olmo', 'phi', 'llama', 'long-t5']):
+            max_input_length = MAX_INPUT_LENGTHS[model_name]
+            max_output_length = MAX_OUTPUT_LENGTHS[model_name]
+
+            # add special tokens if required by the model
+            if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
+                tokenizer.add_special_tokens({'pad_token': '<pad>'})
         else:
-            raise ValueError(f"Max lens should be computed beforehand for {model_name}.")
+            raise ValueError(f"Max input/output lengths should be computed beforehand "
+                             f"for {model_name}.")
+
         query_token = tokenizer.encode(
             sample["query"],
             truncation=True,

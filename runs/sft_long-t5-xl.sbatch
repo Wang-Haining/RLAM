@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=sft_flant5-xl
+#SBATCH --job-name=sft_long-t5-xl
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1

@@ -22,7 +22,7 @@ from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, T5ForConditionalGeneration)
 
-from utils import (FLAN_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
+from utils import (LONG_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
                    OLMO_1B, PHI2_3B, SEED, TASK_PREFIX, VOA1500,
                    WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
                    compute_ari, compute_flesch_kincaid, compute_sent_len,
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b",
-                 'flan-t5-xl'],
+                 'long-t5-xl'],
         help="The model type (across runs) to evaluate",
     )
     parser.add_argument(
@@ -206,8 +206,8 @@ if __name__ == "__main__":
         base_model = PHI2_3B
     elif "llama3-8b" in args.model.lower():
         base_model = LLAMA3_8B
-    elif "flan-t5-xl" in args.model.lower():
-        base_model = FLAN_T5_XL
+    elif "long-t5-xl" in args.model.lower():
+        base_model = LONG_T5_XL
     else:
         raise ValueError(f"Unknown model name {args.model}")
 
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     if sft_run_dir not in evaluated_runs:
         print(f"Starting evaluation for {sft_ckpt_path}")
 
-    if args.model != 'flan-t5-xl':
+    if args.model != 'long-t5-xl':
         model = AutoModelForCausalLM.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
@@ -273,7 +273,7 @@ if __name__ == "__main__":
         tokenizer,
         test_generation_config,
         batch_size=args.batch_size,
-        model_type='clm' if args.model != 'flan-t5-xl' else 'seq2seq',
+        model_type='clm' if args.model != 'long-t5-xl' else 'seq2seq',
         verbose=args.verbose
     )
 
@@ -346,7 +346,7 @@ if __name__ == "__main__":
                             tokenizer,
                             test_generation_config,
                             batch_size=args.batch_size,
-                            model_type='clm' if args.model != 'flan-t5-xl' else 'seq2seq',
+                            model_type='clm' if args.model != 'long-t5-xl' else 'seq2seq',
                             verbose=args.verbose
                         )
                         # save evaluation results to CSV

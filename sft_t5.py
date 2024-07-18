@@ -1,5 +1,5 @@
 """
-This module performs supervised finetuning on a Flan-T5 base using the Scientific
+This module performs supervised finetuning on a long-T5 model using the Scientific
 Abstract-Significance Statement dataset (SASS). It concatenates scientific abstracts
 with their simplified versions using a straightforward template.
 """
@@ -19,7 +19,7 @@ from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
                           Trainer, TrainingArguments, set_seed)
 
 from utils import (CKPTS_DIR, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
-                   TASK_PREFIX, FLAN_T5_XL, MAX_OUTPUT_LENGTHS, MAX_INPUT_LENGTHS)
+                   TASK_PREFIX, LONG_T5_XL, MAX_OUTPUT_LENGTHS, MAX_INPUT_LENGTHS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{T5_MODEL_NAME.split("/")[-1]}'
@@ -53,7 +53,7 @@ def preprocess_function(examples, tokenizer):
 
 if __name__ == "__main__":
     set_seed(SEED + 2122)
-    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with google/flan-t5-xl.")
+    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Seq2seq LMs.")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     args = parser.parse_args()

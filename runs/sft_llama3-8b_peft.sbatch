@@ -1,11 +1,11 @@
 #!/bin/sh
-#SBATCH --job-name=sft_llama3-8b
+#SBATCH --job-name=llama3-8b_peft
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=nextgen-gpu
-#SBATCH --gres=gpu:h100:1
+#SBATCH --partition=gpuunsafe
+#SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-12:00:00
+#SBATCH --time=0-3:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model llama3-8b --per_device_train_batch_size 1
+python -m sft --model llama3-8b --per_device_train_batch_size 4 --is_peft_model
