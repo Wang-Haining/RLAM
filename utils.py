@@ -28,7 +28,7 @@ GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 PHI2_3B = "microsoft/phi-2"
-T5_MODEL_NAME = "google/flan-t5-xl"
+FLAN_T5_XL = "google/flan-t5-xl"
 T5_MAX_INPUT_LEN = 512  # max length == 661
 T5_MAX_OUTPUT_LEN = 275
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
@@ -39,9 +39,10 @@ WORD_ACCESSIBILITY_MODEL = "word_freq/wa_model.pkl"
 VOA1500 = 'word_freq/voa1500.json'
 SEP_TOKENS = ['<eos>', '<|endoftext|>', '<|end_of_text|>', '<|begin_of_text|>', '<pad>']
 INVALID_LOGPROB = 1.0
-MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi2-3b': 578, 'llama3-8b': 546}
+# flan-t5-xl has a maximum of 611 tokens as input
+MAX_INPUT_LENGTHS = {'gemma-2b': 544, 'olmo-1b': 531, 'phi2-3b': 578, 'llama3-8b': 546, 'flan-t5-xl': 512}
 MAX_OUTPUT_LENGTHS = {'gemma-2b': 241, 'olmo-1b': 223, 'phi2-3b': 244, 'llama3-8b': 240,
-                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240}
+                      'phi-2': 244, 'OLMo-1B-hf': 223, 'Meta-Llama-3-8B': 240, 'flan-t5-xl': 275}
 
 
 def read_token_frequencies(filename=WORD_FREQ_CSV):

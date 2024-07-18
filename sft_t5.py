@@ -19,7 +19,7 @@ from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
                           Trainer, TrainingArguments, set_seed)
 
 from utils import (CKPTS_DIR, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
-                   TASK_PREFIX)
+                   TASK_PREFIX, FLAN_T5_XL, MAX_OUTPUT_LENGTHS, MAX_INPUT_LENGTHS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 run_name = f'sft_{T5_MODEL_NAME.split("/")[-1]}'
