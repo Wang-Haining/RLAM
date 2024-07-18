@@ -254,34 +254,23 @@ if __name__ == "__main__":
             model = AutoModelForCausalLM.from_pretrained(
                 sft_ckpt_path, torch_dtype=torch.bfloat16
             )
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            model.resize_token_embeddings(len(tokenizer))
         else:
-            # model = AutoModelForCausalLM.from_pretrained(
-            #     LLAMA3_8B, torch_dtype=torch.bfloat16
-            # )
             from peft import AutoPeftModelForCausalLM
 
-            # lora_config = LoraConfig(
-            #     init_lora_weights="gaussian",
-            #     target_modules=["q_proj", "v_proj"],
-            #     r=16,
-            #     lora_alpha=32,
-            #     lora_dropout=0.05,
-            #     bias="none",
-            #     task_type="CAUSAL_LM",
-            # )
             model = AutoPeftModelForCausalLM.from_pretrained(sft_ckpt_path)
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
-    if args.model in ["llama3-8b", 'phi-2']:
+    if args.model in ['phi-2']:
         # tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="left")
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
         # tokenizer.pad_token = tokenizer.eos_token
         # model.generation_config.pad_token_id = tokenizer.pad_token_id
         model.resize_token_embeddings(len(tokenizer))
-
 
     model.to(device)
 
