@@ -40,7 +40,7 @@ def preprocess_function(examples, tokenizer):
 
     labels = tokenizer(
         targets,
-        max_length=MAX_OUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
+        max_length=MAX_OUTPUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
         truncation=True,
         padding="max_length",
         return_tensors="pt",
