@@ -202,7 +202,7 @@ if __name__ == "__main__":
         base_model = GEMMA_2B
     elif "olmo-1b" in args.model.lower():
         base_model = OLMO_1B
-    elif "phi2-3b" in args.model.lower():
+    elif "phi-2" in args.model.lower():
         base_model = PHI2_3B
     elif "llama3-8b" in args.model.lower():
         base_model = LLAMA3_8B
