@@ -263,6 +263,10 @@ if __name__ == "__main__":
         # tokenizer.pad_token = tokenizer.eos_token
         # model.generation_config.pad_token_id = tokenizer.pad_token_id
         # model.resize_token_embeddings(len(tokenizer))
+    if args.model in ["llama3-8b"]:
+        # load the LoRA adapter
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, sft_ckpt_path)
 
     model.to(device)
 
