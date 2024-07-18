@@ -379,8 +379,8 @@ def build_sass_dataset(
         sample["query"] = task_prefix + sample["source"] + response_template
         if any(keyword in model_name.lower() for keyword in
                ['gemma', 'olmo', 'phi-2', 'llama', 'long-t5']):
-            max_input_length = MAX_INPUT_LENGTHS[model_name]
-            max_output_length = MAX_OUTPUT_LENGTHS[model_name]
+            max_input_length = MAX_INPUT_LENGTHS[model_name.split('/')[-1]]
+            max_output_length = MAX_OUTPUT_LENGTHS[model_name.split('/')[-1]]
 
             # add special tokens if required by the model
             if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
