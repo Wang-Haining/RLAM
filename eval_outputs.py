@@ -22,11 +22,10 @@ from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, T5ForConditionalGeneration)
 
-from utils import (GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
-                   SEED, T5_MAX_INPUT_LEN, T5_MAX_OUTPUT_LEN, T5_MODEL_NAME,
-                   TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_sass_dataset, compute_ari,
-                   compute_flesch_kincaid, compute_sent_len,
+from utils import (FLAN_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
+                   OLMO_1B, PHI2_3B, SEED, TASK_PREFIX, VOA1500,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
+                   compute_ari, compute_flesch_kincaid, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
