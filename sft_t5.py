@@ -22,8 +22,8 @@ from utils import (CKPTS_DIR, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
                    TASK_PREFIX, LONG_T5_XL, MAX_OUTPUT_LENGTHS, MAX_INPUT_LENGTHS)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-run_name = f'sft_{T5_MODEL_NAME.split("/")[-1]}'
-tokenizer = AutoTokenizer.from_pretrained(T5_MODEL_NAME, padding_side="right")
+run_name = f'sft_{LONG_T5_XL.split("/")[-1]}'
+tokenizer = AutoTokenizer.from_pretrained(LONG_T5_XL, padding_side="right")
 
 
 def preprocess_function(examples, tokenizer):
@@ -32,7 +32,7 @@ def preprocess_function(examples, tokenizer):
 
     model_inputs = tokenizer(
         inputs,
-        max_length=T5_MAX_INPUT_LEN,
+        max_length=MAX_INPUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
         truncation=True,
         padding="max_length",
         return_tensors="pt",
@@ -40,7 +40,7 @@ def preprocess_function(examples, tokenizer):
 
     labels = tokenizer(
         targets,
-        max_length=T5_MAX_OUTPUT_LEN,
+        max_length=MAX_OUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
         truncation=True,
         padding="max_length",
         return_tensors="pt",
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         lambda batch: preprocess_function(batch, tokenizer), batched=True)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
-        T5_MODEL_NAME, torch_dtype=torch.bfloat16
+        LONG_T5_XL, torch_dtype=torch.bfloat16
     )
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
