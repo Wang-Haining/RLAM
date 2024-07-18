@@ -28,6 +28,9 @@ GEMMA_2B = "google/gemma-2b"
 GEMMA_7B = "google/gemma-7b"
 OLMO_1B = "allenai/OLMo-1B-hf"
 PHI2_3B = "microsoft/phi-2"
+T5_MODEL_NAME = "google/flan-t5-xl"
+T5_MAX_INPUT_LEN = 512  # max length == 661
+T5_MAX_OUTPUT_LEN = 275
 TASK_PREFIX = "Rewrite this abstract using simple words and short, simple sentences for middle school students: "
 RESPONSE_TEMP = "\nSimplified version:"  # no space after colon because the template takes care of this
 CKPTS_DIR = 'ckpts'
