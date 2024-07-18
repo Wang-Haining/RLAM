@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     training_args = TrainingArguments(
         output_dir=f"{CKPTS_DIR}/{run_name}",
-        overwrite_output_dir=False,
+        overwrite_output_dir=True,
         num_train_epochs=50.0,
         do_train=True,
         do_eval=True,
