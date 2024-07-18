@@ -48,7 +48,7 @@ voa1500 = json.load(open(VOA1500, "r", encoding="utf-8"))
 
 
 def calculate_metrics(
-    generated_text: str, target_text: str, source_text: str
+        generated_text: str, target_text: str, source_text: str
 ) -> Dict[str, float]:
     metrics_dict = {}
     generated_texts = [generated_text.strip()]
@@ -103,22 +103,27 @@ def calculate_metrics(
 
 
 def evaluate_model(
-    model, dataset, tokenizer, generation_config, batch_size, verbose=False
+        model, dataset, tokenizer, generation_config, batch_size, model_type='clm',
+        verbose=False
 ) -> List[Dict]:
     results = []
     model.eval()
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
-            batch_samples = dataset[i : i + batch_size]
+            batch_samples = dataset[i: i + batch_size]
             input_ids = torch.tensor(batch_samples["query_token"]).to(device)
             generated_tokens = model.generate(
                 input_ids=input_ids, generation_config=generation_config
             )
             # only newly generated text are returned
-            generated_texts = tokenizer.batch_decode(
-                generated_tokens[:, input_ids.shape[1] :],
-                skip_special_tokens=True,
-            )
+            if model_type == 'clm':
+                generated_texts = tokenizer.batch_decode(
+                    generated_tokens[:, input_ids.shape[1]:],
+                    skip_special_tokens=True,
+                )
+            elif model_type == 'seq2seq':
+                generated_texts = tokenizer.batch_decode(generated_tokens,
+                                                         skip_special_tokens=True)
             for j, generated_text in enumerate(generated_texts):
                 generated_text = generated_text.strip()
                 result = calculate_metrics(
@@ -135,12 +140,14 @@ def evaluate_model(
 if __name__ == "__main__":
     print("*" * 90)
     parser = argparse.ArgumentParser(
-        description="Evaluate SFT and policy model outputs given model type and validation ARI"
+        description="Evaluate SFT and policy model outputs given model type and "
+                    "validation ARI"
     )
     parser.add_argument(
         "--model",
         type=str,
-        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b", 'flan-t5-xl'],
+        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b",
+                 'flan-t5-xl'],
         help="The model type (across runs) to evaluate",
     )
     parser.add_argument(
@@ -152,13 +159,15 @@ if __name__ == "__main__":
         "--upper_ari_bound",
         type=float,
         default=15.0,
-        help="The upper bound of evaluation ARI for a checkpoint to be considered in the evaluation",
+        help="The upper bound of evaluation ARI for a checkpoint to be considered in "
+             "the evaluation",
     )
     parser.add_argument(
         "--lower_ari_bound",
         type=float,
         default=8.0,
-        help="The lower bound of evaluation ARI for a checkpoint to be considered in the evaluation",
+        help="The lower bound of evaluation ARI for a checkpoint to be considered in "
+             "the evaluation",
     )
     parser.add_argument(
         "--reward", type=str, default="uam", choices=["uam", "ari"], help="Reward type"
@@ -232,7 +241,8 @@ if __name__ == "__main__":
     sft_checkpoints = os.listdir(sft_run_dir)
     if len(sft_checkpoints) != 1:
         raise ValueError(
-            f"Expected exactly one checkpoint in {sft_run_dir}, but found {len(sft_checkpoints)}."
+            f"Expected exactly one checkpoint in {sft_run_dir}, but f"
+            f"ound {len(sft_checkpoints)}."
         )
     sft_checkpoint = sft_checkpoints[0]
     sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
@@ -263,6 +273,8 @@ if __name__ == "__main__":
         tokenizer,
         test_generation_config,
         batch_size=args.batch_size,
+        model_type='clm' if args.model != 'flan-t5-xl' else 'seq2seq',
+        verbose=args.verbose
     )
 
     # save evaluation results to CSV
@@ -334,13 +346,16 @@ if __name__ == "__main__":
                             tokenizer,
                             test_generation_config,
                             batch_size=args.batch_size,
+                            model_type='clm' if args.model != 'flan-t5-xl' else 'seq2seq',
+                            verbose=args.verbose
                         )
                         # save evaluation results to CSV
                         file_path = os.path.join(
                             save_dir, f"{ckpt_path.replace('/', '|')}.csv"
                         )
                         with open(file_path, mode="w", encoding="utf-8") as file:
-                            writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+                            writer = csv.DictWriter(file,
+                                                    fieldnames=eval_results[0].keys())
                             writer.writeheader()
                             writer.writerows(eval_results)
 
@@ -370,7 +385,8 @@ if __name__ == "__main__":
                         # print out results
                         print("*" * 90)
                         print(
-                            f"RLUAM performance for {ckpt_path} in temperature {args.temperature}::"
+                            f"RLUAM performance for {ckpt_path} in temperature "
+                            f"{args.temperature}::"
                         )
                         print("Average scores for {}: {}".format(ckpt_path, avg_scores))
                         print(
