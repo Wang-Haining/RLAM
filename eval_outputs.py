@@ -250,9 +250,17 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_ckpt_path}")
 
     if args.model != 'long-t5-xl':
-        model = AutoModelForCausalLM.from_pretrained(
-            sft_ckpt_path, torch_dtype=torch.bfloat16
-        )
+        if args.model != 'llama3-8b':
+            model = AutoModelForCausalLM.from_pretrained(
+                sft_ckpt_path, torch_dtype=torch.bfloat16
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                LLAMA3_8B, torch_dtype=torch.bfloat16
+            )
+            from peft import PeftModel
+            model = PeftModel.from_pretrained(model, sft_ckpt_path)
+
     else:
         model = T5ForConditionalGeneration.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
@@ -263,10 +271,7 @@ if __name__ == "__main__":
         # tokenizer.pad_token = tokenizer.eos_token
         # model.generation_config.pad_token_id = tokenizer.pad_token_id
         # model.resize_token_embeddings(len(tokenizer))
-    if args.model in ["llama3-8b"]:
-        # load the LoRA adapter
-        from peft import PeftModel
-        model = PeftModel.from_pretrained(model, sft_ckpt_path)
+
 
     model.to(device)
 
