@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model olmo-1b
+python -m sft --model olmo-1b --per_device_train_batch_size 4

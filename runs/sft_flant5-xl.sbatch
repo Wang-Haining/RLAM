@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=sft_phi2-3b
+#SBATCH --job-name=sft_flant5-xl
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model phi2-3b --per_device_train_batch_size 2
+python -m sft_t5 --per_device_train_batch_size 2
