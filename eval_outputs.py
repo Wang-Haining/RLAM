@@ -250,17 +250,16 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_ckpt_path}")
 
     if args.model != 'long-t5-xl':
-        if args.model != 'llama3-8b':
-            model = AutoModelForCausalLM.from_pretrained(
-                sft_ckpt_path, torch_dtype=torch.bfloat16
-            )
-        else:
+        model = AutoModelForCausalLM.from_pretrained(
+            sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
+        if args.model == 'llama3-8b':
             # resize embedding size for loading peft model
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
             model.resize_token_embeddings(len(tokenizer))
-            from peft import AutoPeftModelForCausalLM
+            from peft import PeftModel
 
-            model = AutoPeftModelForCausalLM.from_pretrained(sft_ckpt_path)
+            model = PeftModel.from_pretrained(sft_ckpt_path)
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(
