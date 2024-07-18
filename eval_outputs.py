@@ -198,7 +198,7 @@ if __name__ == "__main__":
     elif "llama3-8b" in args.model.lower():
         base_model = LLAMA3_8B
     elif "flan-t5-xl" in args.model.lower():
-        base_model = T5_MODEL_NAME
+        base_model = FLAN_T5_XL
     else:
         raise ValueError(f"Unknown model name {args.model}")
 
