@@ -22,9 +22,6 @@ from utils import (CKPTS_DIR, DATASET_PATH, PROJECT_NAME, RESPONSE_TEMP, SEED,
                    TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-T5_MODEL_NAME = "google/flan-t5-xl"
-T5_MAX_INPUT_LEN = 512  # max length == 661
-T5_MAX_OUTPUT_LEN = 275
 run_name = f'sft_{T5_MODEL_NAME.split("/")[-1]}'
 tokenizer = AutoTokenizer.from_pretrained(T5_MODEL_NAME, padding_side="right")
 

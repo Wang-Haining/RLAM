@@ -19,9 +19,11 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          GenerationConfig, T5ForConditionalGeneration)
 
-from utils import (GEMMA_2B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B, LLAMA3_8B, SEED,
+from utils import (GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
+                   SEED, T5_MAX_INPUT_LEN, T5_MAX_OUTPUT_LEN, T5_MODEL_NAME,
                    TASK_PREFIX, VOA1500, WORD_ACCESSIBILITY_MODEL,
                    WORD_FREQ_CSV, build_sass_dataset, compute_ari,
                    compute_flesch_kincaid, compute_sent_len,
@@ -139,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b"],
+        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi2-3b", 'flan-t5-xl'],
         help="The model type (across runs) to evaluate",
     )
     parser.add_argument(
@@ -235,10 +237,15 @@ if __name__ == "__main__":
     sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
     if sft_run_dir not in evaluated_runs:
         print(f"Starting evaluation for {sft_ckpt_path}")
-    model = AutoModelForCausalLM.from_pretrained(
-        sft_ckpt_path, torch_dtype=torch.bfloat16
-    )
 
+    if args.model != 'flan-t5-xl':
+        model = AutoModelForCausalLM.from_pretrained(
+            sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
+    else:
+        model = T5ForConditionalGeneration.from_pretrained(
+            sft_ckpt_path, torch_dtype=torch.bfloat16
+        )
     if args.model == "llama3-8b":
         # tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="left")
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
