@@ -198,8 +198,10 @@ if __name__ == "__main__":
         base_model = PHI2_3B
     elif "llama3-8b" in args.model.lower():
         base_model = LLAMA3_8B
+    elif "flan-t5-xl" in args.model.lower():
+        base_model = T5_MODEL_NAME
     else:
-        raise ValueError(f"Unknown ckpt path {args.ckpt_path}")
+        raise ValueError(f"Unknown model name {args.model}")
 
     # define the generation configuration
     test_generation_config = GenerationConfig(
