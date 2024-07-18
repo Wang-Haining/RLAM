@@ -269,7 +269,7 @@ if __name__ == "__main__":
             #     bias="none",
             #     task_type="CAUSAL_LM",
             # )
-            model = AutoPeftModelForCausalLM.from_pretrained(model, sft_ckpt_path)
+            model = AutoPeftModelForCausalLM.from_pretrained(sft_ckpt_path)
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(
