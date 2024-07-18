@@ -222,7 +222,7 @@ if __name__ == "__main__":
     )
     print(f"{test_generation_config=}")
 
-    dataset = build_sass_dataset(base_model)
+    dataset = build_sass_dataset(args.model)
     tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     # load the overview file if it exists
