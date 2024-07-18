@@ -34,7 +34,7 @@ ppo.py \
 --truncate_token eos \
 --truncate_token_id 50256 \
 --temperature 0.7 \
---sft_model_path "ckpts/sft_phi-2/checkpoint-1140" \
+--sft_model_path "ckpts/sft_phi-2/checkpoint-1620" \
 --logging_steps 2 \
 --save_steps 20 \
 --eval_steps 20 \
