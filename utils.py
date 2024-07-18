@@ -451,4 +451,10 @@ def evaluate_outputs(predictions, references, sources, all_metrics=False):
         )
 
         # compute ROUGE-L scores
-        rouge_metric = rouge_scorer.RougeScorer(["rougeL"], use_st
+        rouge_metric = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+        results["rougeL"] = [
+            rouge_metric.score(p, r)["rougeL"].fmeasure
+            for p, r in zip(predictions, references)
+        ]
+
+    return results
