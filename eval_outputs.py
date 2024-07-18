@@ -23,7 +23,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, T5ForConditionalGeneration)
 
 from utils import (LONG_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
-                   OLMO_1B, PHI2_3B, SEED, TASK_PREFIX, VOA1500,
+                   OLMO_1B, PHI2_3B, SEED, VOA1500,
                    WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
                    compute_ari, compute_flesch_kincaid, compute_sent_len,
                    compute_token_accessibility, read_token_frequencies)
