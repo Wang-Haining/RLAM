@@ -57,7 +57,7 @@ if __name__ == "__main__":
                                                  "Gemma-2B/7B, OLMo-1B, Llama3-8B or Phi-2.")
     parser.add_argument("--model", type=str,
                         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", 'phi-2'],
-                        help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi2-3b")
+                        help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi-2")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
