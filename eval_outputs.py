@@ -387,7 +387,17 @@ if __name__ == "__main__":
                             f.write("\n")
 
                         # print out results
-                        print("*" * 90)
-                        print(
-                            f"RLUAM performance for {ckpt_path} in temperature "
-                            f"{args.
+                            print("*" * 90)
+                            print(
+                                f"RLUAM performance for {ckpt_path} in temperature "
+                                f"{args.temperature}:"
+                            )
+                            print("Average scores for {}: {}".format(ckpt_path,
+                                                                     avg_scores))
+                            print(
+                                "Standard deviation of scores for {}: {}".format(
+                                    ckpt_path, std_scores
+                                )
+                            )
+                            print("*" * 90)
+                    print("*" * 90)
