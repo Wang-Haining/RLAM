@@ -350,6 +350,7 @@ def count_sent(text: str) -> int:
 def build_sass_dataset(
     sft_model_path: str,
     base_model: str,
+    padding_side: str = 'left',
     task_prefix: str = TASK_PREFIX,
     response_template: str = RESPONSE_TEMP,
 ):
@@ -370,7 +371,7 @@ def build_sass_dataset(
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(sft_model_path, padding_side='left')
+    tokenizer = AutoTokenizer.from_pretrained(sft_model_path, padding_side=padding_side)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")

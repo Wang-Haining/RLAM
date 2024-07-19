@@ -247,7 +247,11 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_model_path}")
 
     # load dataset and tokenizer
-    dataset = build_sass_dataset(sft_model_path, base_model)
+    if 'long-t5' not in args.model:
+        dataset = build_sass_dataset(sft_model_path, base_model, 'left')
+    else:
+        dataset = build_sass_dataset(sft_model_path, base_model, 'right')
+
     tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
     if args.model not in ['long-t5-tglobal-xl', 'llama3-8b']:
         model = AutoModelForCausalLM.from_pretrained(
