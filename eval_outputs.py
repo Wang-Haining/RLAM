@@ -111,6 +111,7 @@ def evaluate_model(
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i: i + batch_size]
+            # it is good to retokenize the ['query'] column for batch processing
             input_ids = torch.tensor(batch_samples["query_token"]).to(device)
             generated_tokens = model.generate(
                 input_ids=input_ids, generation_config=generation_config
@@ -247,11 +248,11 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_model_path}")
 
     # load dataset and tokenizer
-    dataset = build_sass_dataset(sft_model_path, base_model, 'left')
-    # if 'long-t5' not in args.model:
-    #     dataset = build_sass_dataset(sft_model_path, base_model, 'left')
-    # else:
-    #     dataset = build_sass_dataset(sft_model_path, base_model, 'right')
+    # dataset = build_sass_dataset(sft_model_path, base_model, 'left')
+    if 'long-t5' not in args.model:
+        dataset = build_sass_dataset(sft_model_path, base_model, 'left')
+    else:
+        dataset = build_sass_dataset(sft_model_path, base_model, 'right')
 
     tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
     if args.model in ['gemma-2b', 'olmo-1b', 'phi-2']:
