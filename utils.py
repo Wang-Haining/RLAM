@@ -456,5 +456,5 @@ def evaluate_outputs(predictions, references, sources, all_metrics=False):
             rouge_metric.score(p, r)["rougeL"].fmeasure
             for p, r in zip(predictions, references)
         ]
-
+    
     return results
