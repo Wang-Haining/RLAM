@@ -265,6 +265,7 @@ if __name__ == "__main__":
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA3_8B, torch_dtype=torch.bfloat16
         )
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
         # resize embedding size for loading peft model
         model.resize_token_embeddings(len(tokenizer))
         from peft import PeftModel
