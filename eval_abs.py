@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     eval_results = []
     for t in tqdm(ds['source']):
-        calculate_metrics_for_abstract(t)
+        eval_results.append(calculate_metrics_for_abstract(t))
     # calculate average and standard deviation of scores
     avg_scores = {
         f"avg_{metric}": np.mean([x[metric] for x in eval_results])
