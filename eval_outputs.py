@@ -247,7 +247,7 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_ckpt_path}")
 
     # load dataset and tokenizer
-    dataset = build_sass_dataset(base_model)
+    dataset = build_sass_dataset(sft_ckpt_path)
     tokenizer = AutoTokenizer.from_pretrained(sft_ckpt_path)  # use the saved tokenizer
     if args.model not in ['long-t5-xl', 'llama3-8b']:
         model = AutoModelForCausalLM.from_pretrained(

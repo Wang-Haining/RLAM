@@ -67,12 +67,8 @@ if __name__ == "__main__":
         model_name = GEMMA_2B
     elif args.model == "olmo-1b":
         model_name = OLMO_1B
-    elif args.model == "gemma-7b":
-        model_name = GEMMA_7B
     elif args.model == "llama3-8b":
         model_name = LLAMA3_8B
-    elif args.model == "gpt2-xl":
-        model_name = GPT2_XL
     elif args.model == "phi-2":
         model_name = PHI2_3B
     else:
@@ -95,7 +91,7 @@ if __name__ == "__main__":
     dataset = load_from_disk(DATASET_PATH)
     model = AutoModelForCausalLM.from_pretrained(model_name,
                                                  torch_dtype=torch.bfloat16)
-    if 'llama' in args.model.lower():
+    if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
         model.resize_token_embeddings(len(tokenizer))
 
