@@ -84,5 +84,5 @@ if __name__ == "__main__":
     print("*" * 90)
     print("Metrics on original abstracts:")
     print("Average scores: {}".format(avg_scores))
-    print("Standard deviation of scores:".format())
+    print("Standard deviation of scores: {}".format(std_scores))
     print("*" * 90)
