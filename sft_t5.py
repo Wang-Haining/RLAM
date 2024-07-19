@@ -32,7 +32,7 @@ def preprocess_function(examples, tokenizer):
 
     model_inputs = tokenizer(
         inputs,
-        max_length=MAX_INPUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
+        max_length=MAX_INPUT_LENGTHS[LONG_T5_XL.split('/')[-1].lower()],
         truncation=True,
         padding="max_length",
         return_tensors="pt",
@@ -40,7 +40,7 @@ def preprocess_function(examples, tokenizer):
 
     labels = tokenizer(
         targets,
-        max_length=MAX_OUTPUT_LENGTHS[LONG_T5_XL.split('/')[-1]],
+        max_length=MAX_OUTPUT_LENGTHS[LONG_T5_XL.split('/')[-1].lower()],
         truncation=True,
         padding="max_length",
         return_tensors="pt",
@@ -53,7 +53,7 @@ def preprocess_function(examples, tokenizer):
 
 if __name__ == "__main__":
     set_seed(SEED + 2122)
-    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Seq2seq LMs.")
+    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with a Long-T5 model.")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     args = parser.parse_args()
