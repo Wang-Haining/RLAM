@@ -4,23 +4,19 @@ This module implements evaluation functions for abstracts (to be simplified).
 
 import heapq
 import json
-import os
 import pickle
 from typing import Dict
 
-import evaluate
 import numpy as np
-import torch
 from datasets import load_from_disk
 from nltk.tokenize import sent_tokenize
-from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
+from tqdm import tqdm
 
-from utils import (VOA1500, DATASET_PATH,
-                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   compute_ari, compute_flesch_kincaid, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies)
-
+from utils import (DATASET_PATH, VOA1500, WORD_ACCESSIBILITY_MODEL,
+                   WORD_FREQ_CSV, compute_ari, compute_flesch_kincaid,
+                   compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
 
 # get word frequencies and the model to predict relative rare word's accessibility
 token_freq = read_token_frequencies(WORD_FREQ_CSV)
@@ -70,7 +66,9 @@ def calculate_metrics_for_abstract(source_text: str) -> Dict[str, float]:
 if __name__ == "__main__":
     ds = load_from_disk(DATASET_PATH)['test']
 
-    eval_results = [calculate_metrics_for_abstract(t) for t in ds['source']]
+    eval_results = []
+    for t in tqdm(ds['source']):
+        calculate_metrics_for_abstract(t)
     # calculate average and standard deviation of scores
     avg_scores = {
         f"avg_{metric}": np.mean([x[metric] for x in eval_results])
@@ -84,7 +82,7 @@ if __name__ == "__main__":
     }
     # print out results
     print("*" * 90)
-    print(f"Metrics on original abstracts:")
+    print("Metrics on original abstracts:")
     print("Average scores: {}".format(avg_scores))
-    print("Standard deviation of scores:".format(std_scores))
+    print("Standard deviation of scores:".format())
     print("*" * 90)
