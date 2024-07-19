@@ -5,6 +5,7 @@ This module implements evaluation functions for abstracts (to be simplified).
 import heapq
 import json
 import pickle
+import pandas as pd
 from typing import Dict
 
 import numpy as np
@@ -69,17 +70,22 @@ if __name__ == "__main__":
     eval_results = []
     for t in tqdm(ds['source']):
         eval_results.append(calculate_metrics_for_abstract(t))
+
+    # convert results to a DataFrame and save as CSV
+    df_eval_results = pd.DataFrame(eval_results)
+    raw_results_path = "abstract_metrics.csv"
+    df_eval_results.to_csv(raw_results_path, index=False)
+
     # calculate average and standard deviation of scores
     avg_scores = {
         f"avg_{metric}": np.mean([x[metric] for x in eval_results])
         for metric in eval_results[0].keys()
-        if metric not in ["generated_text"]
     }
     std_scores = {
         f"std_{metric}": np.std([x[metric] for x in eval_results])
         for metric in eval_results[0].keys()
-        if metric not in ["generated_text"]
     }
+
     # print out results
     print("*" * 90)
     print("Metrics on original abstracts:")
