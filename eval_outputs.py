@@ -258,6 +258,9 @@ if __name__ == "__main__":
         model = AutoModelForCausalLM.from_pretrained(
             sft_model_path, torch_dtype=torch.bfloat16
         )
+        if args.model == 'phi-2':
+            # resize embedding size for loading peft model
+            model.resize_token_embeddings(len(tokenizer))
     elif args.model == 'llama3-8b':
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA3_8B, torch_dtype=torch.bfloat16
