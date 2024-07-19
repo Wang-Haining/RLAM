@@ -147,7 +147,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi-2",
-                 'long-t5-xl'],
+                 'long-t5-tglobal-xl'],
         help="The model type (across runs) to evaluate",
     )
     parser.add_argument(
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         base_model = PHI2_3B
     elif "llama3-8b" in args.model.lower():
         base_model = LLAMA3_8B
-    elif "long-t5-xl" in args.model.lower():
+    elif "long-t5-tglobal-xl" in args.model.lower():
         base_model = LONG_T5_XL
     else:
         raise ValueError(f"Unknown model name {args.model}")
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     # load dataset and tokenizer
     dataset = build_sass_dataset(sft_ckpt_path)
     tokenizer = AutoTokenizer.from_pretrained(sft_ckpt_path)  # use the saved tokenizer
-    if args.model not in ['long-t5-xl', 'llama3-8b']:
+    if args.model not in ['long-t5-tglobal-xl', 'llama3-8b']:
         model = AutoModelForCausalLM.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
@@ -277,7 +277,7 @@ if __name__ == "__main__":
         tokenizer,
         test_generation_config,
         batch_size=args.batch_size,
-        model_type='clm' if args.model != 'long-t5-xl' else 'seq2seq',
+        model_type='clm' if args.model != 'long-t5-tglobal-xl' else 'seq2seq',
         verbose=args.verbose
     )
 
@@ -350,7 +350,7 @@ if __name__ == "__main__":
                             tokenizer,
                             test_generation_config,
                             batch_size=args.batch_size,
-                            model_type='clm' if args.model != 'long-t5-xl' else 'seq2seq',
+                            model_type='clm' if args.model != 'long-t5-tglobal-xl' else 'seq2seq',
                             verbose=args.verbose
                         )
                         # save evaluation results to CSV
