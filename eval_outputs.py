@@ -20,7 +20,7 @@ from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          GenerationConfig, T5ForConditionalGeneration)
+                          GenerationConfig, AutoModelForSeq2SeqLM)
 
 from utils import (LONG_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
                    OLMO_1B, PHI2_3B, SEED, VOA1500,
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
     # define the generation configuration
     test_generation_config = GenerationConfig(
-        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model.split('/')[-1]],
+        max_new_tokens=MAX_OUTPUT_LENGTHS[args.model.split('/')[-1].lower()],
         temperature=args.temperature + 1e-7,
         top_k=0.0,
         top_p=args.top_p,
@@ -268,7 +268,7 @@ if __name__ == "__main__":
         model = PeftModel.from_pretrained(model, sft_model_path)
 
     else:
-        model = T5ForConditionalGeneration.from_pretrained(
+        model = AutoModelForSeq2SeqLM.from_pretrained(
             sft_model_path, torch_dtype=torch.bfloat16
         )
 
