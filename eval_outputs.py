@@ -254,11 +254,11 @@ if __name__ == "__main__":
     #     dataset = build_sass_dataset(sft_model_path, base_model, 'right')
 
     tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
-    if args.model not in ['long-t5-tglobal-xl', 'llama3-8b']:
+    if args.model in ['gemma-2b', 'olmo-1b', 'phi-2']:
         model = AutoModelForCausalLM.from_pretrained(
             sft_model_path, torch_dtype=torch.bfloat16
         )
-    if args.model == 'llama3-8b':
+    elif args.model == 'llama3-8b':
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA3_8B, torch_dtype=torch.bfloat16
         )
@@ -268,10 +268,12 @@ if __name__ == "__main__":
 
         model = PeftModel.from_pretrained(model, sft_model_path)
 
-    else:
+    elif args.model == 'long-t5-tglobal-xl':
         model = AutoModelForSeq2SeqLM.from_pretrained(
             sft_model_path, torch_dtype=torch.bfloat16
         )
+    else:
+        raise RuntimeError(f"Illegal {args.model}.")
 
     model.to(device)
 
