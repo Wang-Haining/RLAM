@@ -222,9 +222,6 @@ if __name__ == "__main__":
     )
     print(f"{test_generation_config=}")
 
-    dataset = build_sass_dataset(base_model)
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
-
     # load the overview file if it exists
     overview_path = os.path.join(save_dir, "overview.jsonl")
     if os.path.exists(overview_path):
@@ -249,6 +246,9 @@ if __name__ == "__main__":
     if sft_run_dir not in evaluated_runs:
         print(f"Starting evaluation for {sft_ckpt_path}")
 
+    # load dataset and tokenizer
+    dataset = build_sass_dataset(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(sft_ckpt_path)  # use the saved tokenizer
     if args.model not in ['long-t5-xl', 'llama3-8b']:
         model = AutoModelForCausalLM.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
@@ -258,7 +258,6 @@ if __name__ == "__main__":
             LLAMA3_8B, torch_dtype=torch.bfloat16
         )
         # resize embedding size for loading peft model
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
         model.resize_token_embeddings(len(tokenizer))
         from peft import PeftModel
 
@@ -268,12 +267,6 @@ if __name__ == "__main__":
         model = T5ForConditionalGeneration.from_pretrained(
             sft_ckpt_path, torch_dtype=torch.bfloat16
         )
-    if args.model in ['phi-2']:
-        # tokenizer = AutoTokenizer.from_pretrained(base_model, padding_side="left")
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        # tokenizer.pad_token = tokenizer.eos_token
-        # model.generation_config.pad_token_id = tokenizer.pad_token_id
-        model.resize_token_embeddings(len(tokenizer))
 
     model.to(device)
 
@@ -397,13 +390,4 @@ if __name__ == "__main__":
                         print("*" * 90)
                         print(
                             f"RLUAM performance for {ckpt_path} in temperature "
-                            f"{args.temperature}::"
-                        )
-                        print("Average scores for {}: {}".format(ckpt_path, avg_scores))
-                        print(
-                            "Standard deviation of scores for {}: {}".format(
-                                ckpt_path, std_scores
-                            )
-                        )
-                        print("*" * 90)
-    print("*" * 90)
+                            f"{args.
