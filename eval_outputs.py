@@ -242,16 +242,16 @@ if __name__ == "__main__":
             f"found {len(sft_checkpoints)}."
         )
     sft_checkpoint = sft_checkpoints[0]
-    sft_ckpt_path = os.path.join(sft_run_dir, sft_checkpoint)
+    sft_model_path = os.path.join(sft_run_dir, sft_checkpoint)
     if sft_run_dir not in evaluated_runs:
-        print(f"Starting evaluation for {sft_ckpt_path}")
+        print(f"Starting evaluation for {sft_model_path}")
 
     # load dataset and tokenizer
-    dataset = build_sass_dataset(sft_ckpt_path)
-    tokenizer = AutoTokenizer.from_pretrained(sft_ckpt_path)  # use the saved tokenizer
+    dataset = build_sass_dataset(sft_model_path, base_model)
+    tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
     if args.model not in ['long-t5-tglobal-xl', 'llama3-8b']:
         model = AutoModelForCausalLM.from_pretrained(
-            sft_ckpt_path, torch_dtype=torch.bfloat16
+            sft_model_path, torch_dtype=torch.bfloat16
         )
     if args.model == 'llama3-8b':
         model = AutoModelForCausalLM.from_pretrained(
@@ -261,11 +261,11 @@ if __name__ == "__main__":
         model.resize_token_embeddings(len(tokenizer))
         from peft import PeftModel
 
-        model = PeftModel.from_pretrained(model, sft_ckpt_path)
+        model = PeftModel.from_pretrained(model, sft_model_path)
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(
-            sft_ckpt_path, torch_dtype=torch.bfloat16
+            sft_model_path, torch_dtype=torch.bfloat16
         )
 
     model.to(device)
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     )
 
     # save evaluation results to CSV
-    file_path = os.path.join(save_dir, f"{sft_ckpt_path.replace('/', '|')}.csv")
+    file_path = os.path.join(save_dir, f"{sft_model_path.replace('/', '|')}.csv")
     with open(file_path, mode="w", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
         writer.writeheader()
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     with open(overview_path, mode="a", encoding="utf-8") as f:
         json.dump(
             {"run_path": sft_run_dir}
-            | {"ckpt_path": sft_ckpt_path}
+            | {"ckpt_path": sft_model_path}
             | avg_scores
             | std_scores,
             f,
@@ -313,10 +313,10 @@ if __name__ == "__main__":
 
     # print out results
     print("*" * 90)
-    print(f"SFT performance for {sft_ckpt_path} in temperature {args.temperature}:")
-    print("Average scores for {}: {}".format(sft_ckpt_path, avg_scores))
+    print(f"SFT performance for {sft_model_path} in temperature {args.temperature}:")
+    print("Average scores for {}: {}".format(sft_model_path, avg_scores))
     print(
-        "Standard deviation of scores for {}: {}".format(sft_ckpt_path, std_scores)
+        "Standard deviation of scores for {}: {}".format(sft_model_path, std_scores)
     )
     print("*" * 90)
 

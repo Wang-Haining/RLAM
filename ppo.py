@@ -644,7 +644,7 @@ if __name__ == "__main__":
     )
 
     # load dataset
-    dataset = build_sass_dataset(args.base_model)
+    dataset = build_sass_dataset(args.sft_model_path, args.base_model)
     dataset = dataset.with_format("torch", columns=["query_token",
                                                     "reference_response_token",
                                                     "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded

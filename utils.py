@@ -348,7 +348,8 @@ def count_sent(text: str) -> int:
 
 
 def build_sass_dataset(
-    model_name: str,
+    sft_model_path: str,
+    base_model: str,
     task_prefix: str = TASK_PREFIX,
     response_template: str = RESPONSE_TEMP,
 ):
@@ -360,7 +361,8 @@ def build_sass_dataset(
     abstracts.
 
     Args:
-        model_name: base model name.
+        sft_model_path: path to an SFT checkpoint folder, used to load tokenizer.
+        base_model: base model name.
         task_prefix: The prefix to prepend to each abstract for task
         instruction.
         response_template: RESPONSE_TEMP
@@ -368,7 +370,7 @@ def build_sass_dataset(
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side='left')
+    tokenizer = AutoTokenizer.from_pretrained(sft_model_path, padding_side='left')
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")
@@ -377,17 +379,17 @@ def build_sass_dataset(
     def tokenize(sample):
         # prepend the task-specific prefix and append trailing template
         sample["query"] = task_prefix + sample["source"] + response_template
-        if any(keyword in model_name.lower() for keyword in
+        if any(keyword in base_model.lower() for keyword in
                ['gemma', 'olmo', 'phi-2', 'llama', 'long-t5']):
-            max_input_length = MAX_INPUT_LENGTHS[model_name.split('/')[-1].lower()]
-            max_output_length = MAX_OUTPUT_LENGTHS[model_name.split('/')[-1].lower()]
+            max_input_length = MAX_INPUT_LENGTHS[base_model.split('/')[-1].lower()]
+            max_output_length = MAX_OUTPUT_LENGTHS[base_model.split('/')[-1].lower()]
 
             # add special tokens if required by the model
-            if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
+            if any(keyword in base_model.lower() for keyword in ['phi', 'llama']):
                 tokenizer.add_special_tokens({'pad_token': '<pad>'})
         else:
             raise ValueError(f"Max input/output lengths should be computed beforehand "
-                             f"for {model_name}.")
+                             f"for {base_model}.")
 
         query_token = tokenizer.encode(
             sample["query"],
