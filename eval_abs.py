@@ -67,28 +67,29 @@ def calculate_metrics_for_abstract(source_text: str) -> Dict[str, float]:
 if __name__ == "__main__":
     ds = load_from_disk(DATASET_PATH)['test']
 
-    eval_results = []
-    for t in tqdm(ds['source']):
-        eval_results.append(calculate_metrics_for_abstract(t))
+    for col in ['source', 'target']:
+        eval_results = []
+        for t in tqdm(ds[col]):
+            eval_results.append(calculate_metrics_for_abstract(t))
 
-    # convert results to a DataFrame and save as CSV
-    df_eval_results = pd.DataFrame(eval_results)
-    raw_results_path = "abstract_metrics.csv"
-    df_eval_results.to_csv(raw_results_path, index=False)
+        # convert results to a DataFrame and save as CSV
+        df_eval_results = pd.DataFrame(eval_results)
+        raw_results_path = "abstract_metrics.csv" if col == 'source' else "significance_statement_metrics.csv"
+        df_eval_results.to_csv(raw_results_path, index=False)
 
-    # calculate average and standard deviation of scores
-    avg_scores = {
-        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
-        for metric in eval_results[0].keys()
-    }
-    std_scores = {
-        f"std_{metric}": np.std([x[metric] for x in eval_results])
-        for metric in eval_results[0].keys()
-    }
+        # calculate average and standard deviation of scores
+        avg_scores = {
+            f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+            for metric in eval_results[0].keys()
+        }
+        std_scores = {
+            f"std_{metric}": np.std([x[metric] for x in eval_results])
+            for metric in eval_results[0].keys()
+        }
 
-    # print out results
-    print("*" * 90)
-    print("Metrics on original abstracts:")
-    print("Average scores: {}".format(avg_scores))
-    print("Standard deviation of scores: {}".format(std_scores))
-    print("*" * 90)
+        # print out results
+        print("*" * 90)
+        print(f"Metrics on {'abstracts' if col == 'source' else 'significance statements'}:")
+        print("Average scores: {}".format(avg_scores))
+        print("Standard deviation of scores: {}".format(std_scores))
+        print("*" * 90)
