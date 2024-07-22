@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-1:00:00
+#SBATCH --time=0-6:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model olmo-1b --per_device_train_batch_size 4 --learning_rate 5e-6
+python -m sft --model olmo-1b --per_device_train_batch_size 4 --learning_rate 3e-6
