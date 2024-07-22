@@ -658,6 +658,7 @@ if __name__ == "__main__":
         args.base_model,
         padding_side="right",
         trust_remote_code=True,
+        force_download=True,
     )
     tokenizer_wt_pad_model_names = ('gpt2', 'llama', 'phi')
     if any(model in args.base_model.lower() for model in tokenizer_wt_pad_model_names):
