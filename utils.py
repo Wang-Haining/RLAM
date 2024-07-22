@@ -371,7 +371,9 @@ def build_sass_dataset(
     Returns:
         DataLoader: The DataLoader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(sft_model_path, padding_side=padding_side)
+    tokenizer = AutoTokenizer.from_pretrained(sft_model_path,
+                                              padding_side=padding_side,
+                                              force_download=True)
     ds = load_from_disk(DATASET_PATH)
     for split in ["train", "validation", "test"]:
         ds[split] = ds[split].rename_column("target", "response")
