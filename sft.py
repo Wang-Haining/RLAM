@@ -16,14 +16,13 @@ import torch
 import wandb
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
-from transformers import (AutoModelForCausalLM, AutoModelForSeq2SeqLM,
-                          AutoTokenizer, EarlyStoppingCallback,
-                          TrainingArguments)
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
 
-from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, OLMO_1B, PHI2_3B, LLAMA3_8B,
-                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX, MAX_INPUT_LENGTHS,
-                   MAX_OUTPUT_LENGTHS)
+from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, LLAMA3_8B,
+                   MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
+                   PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
