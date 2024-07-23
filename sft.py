@@ -20,7 +20,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
 
-from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, LLAMA3_8B,
+from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
                    PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
 
@@ -64,6 +64,8 @@ if __name__ == "__main__":
 
     if args.model == "gemma-2b":
         model_name = GEMMA_2B
+    elif args.model == "gemma-7b":
+        model_name = GEMMA_7B
     elif args.model == "olmo-1b":
         model_name = OLMO_1B
     elif args.model == "llama3-8b":
