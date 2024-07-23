@@ -33,6 +33,7 @@ def upload_model_to_hf(username, repo_name, ckpt_dir):
 
         print(f"Model {repo_name} has been successfully uploaded to Hugging Face Hub.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Upload model checkpoint to Hugging Face Hub.")
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_dir', type=str, required=True,
                         help="The directory of the model checkpoint.")
     parser.add_argument('--username', type=str, default="AI4Library",
-                        help="Your Hugging Face username.")
+                        help="Your Hugging Face user/organization name.")
 
     args = parser.parse_args()
 
