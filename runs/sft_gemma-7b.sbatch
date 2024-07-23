@@ -1,7 +1,7 @@
 #!/bin/sh
 #SBATCH --job-name=sft_gemma-7b
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=next-gen
+#SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
