@@ -51,4 +51,4 @@ ppo.py \
 --rluam.k_beta 1e-4 \
 --rluam.sl_coef 1.0 \
 --rluam.wa_coef 2.2 \
---rluman.sd_coef 2.0
+--rluam.sd_coef 2.0
