@@ -823,7 +823,7 @@ if __name__ == "__main__":
         lrnow = lr_scale * args.lr
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
-        with (torch.no_grad()):
+        with torch.no_grad():
             eval_storage, eval_df = evaluate_model(
                 args.rluam.sl_coef, args.rluam.wa_coef, args.rluam.sd_coef,
                 accelerator.unwrap_model(model).policy,
