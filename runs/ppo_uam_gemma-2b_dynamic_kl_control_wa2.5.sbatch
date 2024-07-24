@@ -33,7 +33,7 @@ ppo.py \
 --response_length 241 \
 --truncate_token eos \
 --truncate_token_id 1 \
---temperature 0.7 \
+--temperature 0.5 \
 --sft_model_path "ckpts/sft_gemma-2b/checkpoint-1680" \
 --logging_steps 2 \
 --save_steps 20 \
