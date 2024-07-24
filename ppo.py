@@ -534,7 +534,7 @@ def evaluate_model(
         for i, data in tqdm(enumerate(dataloader)):
             # evaluate reference response (i.e., human-written significance statement)
             reference_scores = compute_uam_score_wrapper(data['response'],
-                                                         len(sent_tokenize(data['response'])))
+                                                         [len(sent_tokenize(r)) for r in data['response']])
             reference_sl_scores = reference_scores['sl_score']
             reference_wa_scores = reference_scores['wa_score']
             reference_sd_scores = reference_scores['sd_score']
