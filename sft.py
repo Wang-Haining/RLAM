@@ -17,8 +17,9 @@ import wandb
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          EarlyStoppingCallback, TrainingArguments)
+                          EarlyStoppingCallback, TrainingArguments, BitsAndBytesConfig)
 from trl import SFTTrainer, set_seed
+import bitsandbytes as bnb
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -61,6 +62,7 @@ if __name__ == "__main__":
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--gradient_checkpointing", action='store_true', help="Whether to use gradient checkpointing")
     parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
+    parser.add_argument("--use_8bit", action='store_true', help="Whether to use 8-bit quantization for model and optimizer")
     args = parser.parse_args()
 
     if args.model == "gemma-2b":
@@ -91,8 +93,19 @@ if __name__ == "__main__":
     run_name = f'sft_{model_name.split("/")[-1]}'
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
-    model = AutoModelForCausalLM.from_pretrained(model_name,
-                                                 torch_dtype=torch.bfloat16)
+
+    if args.use_8bit:
+        # Enable 8-bit quantization
+        bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+        model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                     quantization_config=bnb_config,
+                                                     torch_dtype=torch.bfloat16)
+        optimizer = bnb.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                     torch_dtype=torch.bfloat16)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+
     if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
         model.resize_token_embeddings(len(tokenizer))
@@ -128,7 +141,7 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
     trainer = SFTTrainer(
-        model,
+        model=model,
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
         formatting_func=formatting_func,
@@ -136,6 +149,7 @@ if __name__ == "__main__":
         args=training_args,
         peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
+        optimizers=(optimizer, None)  # use the specified optimizer
     )
 
     trainer.train()
