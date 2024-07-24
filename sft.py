@@ -59,6 +59,7 @@ if __name__ == "__main__":
                         help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi-2")
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
+    parser.add_argument("--gradient_checkpointing", action='store_true', help="Whether to use gradient checkpointing")
     parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
     args = parser.parse_args()
 
@@ -121,6 +122,8 @@ if __name__ == "__main__":
         save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
+        gradient_checkpointing=args.gradient_checkpointing,
+        gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
