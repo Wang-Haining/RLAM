@@ -1,6 +1,6 @@
 """
 This script implements a Proximal Policy Optimization (PPO) training loop for rewriting
-scholarly abstract into more accessible version.
+scholarly abstracts into more accessible versions.
 
 References:
 - https://arxiv.org/abs/1707.06347
@@ -265,7 +265,9 @@ def compute_uam_score(responses: List[str],
         want average to be shorter, we need to negate sentence length in order to
         maximize the score.)
     - Avg word accessibility: Defined as the negative logarithm of the token frequency
-      per billion, based on its occurrences in the English Wikipedia corpus.
+        per billion, based on its occurrences in the English Wikipedia corpus.
+    - Sentence delta: Difference of sentence count between generated texts with their
+        corresponding significance statements.
 
     During pilot running, models cheat by spitting out only one eos token. So we
     penalize both word accessibility and sentence length with reasonably large negative
