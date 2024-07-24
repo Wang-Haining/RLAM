@@ -33,7 +33,7 @@ ppo.py \
 --response_length 241 \
 --truncate_token eos \
 --truncate_token_id 1 \
---temperature 0.7 \
+--temperature 0.3 \
 --sft_model_path "ckpts/sft_gemma-2b/checkpoint-1680" \
 --logging_steps 2 \
 --save_steps 20 \
@@ -50,5 +50,4 @@ ppo.py \
 --rluam.kl_coef_upper_bound 0.85 \
 --rluam.k_beta 1e-4 \
 --rluam.sl_coef 1.0 \
---rluam.wa_coef 2.2 \
---rluam.sd_coef 2.0
+--rluam.wa_coef 2.2
