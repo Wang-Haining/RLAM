@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=sft_phi2-3b
+#SBATCH --job-name=sft_phi-2
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1

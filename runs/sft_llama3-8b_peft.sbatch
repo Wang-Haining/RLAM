@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=llama3-8b_peft
+#SBATCH --job-name=llama3-8b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model llama3-8b --per_device_train_batch_size 4 --is_peft_model
+python -m sft --model llama3-8b --per_device_train_batch_size 2 --learning_rate 3e-6
