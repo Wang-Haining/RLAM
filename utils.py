@@ -342,11 +342,6 @@ def compute_ari(text: str):
     return ari_score
 
 
-def count_sent(text: str) -> int:
-    sents = sent_tokenize(text)
-    return len(sents)
-
-
 def build_sass_dataset(
     sft_model_path: str,
     base_model: str,
