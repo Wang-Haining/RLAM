@@ -26,7 +26,7 @@ from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
                    PROJECT_NAME, RESPONSE_TEMP, SEED, TASK_PREFIX)
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def formatting_func(example: DatasetDict) -> List[str]:
