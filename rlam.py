@@ -73,12 +73,12 @@ class RlamHParams:
     # reward related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.1
+    wa_coef: float = 2.5
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
     sd_coef: float = 2.0
     """Scaling factor for the difference in sentence count (i.e., sentence delta) 
     between significance statements and rollouts."""
-    swa_std_coef: float = 2.0  # fixme
+    swa_std_coef: float = 20.0  # fixme
     """Scaling factor for the standard deviation of word accessibility among 
     generations."""
     kl_coef: float = 0.2
