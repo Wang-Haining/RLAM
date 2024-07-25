@@ -271,6 +271,11 @@ def compute_am_score(responses: List[str],
         per billion, based on its occurrences in the English Wikipedia corpus.
     - Sentence delta: Difference of sentence count between generated texts with their
         corresponding significance statements.
+    - Standard deviation among average sentence-level word accessibility: An accessible
+        text should not only be readable on average but also be consistent in
+        accessibility among sentences. This should be useful in reducing small trailing
+        phrases that deflate accessibility (e.g., "All rights reserved." or
+        "(show all)").
 
     During pilot running, models cheat by spitting out only one eos token. So we
     penalize both word accessibility and sentence length with reasonably large negative
@@ -520,6 +525,7 @@ def evaluate_model(
         sl_coef: float,
         wa_coef: float,
         sd_coef: float,
+        swa_std_coef: float,
         policy: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
         dataloader: DataLoader,
@@ -553,7 +559,11 @@ def evaluate_model(
             reference_sl_scores = reference_scores['sl_score']
             reference_wa_scores = reference_scores['wa_score']
             reference_sd_scores = reference_scores['sd_score']
-            reference_total_scores = sl_coef * reference_sl_scores + wa_coef * reference_wa_scores + sd_coef * reference_sd_scores
+            reference_swa_std_scores = reference_scores['swa_std_score']
+            reference_total_scores = sl_coef * reference_sl_scores + \
+                                     wa_coef * reference_wa_scores + \
+                                     sd_coef * reference_sd_scores + \
+                                     swa_std_coef * reference_swa_std_scores
 
             # evaluate policy generated response
             queries = data["query_token"]
@@ -575,14 +585,17 @@ def evaluate_model(
             sl_scores = am_scores['sl_score']
             wa_scores = am_scores['wa_score']
             sd_scores = am_scores['sd_score']
-            total_scores = sl_coef * sl_scores + wa_coef * wa_scores + sd_coef * sd_scores
+            swa_std_scores = am_scores['swa_std_score']
+            total_scores = sl_coef * sl_scores + wa_coef * wa_scores \
+                           + sd_coef * sd_scores + swa_std_coef * swa_std_scores
             ari_scores = []
             bleu_scores = []
             num_sents = []
 
             for g, r in zip(generated_texts, data['source']):
                 ari_scores.append(compute_ari(g))
-                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)  # BLEU to the original abstract (cf. significance statement)
+                # BLEU to the original abstract (cf. significance statement)
+                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)
                 num_sents.append(len(sent_tokenize(g)))
 
             eval_storage["queries"].extend(data['query'])  # str
@@ -597,6 +610,7 @@ def evaluate_model(
             eval_storage['word_accessibility'].extend(wa_scores.cpu().numpy().tolist())
             eval_storage['sent_delta'].extend(sd_scores.cpu().numpy().tolist())
             eval_storage['sent_count'].extend(num_sents)
+            eval_storage['sent_wa_std'].extend(swa_std_scores.cpu().numpy().tolist())
 
             if i >= num_samples:
                 break
@@ -617,6 +631,7 @@ def evaluate_model(
             "sent_len": gather_object(eval_storage['sent_len']),
             "word_accessibility": gather_object(eval_storage['word_accessibility']),
             "sent_delta": gather_object(eval_storage['sent_delta']),
+            "sent_wa_std": gather_object(eval_storage['sent_wa_std']),
             "sent_count": gather_object(eval_storage['sent_count'])
         }
     )
@@ -906,10 +921,11 @@ if __name__ == "__main__":
                                                          skip_special_tokens=True)
                 if args.rlam.reward == 'am':
                     am_score = compute_am_score_wrapper(generated_texts,
-                                                          [len(sent_tokenize(r)) for r in gold_response])  # fixme
+                                                          [len(sent_tokenize(r)) for r in gold_response])
                     score = args.rlam.sl_coef * am_score['sl_score'] + \
                             args.rlam.wa_coef * am_score['wa_score'] + \
-                            args.rlam.sd_coef * am_score['sd_score']
+                            args.rlam.sd_coef * am_score['sd_score'] + \
+                            args.rlam.swa_std_coef * am_score['swa_std_score']
                 else:
                     score = compute_ari_score(generated_texts)["ari_score"]
                 score = score.to(device=accelerator.device)
