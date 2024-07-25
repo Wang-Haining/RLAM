@@ -12,16 +12,15 @@ import argparse
 import os
 from typing import List
 
-import deepspeed
 import torch
 import wandb
-import yaml
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, EarlyStoppingCallback,
                           TrainingArguments)
 from trl import SFTTrainer, set_seed
+from accelerate import Accelerator, AcceleratorState
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -64,6 +63,7 @@ if __name__ == "__main__":
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--gradient_checkpointing", action='store_true', help="Whether to use gradient checkpointing")
     parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
+    parser.add_argument("--deepspeed", action='store_true', help="Whether to use DeepSpeed for training")
     args = parser.parse_args()
 
     if args.model == "gemma-2b":
@@ -134,22 +134,25 @@ if __name__ == "__main__":
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
-    # Initialize DeepSpeed
-    ds_config_path = "runs/ds_config.yaml"
+    # initialize DeepSpeed with Accelerate
+    if args.deepspeed:
+        from accelerate import Accelerator
 
-    # load DeepSpeed config
-    with open(ds_config_path, 'r') as f:
-        ds_config = yaml.safe_load(f)
+        accelerator = Accelerator()
+        deepspeed_plugin = accelerator.state.deepspeed_plugin
+        deepspeed_plugin.deepspeed_config["train_micro_batch_size_per_gpu"] = args.per_device_train_batch_size
 
-    model_engine, optimizer, _, _ = deepspeed.initialize(
-        model=model,
-        model_parameters=model.parameters(),
-        config=ds_config,
-        optimizer=optimizer
-    )
+        ds_config = {
+            "train_micro_batch_size_per_gpu": deepspeed_plugin.deepspeed_config["train_micro_batch_size_per_gpu"],
+            "bf16": {"enabled": True},
+            "prescale_gradients": False,
+            "wall_clock_breakdown": False,
+        }
+        model, optimizer, _, _ = deepspeed.initialize(model=model, config=ds_config, optimizer=optimizer)
+        accelerator.print(f"{ds_config=}")
 
     trainer = SFTTrainer(
-        model=model_engine,
+        model=model,
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
         formatting_func=formatting_func,
