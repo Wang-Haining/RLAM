@@ -12,15 +12,16 @@ import argparse
 import os
 from typing import List
 
+import deepspeed
 import torch
 import wandb
+import yaml
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          EarlyStoppingCallback, TrainingArguments, BitsAndBytesConfig)
+                          BitsAndBytesConfig, EarlyStoppingCallback,
+                          TrainingArguments)
 from trl import SFTTrainer, set_seed
-import bitsandbytes as bnb
-import deepspeed
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -135,12 +136,15 @@ if __name__ == "__main__":
 
     # Initialize DeepSpeed
     ds_config_path = "runs/ds_sft_config.yaml"
-    deepspeed.init_distributed()
+
+    # load DeepSpeed config
+    with open(ds_config_path, 'r') as f:
+        ds_config = yaml.safe_load(f)
 
     model_engine, optimizer, _, _ = deepspeed.initialize(
         model=model,
         model_parameters=model.parameters(),
-        config=ds_config_path,
+        config=ds_config,
         optimizer=optimizer
     )
 
