@@ -857,7 +857,7 @@ if __name__ == "__main__":
         data = next(iter_dataloader)
         with torch.no_grad():
             eval_storage, eval_df = evaluate_model(
-                args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef,
+                args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
                 accelerator.unwrap_model(model).policy,
                 tokenizer,
                 eval_dataloaders[eval_split],
@@ -1145,7 +1145,7 @@ if __name__ == "__main__":
         if args.run_eval and update % args.eval_steps == 0:
             for eval_split in eval_dataloaders:
                 eval_storage, eval_df = evaluate_model(
-                    args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef,
+                    args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
                     accelerator.unwrap_model(model).policy,
                     tokenizer,
                     eval_dataloaders[eval_split],
