@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=eval_uam_gemma-2b
+#SBATCH --job-name=eval_rlam_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --model gemma-2b --reward uam --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --eval_ppo
+python -m eval_outputs --model gemma-2b --reward am --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --eval_ppo

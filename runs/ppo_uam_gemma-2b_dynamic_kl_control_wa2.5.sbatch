@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=ppo_uam_gemma-2b_dynamic_kl_control
+#SBATCH --job-name=ppo_am_gemma-2b_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="ppo_uam_gemma-2b_dynamic_kl_control"
+JOB_NAME="ppo_am_gemma-2b_dynamic_kl_control"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -20,7 +20,7 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 
 accelerate launch --main_process_port 29501 --config_file runs/ds_config.yaml \
-ppo.py \
+rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
 --deepspeed \
@@ -44,11 +44,11 @@ ppo.py \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 4 \
---rluam.target_kl 2.0 \
---rluam.kl_coef 0.8 \
---rluam.kl_coef_lower_bound 0.75 \
---rluam.kl_coef_upper_bound 0.85 \
---rluam.k_beta 1e-4 \
---rluam.sl_coef 1.0 \
---rluam.wa_coef 2.5 \
---rluam.sd_coef 2.0
+--rlam.target_kl 2.0 \
+--rlam.kl_coef 0.8 \
+--rlam.kl_coef_lower_bound 0.75 \
+--rlam.kl_coef_upper_bound 0.85 \
+--rlam.k_beta 1e-4 \
+--rlam.sl_coef 1.0 \
+--rlam.wa_coef 2.5 \
+--rlam.sd_coef 2.0

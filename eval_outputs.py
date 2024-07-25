@@ -76,29 +76,34 @@ def calculate_metrics(
     metrics_dict.update({"bertscore": np.mean(bertscore_result["f1"])})
     # complexity measure
     word_accessibility_list = []
+    avg_sent_word_accessibility_lists = []
     sent_len_list = []
     num_words = 0
     num_chars = 0
     num_voa_words = 0
     sents = sent_tokenize(generated_text)
     for sent in sents:
+        sent_word_accessibility_list = []
         sent_len_list.append(compute_sent_len(sent))
         for token in mt.tokenize(sent, escape=False):
             num_words += 1
             num_chars += len(token)
             if token.lower() in voa1500:
                 num_voa_words += 1
-            word_accessibility_list.append(
+            sent_word_accessibility_list.append(
                 compute_token_accessibility(
                     token, top_100k_tokens, wa_model, total_tokens, token_freq
                 )
             )
+        avg_sent_word_accessibility_lists.append(np.mean(sent_word_accessibility_list))
+        word_accessibility_list.extend(sent_word_accessibility_list)
     p = (num_voa_words / num_words) + 1e-12
     metrics_dict.update({"voa_log_ratio": np.log(p / (1 - p))})
     metrics_dict.update({"avg_sent_len": np.mean(sent_len_list)})
     metrics_dict.update({"avg_word_accessibility": np.mean(word_accessibility_list)})
     metrics_dict.update({"num_sents": len(sents)})
     metrics_dict.update({"avg_word_len": num_chars / num_words})
+    metrics_dict.update({"sent_word_accessibility_std": np.std(avg_sent_word_accessibility_lists)})
     return metrics_dict
 
 
@@ -171,7 +176,7 @@ if __name__ == "__main__":
              "the evaluation",
     )
     parser.add_argument(
-        "--reward", type=str, default="uam", choices=["uam", "ari"], help="Reward type"
+        "--reward", type=str, default="am", choices=["am", "ari"], help="Reward type"
     )
     parser.add_argument(
         "--batch_size", type=int, default=20, help="Batch size for inference"
@@ -401,7 +406,7 @@ if __name__ == "__main__":
                         # print out results
                             print("*" * 90)
                             print(
-                                f"RLUAM performance for {ckpt_path} in temperature "
+                                f"RLAM performance for {ckpt_path} in temperature "
                                 f"{args.temperature}:"
                             )
                             print("Average scores for {}: {}".format(ckpt_path,
