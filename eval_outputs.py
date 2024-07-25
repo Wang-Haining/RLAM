@@ -341,7 +341,7 @@ if __name__ == "__main__":
         # get the relevant PPO runs using heuristics
         relevant_runs = []
         for run in os.listdir("ckpts"):
-            if run.startswith(f"ppo_{args.reward}_{args.model}"):
+            if run.startswith(f"rl_{args.reward}_{args.model}"):
                 if run not in evaluated_runs:
                     relevant_runs.append(run)
         print(f"{len(relevant_runs)} PPO run(s) will be evaluated: {relevant_runs}")
