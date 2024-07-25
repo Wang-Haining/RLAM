@@ -135,6 +135,7 @@ if __name__ == "__main__":
         save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
+        optim='adafactor',
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None
     )
