@@ -343,8 +343,9 @@ def compute_am_score(responses: List[str],
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
     sentence_delta_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sentence_delta_rewards])
-    # only penalize those have swa_std >= 0.6
-    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) if r <= 0.6 else 0 for r in avg_sent_word_accessibility_std_rewards])
+    # only penalize those have swa_std >= 0.65
+    avg_sent_word_accessibility_std_rewards = [r if r > 0.65 else 0 for r in avg_sent_word_accessibility_std_rewards]
+    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in avg_sent_word_accessibility_std_rewards])
     return {"sl_score": sent_len_rewards,
             "wa_score": word_accessibility_rewards,
             "sd_score": sentence_delta_rewards,
