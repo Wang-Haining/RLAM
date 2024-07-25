@@ -17,9 +17,8 @@ import wandb
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          EarlyStoppingCallback, TrainingArguments, BitsAndBytesConfig)
+                          EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
-import bitsandbytes as bnb
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -53,8 +52,7 @@ def formatting_func(example: DatasetDict) -> List[str]:
 if __name__ == "__main__":
 
     set_seed(SEED + 2122)
-    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with "
-                                                 "Gemma-2B/7B, OLMo-1B, Llama3-8B or Phi-2.")
+    parser = argparse.ArgumentParser(description="Supervise Fine-tuning with Gemma-2B/7B, OLMo-1B, Llama3-8B or Phi-2.")
     parser.add_argument("--model", type=str,
                         choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", 'phi-2'],
                         help="Either gemma-2b, gemma-7b, olmo-1b, llama3-8b, gpt2-xl, or phi-2")
@@ -62,7 +60,6 @@ if __name__ == "__main__":
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--gradient_checkpointing", action='store_true', help="Whether to use gradient checkpointing")
     parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
-    parser.add_argument("--use_8bit", action='store_true', help="Whether to use 8-bit quantization for model and optimizer")
     args = parser.parse_args()
 
     if args.model == "gemma-2b":
@@ -94,17 +91,9 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
 
-    if args.use_8bit:
-        # Enable 8-bit quantization
-        bnb_config = BitsAndBytesConfig(load_in_8bit=True)
-        model = AutoModelForCausalLM.from_pretrained(model_name,
-                                                     quantization_config=bnb_config,
-                                                     torch_dtype=torch.bfloat16)
-        optimizer = bnb.optim.AdamW(model.parameters(), lr=args.learning_rate)
-    else:
-        model = AutoModelForCausalLM.from_pretrained(model_name,
-                                                     torch_dtype=torch.bfloat16)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                 torch_dtype=torch.bfloat16)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
 
     if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -135,7 +124,6 @@ if __name__ == "__main__":
         save_steps=20,
         save_total_limit=3,
         remove_unused_columns=True,
-        optim='adafactor',
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None
     )
@@ -150,7 +138,6 @@ if __name__ == "__main__":
         args=training_args,
         peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
-        optimizers=(optimizer, None)  # use the specified optimizer
     )
 
     trainer.train()

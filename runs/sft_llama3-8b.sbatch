@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model llama3-8b --per_device_train_batch_size 2 --learning_rate 3e-6
+python -m sft --model llama3-8b --per_device_train_batch_size 2 --learning_rate 3e-6 --gradient_checkpointing
