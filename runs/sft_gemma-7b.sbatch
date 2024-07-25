@@ -2,9 +2,9 @@
 #SBATCH --job-name=sft_gemma-7b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
-#SBATCH --gres=gpu:h100:1
+#SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 #SBATCH --time=0-12:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m sft --model gemma-7b --per_device_train_batch_size 2 --learning_rate 3e-6 --gradient_checkpointing
+python -m sft_ds --model gemma-7b --per_device_train_batch_size 2 --learning_rate 3e-6
