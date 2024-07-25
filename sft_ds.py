@@ -12,15 +12,15 @@ import argparse
 import os
 from typing import List
 
+import deepspeed
 import torch
 import wandb
+from accelerate import Accelerator
 from datasets import DatasetDict, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          BitsAndBytesConfig, EarlyStoppingCallback,
-                          TrainingArguments)
+                          EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
-# from accelerate import Accelerator, AcceleratorState
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -132,12 +132,36 @@ if __name__ == "__main__":
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None
     )
-    wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
+
+    # Log only relevant attributes to wandb
+    wandb_config = {
+        "output_dir": training_args.output_dir,
+        "num_train_epochs": training_args.num_train_epochs,
+        "do_train": training_args.do_train,
+        "do_eval": training_args.do_eval,
+        "eval_strategy": training_args.eval_strategy,
+        "per_device_train_batch_size": training_args.per_device_train_batch_size,
+        "per_device_eval_batch_size": training_args.per_device_eval_batch_size,
+        "gradient_accumulation_steps": training_args.gradient_accumulation_steps,
+        "learning_rate": training_args.learning_rate,
+        "lr_scheduler_type": training_args.lr_scheduler_type,
+        "warmup_steps": training_args.warmup_steps,
+        "weight_decay": training_args.weight_decay,
+        "logging_steps": training_args.logging_steps,
+        "eval_steps": training_args.eval_steps,
+        "bf16": training_args.bf16,
+        "report_to": training_args.report_to,
+        "load_best_model_at_end": training_args.load_best_model_at_end,
+        "save_steps": training_args.save_steps,
+        "save_total_limit": training_args.save_total_limit,
+        "remove_unused_columns": training_args.remove_unused_columns,
+        "gradient_checkpointing": training_args.gradient_checkpointing,
+    }
+    wandb.init(project=PROJECT_NAME, name=run_name, config=wandb_config)
 
     # initialize DeepSpeed with Accelerate
     if args.deepspeed:
         from accelerate import Accelerator
-        from accelerate.state import AcceleratorState
 
         accelerator = Accelerator()
         deepspeed_plugin = accelerator.state.deepspeed_plugin
