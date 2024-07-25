@@ -135,7 +135,7 @@ if __name__ == "__main__":
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
     # Initialize DeepSpeed
-    ds_config_path = "runs/ds_sft_config.yaml"
+    ds_config_path = "runs/ds_config.yaml"
 
     # load DeepSpeed config
     with open(ds_config_path, 'r') as f:
