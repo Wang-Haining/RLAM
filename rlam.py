@@ -257,11 +257,11 @@ def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
 
 
 def compute_am_score(responses: List[str],
-                      response_num_sents: List[int],
-                      top_100k_tokens,
-                      wa_model,
-                      total_tokens,
-                      token_freq) -> Dict[str, torch.Tensor]:
+                     response_num_sents: List[int],
+                     top_100k_tokens,
+                     wa_model,
+                     total_tokens,
+                     token_freq) -> Dict[str, torch.Tensor]:
     """
     Score a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
@@ -312,6 +312,7 @@ def compute_am_score(responses: List[str],
             sent_len_rewards.append(28.0)
             word_accessibility_rewards.append(10.0)
             sentence_delta_rewards.append(abs(1 - response_num_sents[i]))
+            avg_sent_word_accessibility_std_rewards.append(1.5)
         else:
             sent_len_list = []
             word_accessibility_list = []
@@ -342,7 +343,8 @@ def compute_am_score(responses: List[str],
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
     sentence_delta_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sentence_delta_rewards])
-    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in avg_sent_word_accessibility_std_rewards])
+    # only penalize those have swa_std >= 0.6
+    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) if r <= 0.6 else 0 for r in avg_sent_word_accessibility_std_rewards])
     return {"sl_score": sent_len_rewards,
             "wa_score": word_accessibility_rewards,
             "sd_score": sentence_delta_rewards,
