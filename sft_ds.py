@@ -20,7 +20,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, EarlyStoppingCallback,
                           TrainingArguments)
 from trl import SFTTrainer, set_seed
-from accelerate import Accelerator, AcceleratorState
+# from accelerate import Accelerator, AcceleratorState
 
 from utils import (CKPTS_DIR, DATASET_PATH, GEMMA_2B, GEMMA_7B, LLAMA3_8B,
                    MAX_INPUT_LENGTHS, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
@@ -137,6 +137,7 @@ if __name__ == "__main__":
     # initialize DeepSpeed with Accelerate
     if args.deepspeed:
         from accelerate import Accelerator
+        from accelerate.state import AcceleratorState
 
         accelerator = Accelerator()
         deepspeed_plugin = accelerator.state.deepspeed_plugin
