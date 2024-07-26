@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-accelerate launch --use_deepspeed --num_machines 1 --num_processes 1 sft.py --model gemma-7b --per_device_train_batch_size 1 --learning_rate 3e-6 --gradient_checkpointing --deepspeed
+deepspeed --num_gpus 1 --num_nodes 1 sft.py --model gemma-7b --per_device_train_batch_size 1 --learning_rate 3e-6 --gradient_checkpointing --deepspeed
