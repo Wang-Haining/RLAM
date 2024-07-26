@@ -15,4 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-torchrun --nproc_per_node=1 --nnode=1 --node_rank=0 sft.py --model gemma-7b --per_device_train_batch_size 2 --learning_rate 5e-7 --gradient_checkpointing --deepspeed
+torchrun --nproc_per_node=1 --nnode=1 --node_rank=0 sft.py --model gemma-7b --per_device_train_batch_size 2 --learning_rate 5e-6 --gradient_checkpointing --deepspeed
