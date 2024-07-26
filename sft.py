@@ -101,7 +101,6 @@ if __name__ == "__main__":
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None,
         deepspeed='runs/ds_sft_config.json' if args.deepspeed else None,
-        is_deepspeed_zero3_enabled=args.deepspeed,
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
 
