@@ -102,7 +102,7 @@ if __name__ == "__main__":
         gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None,
         deepspeed='runs/ds_sft_config.json' if args.deepspeed else None,
     )
-    wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
+    wandb.init(project=PROJECT_NAME, name=run_name, config=training_args.to_dict())
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
     dataset = load_from_disk(DATASET_PATH)
