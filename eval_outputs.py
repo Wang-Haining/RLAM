@@ -19,14 +19,13 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          GenerationConfig, AutoModelForSeq2SeqLM)
+from transformers import (AutoModelForCausalLM, AutoTokenizer, GenerationConfig)
 
-from utils import (LONG_T5_XL, GEMMA_2B, LLAMA3_8B, MAX_OUTPUT_LENGTHS,
-                   OLMO_1B, PHI2_3B, SEED, VOA1500,
-                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
-                   compute_ari, compute_flesch_kincaid, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies)
+from utils import (GEMMA_2B, GEMMA_7B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
+                   SEED, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
+                   build_sass_dataset, compute_ari, compute_flesch_kincaid,
+                   compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -152,8 +151,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        choices=["gemma-2b", "gemma-7b", "olmo-1b", "llama3-8b", "gpt2-xl", "phi-2",
-                 'long-t5-tglobal-xl'],
+        choices=["gemma-2b", "gemma-7b", "olmo-1b", "phi-2"],
         help="The model type (across runs) to evaluate",
     )
     parser.add_argument(
@@ -206,14 +204,12 @@ if __name__ == "__main__":
     # identify the base model based on the provided model type argument
     if "gemma-2b" in args.model.lower():
         base_model = GEMMA_2B
+    elif "gemma-7b" in args.model.lower():
+        base_model = GEMMA_7B
     elif "olmo-1b" in args.model.lower():
         base_model = OLMO_1B
     elif "phi-2" in args.model.lower():
         base_model = PHI2_3B
-    elif "llama3-8b" in args.model.lower():
-        base_model = LLAMA3_8B
-    elif "long-t5-tglobal-xl" in args.model.lower():
-        base_model = LONG_T5_XL
     else:
         raise ValueError(f"Unknown model name {args.model}")
 
@@ -253,38 +249,16 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_model_path}")
 
     # load dataset and tokenizer
-    # dataset = build_sass_dataset(sft_model_path, base_model, 'left')
-    if 'long-t5' not in args.model:
-        dataset = build_sass_dataset(sft_model_path, base_model, 'left')
-    else:
-        dataset = build_sass_dataset(sft_model_path, base_model, 'right')
+    dataset = build_sass_dataset(sft_model_path, base_model, 'right')
 
     tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
-    if args.model in ['gemma-2b', 'olmo-1b', 'phi-2']:
-        model = AutoModelForCausalLM.from_pretrained(
-            sft_model_path, torch_dtype=torch.bfloat16
-        )
-        if args.model == 'phi-2':
-            # resize embedding size for loading peft model
-            model.resize_token_embeddings(len(tokenizer))
-    elif args.model == 'llama3-8b':
-        model = AutoModelForCausalLM.from_pretrained(
-            LLAMA3_8B, torch_dtype=torch.bfloat16
-        )
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+
+    model = AutoModelForCausalLM.from_pretrained(
+        sft_model_path, torch_dtype=torch.bfloat16
+    )
+    if args.model == 'phi-2':
         # resize embedding size for loading peft model
         model.resize_token_embeddings(len(tokenizer))
-        from peft import PeftModel
-
-        model = PeftModel.from_pretrained(model, sft_model_path)
-
-    elif args.model == 'long-t5-tglobal-xl':
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            sft_model_path, torch_dtype=torch.bfloat16
-        )
-    else:
-        raise RuntimeError(f"Illegal {args.model}.")
-
     model.to(device)
 
     # evaluate with test generation config
@@ -294,7 +268,7 @@ if __name__ == "__main__":
         tokenizer,
         test_generation_config,
         batch_size=args.batch_size,
-        model_type='clm' if args.model != 'long-t5-tglobal-xl' else 'seq2seq',
+        model_type='clm',
         verbose=args.verbose
     )
 
@@ -367,7 +341,7 @@ if __name__ == "__main__":
                             tokenizer,
                             test_generation_config,
                             batch_size=args.batch_size,
-                            model_type='clm' if args.model != 'long-t5-tglobal-xl' else 'seq2seq',
+                            model_type='clm',
                             verbose=args.verbose
                         )
                         # save evaluation results to CSV
