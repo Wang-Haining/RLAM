@@ -249,7 +249,7 @@ if __name__ == "__main__":
         print(f"Starting evaluation for {sft_model_path}")
 
     # load dataset and tokenizer
-    dataset = build_sass_dataset(sft_model_path, base_model, 'right')
+    dataset = build_sass_dataset(sft_model_path, base_model, 'left')
 
     tokenizer = AutoTokenizer.from_pretrained(sft_model_path)  # use the saved tokenizer
 
