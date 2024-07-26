@@ -15,7 +15,6 @@ from typing import List
 import torch
 import wandb
 from datasets import DatasetDict, load_from_disk
-from peft import LoraConfig, get_peft_model
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           EarlyStoppingCallback, TrainingArguments)
 from trl import SFTTrainer, set_seed
@@ -59,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--gradient_checkpointing", action='store_true', help="Whether to use gradient checkpointing")
-    parser.add_argument("--is_peft_model", action='store_true', help="Whether to use LoRA for finetuning")
+    parser.add_argument("--deepspeed", action='store_true', help="Whether to use DeepSpeed for training")
     args = parser.parse_args()
 
     if args.model == "gemma-2b":
@@ -75,32 +74,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid model name: {args.model}")
 
-    # lora config if necessary
-    if args.is_peft_model:
-        lora_config = LoraConfig(
-            init_lora_weights="gaussian",
-            target_modules=["q_proj", "v_proj"],
-            r=16,
-            lora_alpha=32,
-            lora_dropout=0.05,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
-
     run_name = f'sft_{model_name.split("/")[-1]}'
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
-    dataset = load_from_disk(DATASET_PATH)
-
-    model = AutoModelForCausalLM.from_pretrained(model_name,
-                                                 torch_dtype=torch.bfloat16)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
-
-    if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        model.resize_token_embeddings(len(tokenizer))
-
-    if args.is_peft_model:
-        model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
         output_dir=f"{CKPTS_DIR}/{run_name}",
@@ -125,9 +99,23 @@ if __name__ == "__main__":
         save_total_limit=3,
         remove_unused_columns=True,
         gradient_checkpointing=args.gradient_checkpointing,
-        gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None
+        gradient_checkpointing_kwargs={'use_reentrant': False} if args.gradient_checkpointing else None,
+        deepspeed='runs/ds_sft_config.json' if args.deepspeed else None,
+        is_deepspeed_zero3_enabled=args.deepspeed,
     )
     wandb.init(project=PROJECT_NAME, name=run_name, config=training_args)
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="right")
+    dataset = load_from_disk(DATASET_PATH)
+
+    # init model after trainingArgs init
+    model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                 torch_dtype=torch.bfloat16)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+
+    if any(keyword in model_name.lower() for keyword in ['phi', 'llama']):
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        model.resize_token_embeddings(len(tokenizer))
 
     trainer = SFTTrainer(
         model=model,
@@ -136,7 +124,6 @@ if __name__ == "__main__":
         formatting_func=formatting_func,
         max_seq_length=MAX_INPUT_LENGTHS[args.model] + MAX_OUTPUT_LENGTHS[args.model] + 10,
         args=training_args,
-        peft_config=lora_config if args.is_peft_model else None,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
