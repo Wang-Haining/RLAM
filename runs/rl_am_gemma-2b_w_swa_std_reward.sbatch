@@ -52,4 +52,4 @@ rlam.py \
 --rlam.sl_coef 1.0 \
 --rlam.wa_coef 2.5 \
 --rlam.sd_coef 0.0 \
---rlam.swa_std_coef 20.0
+--rlam.swa_std_coef 10.0
