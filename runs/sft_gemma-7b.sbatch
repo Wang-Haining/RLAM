@@ -15,5 +15,4 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-accelerate launch --main_process_port 29501 --config_file runs/ds_config.yaml \
-sft_ds.py --model gemma-7b --per_device_train_batch_size 1 --learning_rate 3e-6 --gradient_checkpointing --deepspeed
+python -m sft --model gemma-7b --per_device_train_batch_size 1 --learning_rate 3e-6 --gradient_checkpointing --deepspeed
