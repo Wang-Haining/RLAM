@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-2b_w_sd_reward
+#SBATCH --job-name=rl_am_gemma-2b_w_wa_swaStd_reward
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-2b_w_sd_reward"
+JOB_NAME="rl_am_gemma-2b_w_wa_swaStd_reward"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -49,7 +49,7 @@ rlam.py \
 --rlam.kl_coef_lower_bound 0.75 \
 --rlam.kl_coef_upper_bound 0.85 \
 --rlam.k_beta 1e-4 \
---rlam.sl_coef 1.0 \
+--rlam.sl_coef 0.0 \
 --rlam.wa_coef 2.5 \
---rlam.sd_coef 1.0 \
---rlam.swa_std_coef 0.0
+--rlam.sd_coef 0.0 \
+--rlam.swa_std_coef 10.0
