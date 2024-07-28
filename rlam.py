@@ -1166,6 +1166,7 @@ if __name__ == "__main__":
                     avg_word_accessibility = np.mean(
                         eval_storage['word_accessibility'])
                     avg_sent_count = np.mean(eval_storage['sent_count'])
+                    avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
 
                     # log averages to wandb
                     wandb.log({
@@ -1174,7 +1175,8 @@ if __name__ == "__main__":
                         f"eval/{eval_split}_avg_bleu": avg_bleu,
                         f"eval/{eval_split}_avg_sent_len": avg_sent_len,
                         f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
-                        f"eval/{eval_split}_avg_sent_count": avg_sent_count
+                        f"eval/{eval_split}_avg_sent_count": avg_sent_count,
+                        f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
                     }, step=update)
                     # early stopping check
                     if args.early_stop and early_stopping.should_stop(avg_ari):
