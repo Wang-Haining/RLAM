@@ -31,7 +31,6 @@ import wandb
 from accelerate import Accelerator
 from accelerate.state import AcceleratorState
 from accelerate.utils import broadcast, gather_object
-from datasets import Dataset, load_dataset
 from nltk.tokenize import sent_tokenize
 from rich.console import Console
 from rich.pretty import pprint
@@ -44,9 +43,10 @@ from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           AutoTokenizer, GenerationConfig, PretrainedConfig,
                           PreTrainedModel, PreTrainedTokenizerBase)
 
-from utils import (INVALID_LOGPROB, SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_sass_dataset, compute_ari, PROJECT_NAME,
-                   compute_sent_len, compute_token_accessibility, read_token_frequencies)
+from utils import (INVALID_LOGPROB, PROJECT_NAME, SEED, SEP_TOKENS,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
+                   compute_ari, compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
 
 torch.set_printoptions(precision=3, sci_mode=False)
 nltk.download('punkt')
@@ -185,7 +185,7 @@ class Args:
     early_stop: bool = True
     """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
     early_stop_min_ari: float = 8.0
-    early_stop_patience: int = 20
+    early_stop_patience: int = 30
     rlam: RlamHParams = field(default_factory=RlamHParams)
     """Default values will be used to create a RlamHParams"""
 
@@ -542,6 +542,7 @@ def evaluate_model(
         sl_coef: Scaling factor for sentence length score.
         wa_coef: Scaling factor for word accessibility score.
         sd_coef: Scaling factor for sentence count delta score.
+        swa_std_coef: Scaling factor for average word accessibility per sentence.
         policy: The policy model to be evaluated.
         tokenizer: Tokenizer used for encoding/decoding.
         dataloader: DataLoader providing the evaluation dataset.
