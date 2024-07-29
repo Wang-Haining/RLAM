@@ -1157,30 +1157,32 @@ if __name__ == "__main__":
                 eval_ds = Dataset.from_pandas(eval_df)
                 wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                   dataframe=eval_df)}, step=update)
+                # heuristics to tell if we need to stop
+                avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                # # calculate averages
+                # avg_ari = np.mean(eval_storage['ari'])
+                # avg_total_score = np.mean(eval_storage['total_scores'])
+                # avg_bleu = np.mean(eval_storage['bleu'])
+                # avg_sent_len = np.mean(eval_storage['sent_len'])
+                # avg_word_accessibility = np.mean(
+                #     eval_storage['word_accessibility'])
+                # avg_sent_count = np.mean(eval_storage['sent_count'])
+                # avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
+                #
+                # # log averages to wandb
+                # wandb.log({
+                #     f"eval/{eval_split}_avg_ari": avg_ari,
+                #     f"eval/{eval_split}_avg_total_score": avg_total_score,
+                #     f"eval/{eval_split}_avg_bleu": avg_bleu,
+                #     f"eval/{eval_split}_avg_sent_len": avg_sent_len,
+                #     f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
+                #     f"eval/{eval_split}_avg_sent_count": avg_sent_count,
+                #     f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
+                # }, step=update)
 
-                # calculate averages
-                avg_ari = np.mean(eval_storage['ari'])
-                avg_total_score = np.mean(eval_storage['total_scores'])
-                avg_bleu = np.mean(eval_storage['bleu'])
-                avg_sent_len = np.mean(eval_storage['sent_len'])
-                avg_word_accessibility = np.mean(
-                    eval_storage['word_accessibility'])
-                avg_sent_count = np.mean(eval_storage['sent_count'])
-                avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
-
-                # log averages to wandb
-                wandb.log({
-                    f"eval/{eval_split}_avg_ari": avg_ari,
-                    f"eval/{eval_split}_avg_total_score": avg_total_score,
-                    f"eval/{eval_split}_avg_bleu": avg_bleu,
-                    f"eval/{eval_split}_avg_sent_len": avg_sent_len,
-                    f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
-                    f"eval/{eval_split}_avg_sent_count": avg_sent_count,
-                    f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
-                }, step=update)
                 # early stopping check
                 if args.early_stop and early_stopping.should_stop(avg_ari):
-                    avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                    # avg_ari = round(np.mean(eval_storage["ari"]), 2)
                     save_model(accelerator, tokenizer, model,
                                args.output_dir, args.run_name, avg_ari, update,
                                args.save_total_limit)
