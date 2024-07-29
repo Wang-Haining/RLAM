@@ -42,8 +42,8 @@ rlam.py \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 4 \
---local_eval_batch_size 4 \
+--local_micro_batch_size 2 \
+--local_eval_batch_size 2 \
 --rlam.target_kl 2.0 \
 --rlam.kl_coef 0.8 \
 --rlam.kl_coef_lower_bound 0.75 \
