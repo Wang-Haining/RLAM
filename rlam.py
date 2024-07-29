@@ -1,6 +1,6 @@
 """
 This script implements a Proximal Policy Optimization (PPO) training loop for rewriting
-scholarly abstracts into more accessible versions.
+scholarly abstract into more accessible version.
 
 References:
 - https://arxiv.org/abs/1707.06347
@@ -45,8 +45,9 @@ from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
                           PreTrainedModel, PreTrainedTokenizerBase)
 
 from utils import (INVALID_LOGPROB, SEED, SEP_TOKENS, WORD_ACCESSIBILITY_MODEL,
-                   WORD_FREQ_CSV, build_sass_dataset, compute_ari, PROJECT_NAME,
-                   compute_sent_len, compute_token_accessibility, read_token_frequencies)
+                   WORD_FREQ_CSV, build_ppo_dataset, compute_ari, PROJECT_NAME,
+                   compute_sent_len, compute_token_accessibility, count_sent,
+                   read_token_frequencies)
 
 torch.set_printoptions(precision=3, sci_mode=False)
 nltk.download('punkt')
@@ -54,7 +55,7 @@ nltk.download('punkt')
 
 
 @dataclass
-class RlamHParams:
+class RluamHParams:
     noptepochs: int = 4
     """Optimization iterations per batch of samples"""
     vf_coef: float = 0.1
@@ -67,20 +68,14 @@ class RlamHParams:
     """Gamma for GAE"""
     lam: float = 0.95
     """Lambda for GAE"""
-    reward: Literal['ari', 'am'] = 'am'
-    """Either guide optimization with the uncombined accessibility measures (am) or 
+    reward: Literal['ari', 'uam'] = 'uam'
+    """Either guide optimization with the uncombined accessibility measures (uam) or 
     the Automated Readability Index (ari)"""
     # reward related
     sl_coef: float = 1.0
     "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
-    wa_coef: float = 2.5
+    wa_coef: float = 2.05
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
-    sd_coef: float = 2.0
-    """Scaling factor for the difference in sentence count (i.e., sentence delta) 
-    between significance statements and rollouts."""
-    swa_std_coef: float = 20.0  # fixme
-    """Scaling factor for the standard deviation of word accessibility among 
-    generations."""
     kl_coef: float = 0.2
     """KL penalty coefficient"""
     kl_coef_upper_bound: float = 0.8
@@ -88,10 +83,10 @@ class RlamHParams:
     kl_coef_lower_bound: float = 0.2
     """KL penalty coefficient"""
     target_kl: Optional[float] = None
-    """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`, 
+    """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`
     see https://arxiv.org/abs/1909.08593"""
     k_beta: Optional[float] = None
-    """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`, 
+    """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`
     see https://arxiv.org/abs/1909.08593"""
     whiten_rewards: bool = True
     """Normalize rewards before advantages estimation"""
@@ -157,7 +152,7 @@ class Args:
     """Per rank no grad forward pass in the rollout phase"""
 
     # other args
-    base_model: str = 'google/gemma-2b'
+    base_model: str = 'allenai/OLMo-1B-hf'
     """The name of the pretrained model to use"""
     response_length: int = 256
     """The length of the response"""
@@ -171,7 +166,7 @@ class Args:
     """The reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = True
     """Whether to penalize responses that do not contain `truncate_token_id`"""
-    sft_model_path: str = None
+    sft_model_path: str = "ckpts/sft_OLMo-1B-hf/checkpoint-1100"
     """The path to the sft model"""
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
@@ -186,8 +181,8 @@ class Args:
     """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
     early_stop_min_ari: float = 8.0
     early_stop_patience: int = 20
-    rlam: RlamHParams = field(default_factory=RlamHParams)
-    """Default values will be used to create a RlamHParams"""
+    rluam: RluamHParams = field(default_factory=RluamHParams)
+    """Default values will be used to create a RluamHParams"""
 
 
 def parse_args() -> tuple[Args, Accelerator]:
@@ -199,7 +194,7 @@ def parse_args() -> tuple[Args, Accelerator]:
     args.batch_size = int(args.local_batch_size * args.world_size)
     args.mini_batch_size = exact_div(args.batch_size, args.nminibatches)
     args.local_mini_batch_size = exact_div(args.local_batch_size, args.nminibatches)
-    if args.rlam.whiten_rewards:
+    if args.rluam.whiten_rewards:
         assert (
             args.local_mini_batch_size >= 8
         ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
@@ -256,26 +251,18 @@ def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
     return {"ari_score": ari_scores_tensor}
 
 
-def compute_am_score(responses: List[str],
-                     response_num_sents: List[int],
-                     top_100k_tokens,
-                     wa_model,
-                     total_tokens,
-                     token_freq) -> Dict[str, torch.Tensor]:
+def compute_uam_score(responses: List[str],
+                      top_100k_tokens,
+                      wa_model,
+                      total_tokens,
+                      token_freq) -> Dict[str, torch.Tensor]:
     """
     Score a batch of responses:
     - Avg sentence length: Computed over all sentences in a response. (Note, because we
         want average to be shorter, we need to negate sentence length in order to
         maximize the score.)
     - Avg word accessibility: Defined as the negative logarithm of the token frequency
-        per billion, based on its occurrences in the English Wikipedia corpus.
-    - Sentence delta: Difference of sentence count between generated texts with their
-        corresponding significance statements.
-    - Standard deviation among average sentence-level word accessibility: An accessible
-        text should not only be readable on average but also be consistent in
-        accessibility among sentences. This should be useful in reducing small trailing
-        phrases that deflate accessibility (e.g., "All rights reserved." or
-        "(show all)").
+      per billion, based on its occurrences in the English Wikipedia corpus.
 
     During pilot running, models cheat by spitting out only one eos token. So we
     penalize both word accessibility and sentence length with reasonably large negative
@@ -286,8 +273,6 @@ def compute_am_score(responses: List[str],
 
     Parameters:
         responses: A list of response strings to process.
-        response_num_sents: A list of target number of sentences (number of sentences in
-            the corresponding significance statement).
         top_100k_tokens: Set of the top 100k tokens based on frequency.
         wa_model: The model used to estimate word accessibility.
         total_tokens: Total number of tokens in the reference corpus.
@@ -297,59 +282,37 @@ def compute_am_score(responses: List[str],
         A dict containing three lists of tensors:
         - Negative sentence length score.
         - Raw word accessibility score.
-        - Raw sentence delta rewards.
     """
     sent_len_rewards = []
-    sentence_delta_rewards = []
     word_accessibility_rewards = []
-    avg_sent_word_accessibility_std_rewards = []
-
     mt = MosesTokenizer(lang='en')
-    for i, response in enumerate(responses):
-        avg_sent_word_accessibility_lists = []
+    for response in responses:
         # penalize too short generations
         if len(response.strip()) <= 50:
             sent_len_rewards.append(28.0)
             word_accessibility_rewards.append(10.0)
-            sentence_delta_rewards.append(abs(1 - response_num_sents[i]))
-            avg_sent_word_accessibility_std_rewards.append(1.5)
         else:
             sent_len_list = []
             word_accessibility_list = []
             sents = sent_tokenize(response)
-            sentence_delta_rewards.append(abs(len(sents) - response_num_sents[i]))
             for sent in sents:
-                # get each sentence's average token accessibility
-                sent_word_accessibility_list = []
                 # prevent noise from artificial eos tokens
                 for t in SEP_TOKENS:
                     if sent.strip().endswith(t) or sent.strip().startswith(t):
                         sent = sent.replace(t, "").strip()
                 sent_len_list.append(compute_sent_len(sent))
                 for token in mt.tokenize(sent, escape=False):
-                    sent_word_accessibility_list.append(
+                    word_accessibility_list.append(
                         compute_token_accessibility(token,
                                                     top_100k_tokens,
                                                     wa_model,
                                                     total_tokens,
-                                                    token_freq))
-                word_accessibility_list.extend(sent_word_accessibility_list)
-                avg_sent_word_accessibility_lists.append(np.mean(sent_word_accessibility_list))
-
-            avg_sent_word_accessibility_std_rewards.append(np.std(avg_sent_word_accessibility_lists))
+                                                    token_freq) if token != '-' else 10.0)  # prevent excessive presence of '-' in olmo
             sent_len_rewards.append(np.mean(sent_len_list))
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
-
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
-    sentence_delta_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sentence_delta_rewards])
-    # only penalize those have swa_std >= 0.65
-    avg_sent_word_accessibility_std_rewards = [r if r > 0.65 else 0 for r in avg_sent_word_accessibility_std_rewards]
-    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in avg_sent_word_accessibility_std_rewards])
-    return {"sl_score": sent_len_rewards,
-            "wa_score": word_accessibility_rewards,
-            "sd_score": sentence_delta_rewards,
-            "swa_std_score": avg_sent_word_accessibility_std_rewards}
+    return {"sl_score": sent_len_rewards, "wa_score": word_accessibility_rewards}
 
 
 class ScalarModelConfig(PretrainedConfig):
@@ -527,8 +490,6 @@ def forward(model, query_responses, tokenizer):
 def evaluate_model(
         sl_coef: float,
         wa_coef: float,
-        sd_coef: float,
-        swa_std_coef: float,
         policy: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
         dataloader: DataLoader,
@@ -541,7 +502,6 @@ def evaluate_model(
     Args:
         sl_coef: Scaling factor for sentence length score.
         wa_coef: Scaling factor for word accessibility score.
-        sd_coef: Scaling factor for sentence count delta score.
         policy: The policy model to be evaluated.
         tokenizer: Tokenizer used for encoding/decoding.
         dataloader: DataLoader providing the evaluation dataset.
@@ -557,16 +517,10 @@ def evaluate_model(
     with torch.no_grad():
         for i, data in tqdm(enumerate(dataloader)):
             # evaluate reference response (i.e., human-written significance statement)
-            reference_scores = compute_am_score_wrapper(data['response'],
-                                                         [len(sent_tokenize(r)) for r in data['response']])
+            reference_scores = compute_uam_score_wrapper(data['response'])
             reference_sl_scores = reference_scores['sl_score']
             reference_wa_scores = reference_scores['wa_score']
-            reference_sd_scores = reference_scores['sd_score']
-            reference_swa_std_scores = reference_scores['swa_std_score']
-            reference_total_scores = sl_coef * reference_sl_scores + \
-                                     wa_coef * reference_wa_scores + \
-                                     sd_coef * reference_sd_scores + \
-                                     swa_std_coef * reference_swa_std_scores
+            reference_total_scores = sl_coef * reference_sl_scores + wa_coef * reference_wa_scores
 
             # evaluate policy generated response
             queries = data["query_token"]
@@ -583,23 +537,18 @@ def evaluate_model(
                                                      skip_special_tokens=True)
 
             # calculate metrics
-            am_scores = compute_am_score_wrapper(generated_texts,
-                                                   [len(sent_tokenize(s)) for s in data['response']])
-            sl_scores = am_scores['sl_score']
-            wa_scores = am_scores['wa_score']
-            sd_scores = am_scores['sd_score']
-            swa_std_scores = am_scores['swa_std_score']
-            total_scores = sl_coef * sl_scores + wa_coef * wa_scores \
-                           + sd_coef * sd_scores + swa_std_coef * swa_std_scores
+            uam_scores = compute_uam_score_wrapper(generated_texts)
+            sl_scores = uam_scores['sl_score']
+            wa_scores = uam_scores['wa_score']
+            total_scores = sl_coef * sl_scores + wa_coef * wa_scores
             ari_scores = []
             bleu_scores = []
             num_sents = []
 
             for g, r in zip(generated_texts, data['source']):
                 ari_scores.append(compute_ari(g))
-                # BLEU to the original abstract (cf. significance statement)
-                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)
-                num_sents.append(len(sent_tokenize(g)))
+                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)  # BLEU to the original abstract (cf. significance statement)
+                num_sents.append(count_sent(g))
 
             eval_storage["queries"].extend(data['query'])  # str
             eval_storage["generated_texts"].extend(generated_texts)  # str
@@ -611,9 +560,7 @@ def evaluate_model(
             eval_storage['bleu'].extend(bleu_scores)
             eval_storage['sent_len'].extend(sl_scores.cpu().numpy().tolist())
             eval_storage['word_accessibility'].extend(wa_scores.cpu().numpy().tolist())
-            eval_storage['sent_delta'].extend(sd_scores.cpu().numpy().tolist())
             eval_storage['sent_count'].extend(num_sents)
-            eval_storage['sent_wa_std'].extend(swa_std_scores.cpu().numpy().tolist())
 
             if i >= num_samples:
                 break
@@ -633,8 +580,6 @@ def evaluate_model(
             "bleu": gather_object(eval_storage['bleu']),
             "sent_len": gather_object(eval_storage['sent_len']),
             "word_accessibility": gather_object(eval_storage['word_accessibility']),
-            "sent_delta": gather_object(eval_storage['sent_delta']),
-            "sent_wa_std": gather_object(eval_storage['sent_wa_std']),
             "sent_count": gather_object(eval_storage['sent_count'])
         }
     )
@@ -690,9 +635,8 @@ if __name__ == "__main__":
     # load for making predictions word accessibility
     wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, 'rb'))
     total_tokens = sum(token_freq.values())
-    compute_am_score_wrapper = lambda responses, response_num_sents: compute_am_score(
+    compute_uam_score_wrapper = lambda responses: compute_uam_score(
         responses,
-        response_num_sents,
         top_100k_tokens=top_100k_tokens,
         wa_model=wa_model,
         total_tokens=total_tokens,
@@ -700,7 +644,7 @@ if __name__ == "__main__":
     )
 
     # load dataset
-    dataset = build_sass_dataset(args.sft_model_path, args.base_model)
+    dataset = build_ppo_dataset(args.base_model)
     dataset = dataset.with_format("torch", columns=["query_token",
                                                     "reference_response_token",
                                                     "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded
@@ -714,7 +658,6 @@ if __name__ == "__main__":
         args.base_model,
         padding_side="right",
         trust_remote_code=True,
-        force_download=True,
     )
     tokenizer_wt_pad_model_names = ('gpt2', 'llama', 'phi')
     if any(model in args.base_model.lower() for model in tokenizer_wt_pad_model_names):
@@ -835,7 +778,7 @@ if __name__ == "__main__":
     global_step = 0
     start_time = time.time()
     eval_split = list(eval_dataloaders.keys())[0]
-    stats_shape = (args.rlam.noptepochs, args.nminibatches, args.gradient_accumulation_steps)
+    stats_shape = (args.rluam.noptepochs, args.nminibatches, args.gradient_accumulation_steps)
     approxkl_stats = torch.zeros(stats_shape, device=device)
     pg_clipfrac_stats = torch.zeros(stats_shape, device=device)
     pg_loss_stats = torch.zeros(stats_shape, device=device)
@@ -857,26 +800,24 @@ if __name__ == "__main__":
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
-            # eval_storage, eval_df = evaluate_model(
-            #     args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
-            #     accelerator.unwrap_model(model).policy,
-            #     tokenizer,
-            #     eval_dataloaders[eval_split],
-            #     validation_generation_config,
-            #     num_samples=4  # test a few samples to see if this works
-            # )
-            # validation_score = eval_storage["total_scores"]
-            # if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
-            #     if accelerator.is_main_process:
-            #         # eval_ds = Dataset.from_pandas(eval_df)
-            #         wandb.log({f"sft_samples/{eval_split}_query_responses":
-            #                        wandb.Table(dataframe=eval_df)}, step=update)
-            # del eval_storage, eval_df
-            # torch.cuda.empty_cache()
-
+            eval_storage, eval_df = evaluate_model(
+                args.rluam.sl_coef, args.rluam.wa_coef,
+                accelerator.unwrap_model(model).policy,
+                tokenizer,
+                eval_dataloaders[eval_split],
+                validation_generation_config,
+                num_samples=4  # test a few samples to see if this works
+            )
+            validation_score = eval_storage["total_scores"]
+            if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
+                if accelerator.is_main_process:
+                    eval_ds = Dataset.from_pandas(eval_df)
+                    wandb.log({f"sft_samples/{eval_split}_query_responses":
+                                   wandb.Table(dataframe=eval_df)}, step=update)
+            del eval_storage, eval_df
+            torch.cuda.empty_cache()
             # rollout phase
             queries = data["query_token"].to(device)
-            gold_responses = data['response']
             context_length = queries.shape[1]
             query_responses = []
             responses = []
@@ -888,7 +829,6 @@ if __name__ == "__main__":
             sequence_lengths = []
             for i in range(0, queries.shape[0], args.local_rollout_forward_batch_size):
                 query = queries[i: i + args.local_rollout_forward_batch_size]
-                gold_response = gold_responses[i: i + args.local_rollout_forward_batch_size]
                 query_response, logits = generate(
                     accelerator.unwrap_model(model).policy,
                     query,
@@ -923,13 +863,9 @@ if __name__ == "__main__":
                 value = full_value[:, context_length - 1: -1].squeeze(-1)
                 generated_texts = tokenizer.batch_decode(postprocessed_response,
                                                          skip_special_tokens=True)
-                if args.rlam.reward == 'am':
-                    am_score = compute_am_score_wrapper(generated_texts,
-                                                          [len(sent_tokenize(r)) for r in gold_response])
-                    score = args.rlam.sl_coef * am_score['sl_score'] + \
-                            args.rlam.wa_coef * am_score['wa_score'] + \
-                            args.rlam.sd_coef * am_score['sd_score'] + \
-                            args.rlam.swa_std_coef * am_score['swa_std_score']
+                if args.rluam.reward == 'uam':
+                    uam_score = compute_uam_score_wrapper(generated_texts)
+                    score = args.rluam.sl_coef * uam_score['sl_score'] + args.rluam.wa_coef * uam_score['wa_score']
                 else:
                     score = compute_ari_score(generated_texts)["ari_score"]
                 score = score.to(device=accelerator.device)
@@ -953,8 +889,7 @@ if __name__ == "__main__":
             del (logprob, ref_logprob, full_value, value, score)
             torch.cuda.empty_cache()
 
-            # Response Processing
-            # 3. filter response. Ensure that the sample contains truncate_token_id
+            # Response Processing 3. filter response. Ensure that the sample contains truncate_token_id
             # responses not passing that filter will receive a low (fixed) score
             # only query humans on responses that pass that filter
             contain_eos_token = torch.any(postprocessed_responses == tokenizer.eos_token_id, dim=-1)
@@ -978,7 +913,7 @@ if __name__ == "__main__":
 
             # 4. compute rewards
             kl = logprobs - ref_logprobs  # (batch_size, gen_len)
-            non_score_reward = -args.rlam.kl_coef * kl  # (batch_size, gen_len)
+            non_score_reward = -args.rluam.kl_coef * kl  # (batch_size, gen_len)
             rewards = non_score_reward.clone()  # (batch_size, gen_len)
             actual_start = torch.arange(rewards.size(0), device=rewards.device)  # (batch_size,)
             actual_end = torch.where(sequence_lengths_p1 < rewards.size(1),
@@ -989,7 +924,7 @@ if __name__ == "__main__":
             rewards[[actual_start, actual_end]] += scores  # (batch_size, gen_len)
 
             # 5. whiten rewards
-            if args.rlam.whiten_rewards:
+            if args.rluam.whiten_rewards:
                 rewards = masked_whiten(rewards, mask=~padding_mask_p1, shift_mean=False)
                 rewards = torch.masked_fill(rewards, padding_mask_p1, 0)
 
@@ -999,8 +934,8 @@ if __name__ == "__main__":
             gen_length = responses.shape[1]
             for t in reversed(range(gen_length)):
                 nextvalues = values[:, t + 1] if t < gen_length - 1 else 0.0
-                delta = rewards[:, t] + args.rlam.gamma * nextvalues - values[:, t]
-                lastgaelam = delta + args.rlam.gamma * args.rlam.lam * lastgaelam
+                delta = rewards[:, t] + args.rluam.gamma * nextvalues - values[:, t]
+                lastgaelam = delta + args.rluam.gamma * args.rluam.lam * lastgaelam
                 advantages_reversed.append(lastgaelam)
             advantages = torch.stack(advantages_reversed[::-1], axis=1)
             returns = advantages + values
@@ -1014,7 +949,7 @@ if __name__ == "__main__":
             torch.cuda.empty_cache()
 
         # ppo training: iterate multiple epochs with a fresh random shuffle in each epoch
-        for ppo_epoch_idx in range(args.rlam.noptepochs):
+        for ppo_epoch_idx in range(args.rluam.noptepochs):
             b_inds = np.random.permutation(args.local_batch_size)
             minibatch_idx = 0
             for mini_batch_start in range(0, args.local_batch_size, args.local_mini_batch_size):
@@ -1046,8 +981,8 @@ if __name__ == "__main__":
                         vpred = torch.masked_fill(vpred, padding_mask_p1[micro_batch_inds], 0)
                         vpredclipped = torch.clamp(
                             vpred,
-                            mb_values - args.rlam.cliprange_value,
-                            mb_values + args.rlam.cliprange_value,
+                            mb_values - args.rluam.cliprange_value,
+                            mb_values + args.rluam.cliprange_value,
                         )
                         vf_losses1 = torch.square(vpred - mb_return)
                         vf_losses2 = torch.square(vpredclipped - mb_return)
@@ -1059,12 +994,12 @@ if __name__ == "__main__":
                         logprobs_diff = new_logprobs - mb_logprobs
                         ratio = torch.exp(logprobs_diff)
                         pg_losses = -mb_advantage * ratio
-                        pg_losses2 = -mb_advantage * torch.clamp(ratio, 1.0 - args.rlam.cliprange, 1.0 + args.rlam.cliprange)
+                        pg_losses2 = -mb_advantage * torch.clamp(ratio, 1.0 - args.rluam.cliprange, 1.0 + args.rluam.cliprange)
                         pg_loss_max = torch.max(pg_losses, pg_losses2)
                         pg_loss = masked_mean(pg_loss_max, ~padding_mask[micro_batch_inds])
                         pg_clipfrac = masked_mean((pg_losses2 > pg_losses).float(),
                                                   ~padding_mask[micro_batch_inds])
-                        loss = pg_loss + args.rlam.vf_coef * vf_loss
+                        loss = pg_loss + args.rluam.vf_coef * vf_loss
                         accelerator.backward(loss)
                         optimizer.step()
                         optimizer.zero_grad()
@@ -1115,7 +1050,7 @@ if __name__ == "__main__":
                 "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
             )
             writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
-            # writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
+            writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
             writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
             writer.add_scalar("ppo/policy/clipfrac_avg", accelerator.gather(pg_clipfrac_stats).mean().item(), update)
             writer.add_scalar("ppo/loss/policy_avg", accelerator.gather(pg_loss_stats).mean().item(), update)
@@ -1131,66 +1066,70 @@ if __name__ == "__main__":
             writer.add_scalar("ppo/eps", eps, update)
             accelerator.print("ppo/eps", eps, update)
             # use of dynamic controller
-            if args.rlam.target_kl and args.rlam.k_beta:
-                et = torch.clamp(mean_kl / args.rlam.target_kl - 1, min=-0.2, max=0.2)
-                args.rlam.kl_coef = args.rlam.kl_coef * (1 + args.rlam.k_beta * et.item())
+            if args.rluam.target_kl and args.rluam.k_beta:
+                et = torch.clamp(mean_kl / args.rluam.target_kl - 1, min=-0.2, max=0.2)
+                args.rluam.kl_coef = args.rluam.kl_coef * (1 + args.rluam.k_beta * et.item())
                 # further constrain kl_coef within a reasonable range (.15 - .35) observed from pilot runs
-                args.rlam.kl_coef = np.clip(args.rlam.kl_coef,
-                                             args.rlam.kl_coef_lower_bound,
-                                             args.rlam.kl_coef_upper_bound)
-            writer.add_scalar("objective/kl_coef", args.rlam.kl_coef, update)
+                args.rluam.kl_coef = np.clip(args.rluam.kl_coef,
+                                             args.rluam.kl_coef_lower_bound,
+                                             args.rluam.kl_coef_upper_bound)
+            writer.add_scalar("objective/kl_coef", args.rluam.kl_coef, update)
         del kl, mean_kl, mean_entropy, mean_non_score_reward, scores
-        if args.rlam.target_kl and args.rlam.k_beta:
+        if args.rluam.target_kl and args.rluam.k_beta:
             del et
         torch.cuda.empty_cache()
 
         if args.run_eval and update % args.eval_steps == 0:
             for eval_split in eval_dataloaders:
                 eval_storage, eval_df = evaluate_model(
-                    args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
+                    args.rluam.sl_coef, args.rluam.wa_coef,
                     accelerator.unwrap_model(model).policy,
                     tokenizer,
                     eval_dataloaders[eval_split],
                     validation_generation_config,
                     num_samples=args.num_eval_samples,
                 )
-                accelerator.print(f'Evaluation at step {update} successful.')
-                if accelerator.is_main_process:
-                    # eval_ds = Dataset.from_pandas(eval_df)
-                    wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
-                                      dataframe=eval_df)}, step=update)
-                    accelerator.print(f'Logging at step {update} successful.')
-                    # heuristics to tell if we need to stop
-                    avg_ari = round(np.mean(eval_storage["ari"]), 2)
-                    # # calculate averages
-                    # avg_ari = np.mean(eval_storage['ari'])
-                    # avg_total_score = np.mean(eval_storage['total_scores'])
-                    # avg_bleu = np.mean(eval_storage['bleu'])
-                    # avg_sent_len = np.mean(eval_storage['sent_len'])
-                    # avg_word_accessibility = np.mean(
-                    #     eval_storage['word_accessibility'])
-                    # avg_sent_count = np.mean(eval_storage['sent_count'])
-                    # avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
-                    #
-                    # # log averages to wandb
-                    # wandb.log({
-                    #     f"eval/{eval_split}_avg_ari": avg_ari,
-                    #     f"eval/{eval_split}_avg_total_score": avg_total_score,
-                    #     f"eval/{eval_split}_avg_bleu": avg_bleu,
-                    #     f"eval/{eval_split}_avg_sent_len": avg_sent_len,
-                    #     f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
-                    #     f"eval/{eval_split}_avg_sent_count": avg_sent_count,
-                    #     f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
-                    # }, step=update)
+                if args.run_eval and update % args.eval_steps == 0:
+                    for eval_split in eval_dataloaders:
+                        eval_storage, eval_df = evaluate_model(
+                            args.rluam.sl_coef, args.rluam.wa_coef,
+                            accelerator.unwrap_model(model).policy,
+                            tokenizer,
+                            eval_dataloaders[eval_split],
+                            validation_generation_config,
+                            num_samples=args.num_eval_samples,
+                        )
+                        if accelerator.is_main_process:
+                            eval_ds = Dataset.from_pandas(eval_df)
+                            wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
+                                              dataframe=eval_df)}, step=update)
 
-                    # early stopping check
-                    if args.early_stop and early_stopping.should_stop(avg_ari):
-                        avg_ari = round(np.mean(eval_storage["ari"]), 2)
-                        save_model(accelerator, tokenizer, model,
-                                   args.output_dir, args.run_name, avg_ari, update,
-                                   args.save_total_limit)
-                        print(f"Early stopping at step {update} with ARI {avg_ari}")
-                        exit()
+                            # calculate averages
+                            avg_ari = np.mean(eval_storage['ari'])
+                            avg_total_score = np.mean(eval_storage['total_scores'])
+                            avg_bleu = np.mean(eval_storage['bleu'])
+                            avg_sent_len = np.mean(eval_storage['sent_len'])
+                            avg_word_accessibility = np.mean(
+                                eval_storage['word_accessibility'])
+                            avg_sent_count = np.mean(eval_storage['sent_count'])
+
+                            # log averages to wandb
+                            wandb.log({
+                                f"eval/{eval_split}_avg_ari": avg_ari,
+                                f"eval/{eval_split}_avg_total_score": avg_total_score,
+                                f"eval/{eval_split}_avg_bleu": avg_bleu,
+                                f"eval/{eval_split}_avg_sent_len": avg_sent_len,
+                                f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
+                                f"eval/{eval_split}_avg_sent_count": avg_sent_count
+                            }, step=update)
+                            # early stopping check
+                            if args.early_stop and early_stopping.should_stop(avg_ari):
+                                avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                                save_model(accelerator, tokenizer, model,
+                                           args.output_dir, args.run_name, avg_ari, update,
+                                           args.save_total_limit)
+                                print(f"Early stopping at step {update} with ARI {avg_ari}")
+                                exit()
 
         # save model
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
