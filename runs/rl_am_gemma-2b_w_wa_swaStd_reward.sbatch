@@ -33,7 +33,7 @@ rlam.py \
 --response_length 241 \
 --truncate_token eos \
 --truncate_token_id 1 \
---temperature 0.5 \
+--temperature 0.7 \
 --sft_model_path "ckpts/sft_gemma-2b/checkpoint-1680" \
 --logging_steps 2 \
 --save_steps 20 \
@@ -46,10 +46,10 @@ rlam.py \
 --local_eval_batch_size 4 \
 --rlam.target_kl 2.0 \
 --rlam.kl_coef 0.8 \
---rlam.kl_coef_lower_bound 0.75 \
+--rlam.kl_coef_lower_bound 0.65 \
 --rlam.kl_coef_upper_bound 0.85 \
 --rlam.k_beta 1e-4 \
 --rlam.sl_coef 0.0 \
 --rlam.wa_coef 2.5 \
 --rlam.sd_coef 0.0 \
---rlam.swa_std_coef 10.0
+--rlam.swa_std_coef 5.0
