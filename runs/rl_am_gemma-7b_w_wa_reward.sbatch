@@ -4,7 +4,7 @@
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
