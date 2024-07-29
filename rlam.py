@@ -857,22 +857,23 @@ if __name__ == "__main__":
         optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
-            eval_storage, eval_df = evaluate_model(
-                args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
-                accelerator.unwrap_model(model).policy,
-                tokenizer,
-                eval_dataloaders[eval_split],
-                validation_generation_config,
-                num_samples=4  # test a few samples to see if this works
-            )
-            validation_score = eval_storage["total_scores"]
-            if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
-                if accelerator.is_main_process:
-                    # eval_ds = Dataset.from_pandas(eval_df)
-                    wandb.log({f"sft_samples/{eval_split}_query_responses":
-                                   wandb.Table(dataframe=eval_df)}, step=update)
-            del eval_storage, eval_df
-            torch.cuda.empty_cache()
+            # eval_storage, eval_df = evaluate_model(
+            #     args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
+            #     accelerator.unwrap_model(model).policy,
+            #     tokenizer,
+            #     eval_dataloaders[eval_split],
+            #     validation_generation_config,
+            #     num_samples=4  # test a few samples to see if this works
+            # )
+            # validation_score = eval_storage["total_scores"]
+            # if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
+            #     if accelerator.is_main_process:
+            #         # eval_ds = Dataset.from_pandas(eval_df)
+            #         wandb.log({f"sft_samples/{eval_split}_query_responses":
+            #                        wandb.Table(dataframe=eval_df)}, step=update)
+            # del eval_storage, eval_df
+            # torch.cuda.empty_cache()
+
             # rollout phase
             queries = data["query_token"].to(device)
             gold_responses = data['response']
@@ -1153,10 +1154,12 @@ if __name__ == "__main__":
                     validation_generation_config,
                     num_samples=args.num_eval_samples,
                 )
+                accelerator.print(f'Evaluation at step {update} successful.')
                 if accelerator.is_main_process:
                     # eval_ds = Dataset.from_pandas(eval_df)
                     wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                       dataframe=eval_df)}, step=update)
+                    accelerator.print(f'Logging at step {update} successful.')
                     # heuristics to tell if we need to stop
                     avg_ari = round(np.mean(eval_storage["ari"]), 2)
                     # # calculate averages
