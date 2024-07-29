@@ -868,7 +868,7 @@ if __name__ == "__main__":
             validation_score = eval_storage["total_scores"]
             if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
                 if accelerator.is_main_process:
-                    eval_ds = Dataset.from_pandas(eval_df)
+                    # eval_ds = Dataset.from_pandas(eval_df)
                     wandb.log({f"sft_samples/{eval_split}_query_responses":
                                    wandb.Table(dataframe=eval_df)}, step=update)
             del eval_storage, eval_df
@@ -1143,54 +1143,54 @@ if __name__ == "__main__":
             del et
         torch.cuda.empty_cache()
 
-    if args.run_eval and update % args.eval_steps == 0:
-        for eval_split in eval_dataloaders:
-            eval_storage, eval_df = evaluate_model(
-                args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
-                accelerator.unwrap_model(model).policy,
-                tokenizer,
-                eval_dataloaders[eval_split],
-                validation_generation_config,
-                num_samples=args.num_eval_samples,
-            )
-            if accelerator.is_main_process:
-                eval_ds = Dataset.from_pandas(eval_df)
-                wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
-                                  dataframe=eval_df)}, step=update)
-                # heuristics to tell if we need to stop
-                avg_ari = round(np.mean(eval_storage["ari"]), 2)
-                # # calculate averages
-                # avg_ari = np.mean(eval_storage['ari'])
-                # avg_total_score = np.mean(eval_storage['total_scores'])
-                # avg_bleu = np.mean(eval_storage['bleu'])
-                # avg_sent_len = np.mean(eval_storage['sent_len'])
-                # avg_word_accessibility = np.mean(
-                #     eval_storage['word_accessibility'])
-                # avg_sent_count = np.mean(eval_storage['sent_count'])
-                # avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
-                #
-                # # log averages to wandb
-                # wandb.log({
-                #     f"eval/{eval_split}_avg_ari": avg_ari,
-                #     f"eval/{eval_split}_avg_total_score": avg_total_score,
-                #     f"eval/{eval_split}_avg_bleu": avg_bleu,
-                #     f"eval/{eval_split}_avg_sent_len": avg_sent_len,
-                #     f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
-                #     f"eval/{eval_split}_avg_sent_count": avg_sent_count,
-                #     f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
-                # }, step=update)
+        if args.run_eval and update % args.eval_steps == 0:
+            for eval_split in eval_dataloaders:
+                eval_storage, eval_df = evaluate_model(
+                    args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
+                    accelerator.unwrap_model(model).policy,
+                    tokenizer,
+                    eval_dataloaders[eval_split],
+                    validation_generation_config,
+                    num_samples=args.num_eval_samples,
+                )
+                if accelerator.is_main_process:
+                    # eval_ds = Dataset.from_pandas(eval_df)
+                    wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
+                                      dataframe=eval_df)}, step=update)
+                    # heuristics to tell if we need to stop
+                    avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                    # calculate averages
+                    avg_ari = np.mean(eval_storage['ari'])
+                    avg_total_score = np.mean(eval_storage['total_scores'])
+                    avg_bleu = np.mean(eval_storage['bleu'])
+                    avg_sent_len = np.mean(eval_storage['sent_len'])
+                    avg_word_accessibility = np.mean(
+                        eval_storage['word_accessibility'])
+                    avg_sent_count = np.mean(eval_storage['sent_count'])
+                    avg_sent_accessibility_std = np.mean(eval_storage['sent_wa_std'])
 
-                # early stopping check
-                if args.early_stop and early_stopping.should_stop(avg_ari):
-                    # avg_ari = round(np.mean(eval_storage["ari"]), 2)
-                    save_model(accelerator, tokenizer, model,
-                               args.output_dir, args.run_name, avg_ari, update,
-                               args.save_total_limit)
-                    print(f"Early stopping at step {update} with ARI {avg_ari}")
-                    exit()
+                    # log averages to wandb
+                    wandb.log({
+                        f"eval/{eval_split}_avg_ari": avg_ari,
+                        f"eval/{eval_split}_avg_total_score": avg_total_score,
+                        f"eval/{eval_split}_avg_bleu": avg_bleu,
+                        f"eval/{eval_split}_avg_sent_len": avg_sent_len,
+                        f"eval/{eval_split}_avg_word_accessibility": avg_word_accessibility,
+                        f"eval/{eval_split}_avg_sent_count": avg_sent_count,
+                        f"eval/{eval_split}_avg_sent_accessibility_std": avg_sent_accessibility_std
+                    }, step=update)
 
-    # save model
-    if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
-        avg_ari = round(np.mean(eval_storage["ari"]), 2)
-        save_model(accelerator, tokenizer, model, args.output_dir, args.run_name,
-                            avg_ari, update, args.save_total_limit)
+                    # early stopping check
+                    if args.early_stop and early_stopping.should_stop(avg_ari):
+                        avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                        save_model(accelerator, tokenizer, model,
+                                   args.output_dir, args.run_name, avg_ari, update,
+                                   args.save_total_limit)
+                        print(f"Early stopping at step {update} with ARI {avg_ari}")
+                        exit()
+
+        # save model
+        if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
+            avg_ari = round(np.mean(eval_storage["ari"]), 2)
+            save_model(accelerator, tokenizer, model, args.output_dir, args.run_name,
+                                avg_ari, update, args.save_total_limit)
