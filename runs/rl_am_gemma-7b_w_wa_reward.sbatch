@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --main_process_port 29500 --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29504 --config_file runs/ds_config.yaml \
 rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
@@ -27,13 +27,13 @@ rlam.py \
 --offload \
 --lr 1e-6 \
 --warm_up_steps 50 \
---world_size 2 \
+--world_size 1 \
 --num_train_epochs 5 \
 --base_model 'google/gemma-7b' \
 --response_length 241 \
 --truncate_token eos \
 --truncate_token_id 1 \
---temperature 0.5 \
+--temperature 0.7 \
 --sft_model_path "ckpts/sft_gemma-7b/checkpoint-740" \
 --logging_steps 2 \
 --save_steps 20 \
@@ -42,11 +42,11 @@ rlam.py \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 2 \
---local_eval_batch_size 2 \
+--local_micro_batch_size 4 \
+--local_eval_batch_size 4 \
 --rlam.target_kl 2.0 \
 --rlam.kl_coef 0.8 \
---rlam.kl_coef_lower_bound 0.75 \
+--rlam.kl_coef_lower_bound 0.65 \
 --rlam.kl_coef_upper_bound 0.85 \
 --rlam.k_beta 1e-4 \
 --rlam.sl_coef 0.0 \
