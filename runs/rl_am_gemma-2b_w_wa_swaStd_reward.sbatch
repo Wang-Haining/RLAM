@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-2b_w_wa_swaStd_reward_dynamic_kl_control.
+#SBATCH --job-name=rl_am_gemma-2b_w_wa_swaStd_reward
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2

@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-2b_w_wa_reward"
+JOB_NAME="rl_am_gemma-2b_w_wa_reward_dynamic_kl_control"
 mkdir -p logs
 mkdir -p ckpts
 

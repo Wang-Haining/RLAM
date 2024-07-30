@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-2b_w_wa_swaStd_reward
+#SBATCH --job-name=rl_am_gemma-2b_w_wa_swaStd_reward_dynamic_kl_control
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-2b_w_wa_swaStd_reward"
+JOB_NAME="rl_am_gemma-2b_w_wa_swaStd_reward_dynamic_kl_control"
 mkdir -p logs
 mkdir -p ckpts
 
