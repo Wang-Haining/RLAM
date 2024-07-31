@@ -44,7 +44,6 @@ rlam.py \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 4 \
---rlam.target_kl 5.0 \
 --rlam.kl_coef 0.5 \
 --rlam.sl_coef 0.0 \
 --rlam.wa_coef 2.5 \
