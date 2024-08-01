@@ -121,10 +121,10 @@ class Args:
     """The epsilon value for adamw"""
     lr: float = 3e-6
     """The learning rate for adamw"""
-    scheduler: str = "cosine"
-    """Which scheduler to use"""
-    warm_up_steps: int = 20
-    """Number of warm up steps for the scheduler"""
+    # scheduler: str = "cosine"
+    # """Which scheduler to use"""
+    # warm_up_steps: int = 20
+    # """Number of warm up steps for the scheduler"""
 
     # various batch sizes
     world_size: Optional[int] = None
@@ -847,15 +847,15 @@ if __name__ == "__main__":
     model.train()
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
-        if global_step < args.warm_up_steps:
-            # linear warmup
-            lr_scale = global_step / args.warm_up_steps
-        else:
-            # post warmup: decay the learning rate
-            frac = 1.0 - (update - 1.0) / args.num_updates
-            lr_scale = frac
-        lrnow = lr_scale * args.lr
-        optimizer.param_groups[0]["lr"] = lrnow
+        # if global_step < args.warm_up_steps:
+        #     # linear warmup
+        #     lr_scale = global_step / args.warm_up_steps
+        # else:
+        #     # post warmup: decay the learning rate
+        #     frac = 1.0 - (update - 1.0) / args.num_updates
+        #     lr_scale = frac
+        # lrnow = lr_scale * args.lr
+        # optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
             eval_storage, eval_df = evaluate_model(
