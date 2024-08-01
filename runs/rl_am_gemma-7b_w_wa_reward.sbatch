@@ -26,7 +26,6 @@ rlam.py \
 --deepspeed \
 --offload \
 --lr 1e-6 \
---warm_up_steps 50 \
 --world_size 1 \
 --num_train_epochs 5 \
 --base_model 'google/gemma-7b' \
