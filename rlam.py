@@ -1126,7 +1126,7 @@ if __name__ == "__main__":
             writer.add_scalar("ppo/val/ratio", accelerator.gather(ratio_stats).mean().item(), update)
             writer.add_scalar("ppo/val/ratio_var", accelerator.gather(ratio_stats).var().item(), update)
             writer.add_scalar("ppo/val/num_eos_tokens", (responses == tokenizer.eos_token_id).sum().item(), update)
-            writer.add_scalar("ppo/lr", lrnow, update)
+            writer.add_scalar("ppo/lr", args.lr, update)
             writer.add_scalar("ppo/episode", global_step, update)
             eps = int(global_step / (time.time() - start_time))
             writer.add_scalar("ppo/eps", eps, update)
