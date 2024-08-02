@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-2b_w_wa_reward
+#SBATCH --job-name=rl_am_gemma-2b_w_wa_sl_reward
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-2b_w_wa_reward"
+JOB_NAME="rl_am_gemma-2b_w_wa_sl_reward"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -25,7 +25,7 @@ rlam.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 3e-6 \
+--lr 1e-6 \
 --world_size 2 \
 --base_model 'google/gemma-2b' \
 --response_length 241 \

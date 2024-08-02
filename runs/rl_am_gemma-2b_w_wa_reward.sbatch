@@ -25,7 +25,7 @@ rlam.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 3e-6 \
+--lr 1e-6 \
 --world_size 2 \
 --base_model 'google/gemma-2b' \
 --response_length 241 \
