@@ -25,9 +25,8 @@ rlam.py \
 --print_sample_output_freq 0 \
 --deepspeed \
 --offload \
---lr 1e-6 \
+--lr 3e-6 \
 --world_size 2 \
---num_train_epochs 5 \
 --base_model 'google/gemma-2b' \
 --response_length 241 \
 --truncate_token eos \
@@ -35,8 +34,8 @@ rlam.py \
 --temperature 0.7 \
 --sft_model_path "ckpts/sft_gemma-2b/checkpoint-1680" \
 --logging_steps 2 \
---save_steps 20 \
---eval_steps 20 \
+--save_steps 50 \
+--eval_steps 50 \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
@@ -45,6 +44,6 @@ rlam.py \
 --local_eval_batch_size 4 \
 --rlam.kl_coef 0.2 \
 --rlam.sl_coef 0.0 \
---rlam.wa_coef 2.5 \
+--rlam.wa_coef 1.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0

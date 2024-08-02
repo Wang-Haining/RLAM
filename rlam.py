@@ -1161,8 +1161,8 @@ if __name__ == "__main__":
                     wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                       dataframe=eval_df)}, step=update)
                     accelerator.print(f'Logging at step {update} successful.')
-                    # heuristics to tell if we need to stop
-                    avg_ari = round(np.mean(eval_storage["ari"]), 2)
+                    # # heuristics to tell if we need to stop
+                    # avg_ari = round(np.mean(eval_storage["ari"]), 2)
                     # calculate averages
                     avg_ari = np.mean(eval_storage['ari'])
                     avg_total_score = np.mean(eval_storage['total_scores'])
