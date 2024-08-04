@@ -45,6 +45,6 @@ rlam.py \
 --early_stop_patience 100 \
 --rlam.kl_coef 0.2 \
 --rlam.sl_coef 0.1 \
---rlam.wa_coef 1.0 \
+--rlam.wa_coef 2.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
