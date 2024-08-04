@@ -71,8 +71,8 @@ class RlamHParams:
     """Either guide optimization with the uncombined accessibility measures (am) or 
     the Automated Readability Index (ari)"""
     # reward related
-    sl_coef: float = 1.0
-    "Scaling factor for sentence length reward (will keep this frozen as 1.0)"
+    sl_coef: float = 0.0
+    "Scaling factor for sentence length reward"
     wa_coef: float = 2.5
     "Scaling factor for word accessibility reward (will vary for an optimal value)"
     sd_coef: float = 2.0
@@ -121,10 +121,6 @@ class Args:
     """The epsilon value for adamw"""
     lr: float = 3e-6
     """The learning rate for adamw"""
-    # scheduler: str = "cosine"
-    # """Which scheduler to use"""
-    # warm_up_steps: int = 20
-    # """Number of warm up steps for the scheduler"""
 
     # various batch sizes
     world_size: Optional[int] = None
@@ -164,7 +160,8 @@ class Args:
     truncate_token: Literal["eos"] = "eos"
     """The truncate token"""
     truncate_token_id: Optional[int] = None
-    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2/phi2, and 128001 for llama3"""
+    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2/phi2, and
+     128001 for llama3"""
     temperature: float = 0.7
     """The sampling temperature"""
     penalty_reward_value: int = -1
@@ -310,9 +307,9 @@ def compute_am_score(responses: List[str],
         # penalize too short generations
         if len(response.strip()) <= 50:
             sent_len_rewards.append(28.0)
-            word_accessibility_rewards.append(10.0)
+            word_accessibility_rewards.append(10.5)
             sentence_delta_rewards.append(abs(1 - response_num_sents[i]))
-            avg_sent_word_accessibility_std_rewards.append(1.5)
+            avg_sent_word_accessibility_std_rewards.append(1.0)
         else:
             sent_len_list = []
             word_accessibility_list = []
@@ -341,7 +338,9 @@ def compute_am_score(responses: List[str],
             word_accessibility_rewards.append(np.mean(word_accessibility_list))
 
     sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
+    # subtract 10 from average word accessibility to reduce variance
     word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
+    word_accessibility_rewards = torch.clamp(word_accessibility_rewards - 10.0, min=0.0)
     sentence_delta_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sentence_delta_rewards])
     # only penalize those have swa_std >= 0.65
     avg_sent_word_accessibility_std_rewards = [r if r > 0.65 else 0 for r in avg_sent_word_accessibility_std_rewards]
@@ -847,33 +846,24 @@ if __name__ == "__main__":
     model.train()
     for update in range(1, args.num_updates + 1):
         global_step += 1 * args.batch_size
-        # if global_step < args.warm_up_steps:
-        #     # linear warmup
-        #     lr_scale = global_step / args.warm_up_steps
-        # else:
-        #     # post warmup: decay the learning rate
-        #     frac = 1.0 - (update - 1.0) / args.num_updates
-        #     lr_scale = frac
-        # lrnow = lr_scale * args.lr
-        # optimizer.param_groups[0]["lr"] = lrnow
         data = next(iter_dataloader)
         with torch.no_grad():
-            eval_storage, eval_df = evaluate_model(
-                args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
-                accelerator.unwrap_model(model).policy,
-                tokenizer,
-                eval_dataloaders[eval_split],
-                validation_generation_config,
-                num_samples=4  # test a few samples to see if this works
-            )
-            validation_score = eval_storage["total_scores"]
-            if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
-                if accelerator.is_main_process:
-                    # eval_ds = Dataset.from_pandas(eval_df)
-                    wandb.log({f"sft_samples/{eval_split}_query_responses":
-                                   wandb.Table(dataframe=eval_df)}, step=update)
-            del eval_storage, eval_df
-            torch.cuda.empty_cache()
+            # eval_storage, eval_df = evaluate_model(
+            #     args.rlam.sl_coef, args.rlam.wa_coef, args.rlam.sd_coef, args.rlam.swa_std_coef,
+            #     accelerator.unwrap_model(model).policy,
+            #     tokenizer,
+            #     eval_dataloaders[eval_split],
+            #     validation_generation_config,
+            #     num_samples=4  # test a few samples to see if this works
+            # )
+            # validation_score = eval_storage["total_scores"]
+            # if args.print_sample_output_freq > 0 and (update - 1) % args.print_sample_output_freq == 0:
+            #     if accelerator.is_main_process:
+            #         # eval_ds = Dataset.from_pandas(eval_df)
+            #         wandb.log({f"sft_samples/{eval_split}_query_responses":
+            #                        wandb.Table(dataframe=eval_df)}, step=update)
+            # del eval_storage, eval_df
+            # torch.cuda.empty_cache()
 
             # rollout phase
             queries = data["query_token"].to(device)
@@ -1116,7 +1106,7 @@ if __name__ == "__main__":
                 "objective/score_total", accelerator.gather(mean_non_score_reward + scores.mean()).mean().item(), update
             )
             writer.add_scalar("objective/scores", accelerator.gather(scores.mean()).mean().item(), update)
-            writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
+            # writer.add_scalar("objective/validation_score", np.mean(validation_score), update)
             writer.add_scalar("ppo/policy/approxkl_avg", accelerator.gather(approxkl_stats).mean().item(), update)
             writer.add_scalar("ppo/policy/clipfrac_avg", accelerator.gather(pg_clipfrac_stats).mean().item(), update)
             writer.add_scalar("ppo/loss/policy_avg", accelerator.gather(pg_loss_stats).mean().item(), update)
@@ -1135,7 +1125,7 @@ if __name__ == "__main__":
             if args.rlam.target_kl and args.rlam.k_beta:
                 et = torch.clamp(mean_kl / args.rlam.target_kl - 1, min=-0.2, max=0.2)
                 args.rlam.kl_coef = args.rlam.kl_coef * (1 + args.rlam.k_beta * et.item())
-                # further constrain kl_coef within a reasonable range (.15 - .35) observed from pilot runs
+                # further constrain kl_coef within a reasonable range
                 args.rlam.kl_coef = np.clip(args.rlam.kl_coef,
                                              args.rlam.kl_coef_lower_bound,
                                              args.rlam.kl_coef_upper_bound)
@@ -1157,7 +1147,6 @@ if __name__ == "__main__":
                 )
                 accelerator.print(f'Evaluation at step {update} successful.')
                 if accelerator.is_main_process:
-                    # eval_ds = Dataset.from_pandas(eval_df)
                     wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                       dataframe=eval_df)}, step=update)
                     accelerator.print(f'Logging at step {update} successful.')
