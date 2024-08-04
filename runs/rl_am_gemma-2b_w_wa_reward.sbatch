@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=128G
-#SBATCH --time=2-00:00:00
+#SBATCH --time=4-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
@@ -45,6 +45,6 @@ rlam.py \
 --early_stop_patience 100 \
 --rlam.kl_coef 0.2 \
 --rlam.sl_coef 0.0 \
---rlam.wa_coef 1.0 \
+--rlam.wa_coef 3.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
