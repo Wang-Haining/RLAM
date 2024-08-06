@@ -44,7 +44,7 @@ rlam.py \
 --local_eval_batch_size 4 \
 --early_stop_patience 100 \
 --rlam.kl_coef 0.2 \
---rlam.sl_coef 1e-3 \
+--rlam.sl_coef 5e-3 \
 --rlam.wa_coef 2.5 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
