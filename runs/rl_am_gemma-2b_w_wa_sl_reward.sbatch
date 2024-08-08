@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --main_process_port 29502 --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29504 --config_file runs/ds_config.yaml \
 rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
