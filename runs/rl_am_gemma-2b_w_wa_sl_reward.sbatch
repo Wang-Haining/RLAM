@@ -47,6 +47,4 @@ rlam.py \
 --rlam.sl_coef 3e-3 \
 --rlam.wa_coef 2.2 \
 --rlam.sd_coef 0.0 \
---rlam.swa_std_coef 0.0 \
---non_eos_penalty \
---penalty_reward_value 3
+--rlam.swa_std_coef 0.0
