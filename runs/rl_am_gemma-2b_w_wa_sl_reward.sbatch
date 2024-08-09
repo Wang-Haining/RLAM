@@ -46,7 +46,7 @@ rlam.py \
 --rlam.kl_coef 0.2 \
 --rlam.kl_coef_upper_bound 0.3 \
 --rlam.kl_coef_lower_bound 0.1 \
---rlam.target_kl 5.0 \
+--rlam.target_kl 6.0 \
 --rlam.k_beta 1e-2 \
 --rlam.sl_coef 4e-3 \
 --rlam.wa_coef 2.5 \
