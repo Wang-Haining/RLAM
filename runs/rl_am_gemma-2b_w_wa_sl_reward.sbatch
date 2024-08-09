@@ -44,7 +44,7 @@ rlam.py \
 --local_eval_batch_size 4 \
 --early_stop_patience 100 \
 --rlam.kl_coef 0.2 \
---rlam.kl_coef_upper_bound 0.4 \
+--rlam.kl_coef_upper_bound 0.3 \
 --rlam.kl_coef_lower_bound 0.1 \
 --rlam.target_kl 5.0 \
 --rlam.k_beta 1e-2 \
