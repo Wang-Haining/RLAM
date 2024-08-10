@@ -164,11 +164,11 @@ class Args:
      128001 for llama3"""
     temperature: float = 0.7
     """The sampling temperature"""
-    penalty_reward_value: int = -1
+    penalty_reward_value: float = -1.0
     """The reward value for responses that do not contain `truncate_token_id`"""
     non_eos_penalty: bool = False
     """Whether to penalize responses that do not contain `truncate_token_id`"""
-    sft_model_path: str = None
+    sft_model_path: str = ''
     """The path to the sft model"""
 
     # logging and evaluation intervals (directly inherited from TrainingArguments)
