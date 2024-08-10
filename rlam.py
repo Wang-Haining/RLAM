@@ -93,7 +93,7 @@ class RlamHParams:
     k_beta: Optional[float] = None
     """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`, 
     see https://arxiv.org/abs/1909.08593"""
-    whiten_rewards: bool = True
+    whiten_rewards: bool = False
     """Normalize rewards before advantages estimation"""
 
 
