@@ -52,4 +52,4 @@ rlam.py \
 --rlam.wa_coef 4.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0 \
---rlam.whiten_rewards false
+--rlam.whiten_rewards False
