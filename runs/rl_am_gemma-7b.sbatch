@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-7b_w_wa_reward
+#SBATCH --job-name=rl_am_gemma-7b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-7b_w_wa_reward"
+JOB_NAME="rl_am_gemma-7b"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --main_process_port 29504 --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29501 --config_file runs/ds_config.yaml \
 rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
@@ -27,7 +27,6 @@ rlam.py \
 --offload \
 --lr 1e-6 \
 --world_size 1 \
---num_train_epochs 5 \
 --base_model 'google/gemma-7b' \
 --response_length 241 \
 --truncate_token eos \
@@ -35,20 +34,23 @@ rlam.py \
 --temperature 0.7 \
 --sft_model_path "ckpts/sft_gemma-7b/checkpoint-740" \
 --logging_steps 2 \
---save_steps 20 \
---eval_steps 20 \
+--save_steps 50 \
+--eval_steps 50 \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 4 \
---rlam.target_kl 2.0 \
---rlam.kl_coef 0.8 \
---rlam.kl_coef_lower_bound 0.65 \
---rlam.kl_coef_upper_bound 0.85 \
---rlam.k_beta 1e-4 \
---rlam.sl_coef 0.0 \
+--early_stop_patience 100 \
+--non_eos_penalty \
+--penalty_reward_value 8.0 \
+--rlam.kl_coef 0.2 \
+--rlam.kl_coef_upper_bound 0.25 \
+--rlam.kl_coef_lower_bound 0.15 \
+--rlam.target_kl 8.0 \
+--rlam.k_beta 1e-2 \
+--rlam.sl_coef 5e-3 \
 --rlam.wa_coef 2.5 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
