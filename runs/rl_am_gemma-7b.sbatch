@@ -51,6 +51,6 @@ rlam.py \
 --rlam.target_kl 8.0 \
 --rlam.k_beta 1e-2 \
 --rlam.sl_coef 5e-3 \
---rlam.wa_coef 2.5 \
+--rlam.wa_coef 4.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
