@@ -39,9 +39,9 @@ rlam.py \
 --num_eval_samples 64 \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
---gradient_accumulation_steps 4 \
---local_micro_batch_size 4 \
---local_eval_batch_size 4 \
+--gradient_accumulation_steps 16 \
+--local_micro_batch_size 1 \
+--local_eval_batch_size 1 \
 --early_stop_patience 100 \
 --non_eos_penalty \
 --penalty_reward_value 8.0 \
