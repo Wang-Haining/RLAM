@@ -50,7 +50,7 @@ rlam.py \
 --rlam.kl_coef_lower_bound 0.15 \
 --rlam.target_kl 8.0 \
 --rlam.k_beta 1e-2 \
---rlam.sl_coef 5e-3 \
+--rlam.sl_coef 7e-3 \
 --rlam.wa_coef 4.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
