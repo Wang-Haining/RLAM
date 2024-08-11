@@ -4,7 +4,7 @@
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=256G
+#SBATCH --mem=512G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
@@ -40,8 +40,8 @@ rlam.py \
 --save_total_limit 30 \
 --local_rollout_forward_batch_size 16 \
 --gradient_accumulation_steps 4 \
---local_micro_batch_size 2 \
---local_eval_batch_size 2 \
+--local_micro_batch_size 4 \
+--local_eval_batch_size 4 \
 --early_stop_patience 100 \
 --non_eos_penalty \
 --penalty_reward_value 8.0 \
