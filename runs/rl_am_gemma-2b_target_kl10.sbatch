@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=rl_am_gemma-2b
+#SBATCH --job-name=rl_am_gemma-2b_target_kl10
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:2
@@ -11,7 +11,7 @@
 #SBATCH --mail-user=haining.wang@montana.edu
 #SBATCH --mail-type=ALL
 
-JOB_NAME="rl_am_gemma-2b"
+JOB_NAME="rl_am_gemma-2b_target_kl10"
 mkdir -p logs
 mkdir -p ckpts
 
@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --main_process_port 29500 --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29502 --config_file runs/ds_config.yaml \
 rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
