@@ -19,7 +19,7 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 . .venv/bin/activate
 
-accelerate launch --main_process_port 29501 --config_file runs/ds_config.yaml \
+accelerate launch --main_process_port 29502 --config_file runs/ds_config.yaml \
 rlam.py \
 --job_name $JOB_NAME \
 --print_sample_output_freq 0 \
@@ -50,7 +50,7 @@ rlam.py \
 --rlam.kl_coef_lower_bound 0.15 \
 --rlam.target_kl 8.0 \
 --rlam.k_beta 1e-2 \
---rlam.sl_coef 3e-2 \
+--rlam.sl_coef 5e-2 \
 --rlam.wa_coef 4.0 \
 --rlam.sd_coef 0.0 \
 --rlam.swa_std_coef 0.0
