@@ -182,7 +182,7 @@ class Args:
     early_stop: bool = True
     """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
     early_stop_min_ari: float = 8.0
-    early_stop_patience: int = 30
+    early_stop_patience: int = 100
     rlam: RlamHParams = field(default_factory=RlamHParams)
     """Default values will be used to create a RlamHParams"""
 
