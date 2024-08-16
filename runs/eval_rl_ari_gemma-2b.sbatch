@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=eval_rl_am_gemma-2b
+#SBATCH --job-name=eval_rl_ari_gemma-2b
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
