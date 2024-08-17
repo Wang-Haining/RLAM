@@ -223,7 +223,7 @@ if __name__ == "__main__":
             print(f"{test_generation_config=}")
 
             # load dataset
-            dataset = build_sass_dataset(checkpoint_dir, base_model, 'left')
+            dataset = build_sass_dataset(args.sft_ckpt, base_model, 'left')
 
             # evaluate the model
             eval_results = evaluate_model(
