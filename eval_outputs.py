@@ -205,7 +205,7 @@ if __name__ == "__main__":
         print(f'Eval ari is {ari}')
         if args.lower_ari_bound <= ari <= args.upper_ari_bound:
             # load the corresponding tokenizer and model
-            tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+            tokenizer = AutoTokenizer.from_pretrained(args.sft_ckpt)
             model = AutoModelForCausalLM.from_pretrained(
                 checkpoint_dir, torch_dtype=torch.bfloat16
             )
