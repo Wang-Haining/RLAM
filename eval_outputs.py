@@ -1,7 +1,7 @@
 """
 This module implements evaluation functions for sft and policy models.
-It uses the same generation config as used in policy rolling out.
-A detailed csv as well as an overview of the results will be saved.
+it uses the same generation config as used in policy rolling out.
+a detailed csv as well as an overview of the results will be saved.
 """
 
 import argparse
@@ -40,9 +40,9 @@ top_100k_tokens = heapq.nlargest(100000, token_freq, key=token_freq.get)
 wa_model = pickle.load(open(WORD_ACCESSIBILITY_MODEL, "rb"))
 total_tokens = sum(token_freq.values())
 mt = MosesTokenizer(lang="en")
-# VOA Word Book, Section A-Z, Science programs, and Organs of the body (1517 in total)
-# from https://simple.wikipedia.org/wiki/Wikipedia:VOA_Special_English_Word_Book
-# scraped on May 15, 2024
+# voa word book, section a-z, science programs, and organs of the body (1517 in total)
+# from https://simple.wikipedia.org/wiki/wikipedia:voa_special_english_word_book
+# scraped on may 15, 2024
 voa1500 = json.load(open(VOA1500, "r", encoding="utf-8"))
 
 
@@ -145,24 +145,36 @@ def evaluate_model(
 if __name__ == "__main__":
     print("*" * 90)
     parser = argparse.ArgumentParser(
-        description="Evaluate SFT and policy model outputs for multiple checkpoints"
+        description="evaluate sft and policy model outputs for multiple checkpoints"
     )
     parser.add_argument(
-        "--ckpt_path", type=str, required=True, help="Path containing folders of specific checkpoints to evaluate"
+        "--ckpt_path", type=str, required=True, help="path containing folders of specific checkpoints to evaluate"
     )
     parser.add_argument(
-        "--batch_size", type=int, default=20, help="Batch size for inference"
+        "--batch_size", type=int, default=20, help="batch size for inference"
     )
     parser.add_argument(
-        "--top_p", type=float, default=1.0, help="Sampling top_p"
+        "--top_p", type=float, default=1.0, help="sampling top_p"
     )
     parser.add_argument(
-        "--temperature", type=float, default=0.01, help="Sampling temperature"
+        "--temperature", type=float, default=0.01, help="sampling temperature"
+    )
+    parser.add_argument(
+        "--upper_ari_bound",
+        type=float,
+        default=15.0,
+        help="the upper bound of evaluation ari for a checkpoint to be considered in the evaluation",
+    )
+    parser.add_argument(
+        "--lower_ari_bound",
+        type=float,
+        default=8.0,
+        help="the lower bound of evaluation ari for a checkpoint to be considered in the evaluation",
     )
     parser.add_argument(
         "--verbose",
         action='store_true',
-        help="Flag to print generated texts during evaluation. Defaults to False.",
+        help="flag to print generated texts during evaluation. defaults to false.",
     )
     args = parser.parse_args()
     torch.manual_seed(SEED)
@@ -178,78 +190,86 @@ if __name__ == "__main__":
         overview = []
     evaluated_runs = {entry["run_path"] for entry in overview}
 
-    # iterate through each checkpoint
+    # iterate through each checkpoint folder
     checkpoint_dirs = [os.path.join(args.ckpt_path, d) for d in os.listdir(args.ckpt_path) if os.path.isdir(os.path.join(args.ckpt_path, d))]
 
     for checkpoint_dir in checkpoint_dirs:
-        print(f"Evaluating checkpoint in directory: {checkpoint_dir}")
+        print(f"evaluating checkpoint in directory: {checkpoint_dir}")
         base_model = os.path.basename(checkpoint_dir).split('_')[0]
 
-        # Load the corresponding tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
-        model = AutoModelForCausalLM.from_pretrained(
-            checkpoint_dir, torch_dtype=torch.bfloat16
-        )
-        model.to(device)
+        # iterate over each checkpoint within the folder
+        for ckpt in os.listdir(checkpoint_dir):
+            if ckpt.startswith("step_"):
+                ari = float(ckpt.split("_ari_")[-1])
+                if args.lower_ari_bound <= ari <= args.upper_ari_bound:
+                    ckpt_path = os.path.join(checkpoint_dir, ckpt)
+                    print(f"starting evaluation for {ckpt_path}")
 
-        # Define the generation configuration
-        test_generation_config = GenerationConfig(
-            max_new_tokens=MAX_OUTPUT_LENGTHS[base_model.lower()],
-            temperature=args.temperature + 1e-7,
-            top_k=0.0,
-            top_p=args.top_p,
-            do_sample=True,
-            num_return_sequences=1,
-        )
-        print(f"{test_generation_config=}")
+                    # load the corresponding tokenizer and model
+                    tokenizer = AutoTokenizer.from_pretrained(ckpt_path)
+                    model = AutoModelForCausalLM.from_pretrained(
+                        ckpt_path, torch_dtype=torch.bfloat16
+                    )
+                    model.to(device)
 
-        # Load dataset
-        dataset = build_sass_dataset(checkpoint_dir, base_model, 'left')
+                    # define the generation configuration
+                    test_generation_config = GenerationConfig(
+                        max_new_tokens=MAX_OUTPUT_LENGTHS[base_model.lower()],
+                        temperature=args.temperature + 1e-7,
+                        top_k=0.0,
+                        top_p=args.top_p,
+                        do_sample=True,
+                        num_return_sequences=1,
+                    )
+                    print(f"{test_generation_config=}")
 
-        # Evaluate the model
-        eval_results = evaluate_model(
-            model,
-            dataset["test"],
-            tokenizer,
-            test_generation_config,
-            batch_size=args.batch_size,
-            model_type='clm',
-            verbose=args.verbose
-        )
+                    # load dataset
+                    dataset = build_sass_dataset(ckpt_path, base_model, 'left')
 
-        # Save evaluation results to CSV
-        file_path = os.path.join(save_dir, f"{checkpoint_dir.replace('/', '|')}.csv")
-        with open(file_path, mode="w", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
-            writer.writeheader()
-            writer.writerows(eval_results)
+                    # evaluate the model
+                    eval_results = evaluate_model(
+                        model,
+                        dataset["test"],
+                        tokenizer,
+                        test_generation_config,
+                        batch_size=args.batch_size,
+                        model_type='clm',
+                        verbose=args.verbose
+                    )
 
-        # Calculate average and standard deviation of scores
-        avg_scores = {
-            f"avg_{metric}": np.mean([x[metric] for x in eval_results])
-            for metric in eval_results[0].keys()
-            if metric not in ["generated_text"]
-        }
-        std_scores = {
-            f"std_{metric}": np.std([x[metric] for x in eval_results])
-            for metric in eval_results[0].keys()
-            if metric not in ["generated_text"]
-        }
+                    # save evaluation results to csv
+                    file_path = os.path.join(save_dir, f"{ckpt_path.replace('/', '|')}.csv")
+                    with open(file_path, mode="w", encoding="utf-8") as file:
+                        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+                        writer.writeheader()
+                        writer.writerows(eval_results)
 
-        # Save the overview in JSONL format
-        with open(overview_path, mode="a", encoding="utf-8") as f:
-            json.dump(
-                {"run_path": checkpoint_dir}
-                | {"ckpt_path": checkpoint_dir}
-                | avg_scores
-                | std_scores,
-                f,
-            )
-            f.write("\n")
+                    # calculate average and standard deviation of scores
+                    avg_scores = {
+                        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+                        for metric in eval_results[0].keys()
+                        if metric not in ["generated_text"]
+                    }
+                    std_scores = {
+                        f"std_{metric}": np.std([x[metric] for x in eval_results])
+                        for metric in eval_results[0].keys()
+                        if metric not in ["generated_text"]
+                    }
 
-        # Print out results
-        print("*" * 90)
-        print(f"Performance for {checkpoint_dir} at temperature {args.temperature}:")
-        print(f"Average scores: {avg_scores}")
-        print(f"Standard deviation of scores: {std_scores}")
-        print("*" * 90)
+                    # save the overview in jsonl format
+                    with open(overview_path, mode="a", encoding="utf-8") as f:
+                        json.dump(
+                            {"run_path": ckpt_path}
+                            | {"ckpt_path": ckpt_path}
+                            | avg_scores
+                            | std_scores,
+                            f,
+                        )
+                        f.write("\n")
+
+                    # print out results
+                    print("*" * 90)
+                    print(f"performance for {ckpt_path} at temperature {args.temperature}:")
+                    print(f"average scores: {avg_scores}")
+                    print(f"standard deviation of scores: {std_scores}")
+                    print("*" * 90)
