@@ -198,78 +198,74 @@ if __name__ == "__main__":
         base_model = os.path.basename(checkpoint_dir).split('_')[0]
 
         # iterate over each checkpoint within the folder
-        for ckpt in os.listdir(checkpoint_dir):
-            if ckpt.startswith("step_"):
-                ari = float(ckpt.split("_ari_")[-1])
-                if args.lower_ari_bound <= ari <= args.upper_ari_bound:
-                    ckpt_path = os.path.join(checkpoint_dir, ckpt)
-                    print(f"starting evaluation for {ckpt_path}")
+        if checkpoint_dir.startswith("step_"):
+            ari = float(checkpoint_dir.split("_ari_")[-1])
+            if args.lower_ari_bound <= ari <= args.upper_ari_bound:
+                # load the corresponding tokenizer and model
+                tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+                model = AutoModelForCausalLM.from_pretrained(
+                    checkpoint_dir, torch_dtype=torch.bfloat16
+                )
+                model.to(device)
 
-                    # load the corresponding tokenizer and model
-                    tokenizer = AutoTokenizer.from_pretrained(ckpt_path)
-                    model = AutoModelForCausalLM.from_pretrained(
-                        ckpt_path, torch_dtype=torch.bfloat16
+                # define the generation configuration
+                test_generation_config = GenerationConfig(
+                    max_new_tokens=MAX_OUTPUT_LENGTHS[base_model.lower()],
+                    temperature=args.temperature + 1e-7,
+                    top_k=0.0,
+                    top_p=args.top_p,
+                    do_sample=True,
+                    num_return_sequences=1,
+                )
+                print(f"{test_generation_config=}")
+
+                # load dataset
+                dataset = build_sass_dataset(checkpoint_dir, base_model, 'left')
+
+                # evaluate the model
+                eval_results = evaluate_model(
+                    model,
+                    dataset["test"],
+                    tokenizer,
+                    test_generation_config,
+                    batch_size=args.batch_size,
+                    model_type='clm',
+                    verbose=args.verbose
+                )
+
+                # save evaluation results to csv
+                file_path = os.path.join(save_dir, f"{checkpoint_dir.replace('/', '|')}.csv")
+                with open(file_path, mode="w", encoding="utf-8") as file:
+                    writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
+                    writer.writeheader()
+                    writer.writerows(eval_results)
+
+                # calculate average and standard deviation of scores
+                avg_scores = {
+                    f"avg_{metric}": np.mean([x[metric] for x in eval_results])
+                    for metric in eval_results[0].keys()
+                    if metric not in ["generated_text"]
+                }
+                std_scores = {
+                    f"std_{metric}": np.std([x[metric] for x in eval_results])
+                    for metric in eval_results[0].keys()
+                    if metric not in ["generated_text"]
+                }
+
+                # save the overview in jsonl format
+                with open(overview_path, mode="a", encoding="utf-8") as f:
+                    json.dump(
+                        {"run_path": checkpoint_dir}
+                        | {"ckpt_path": checkpoint_dir}
+                        | avg_scores
+                        | std_scores,
+                        f,
                     )
-                    model.to(device)
+                    f.write("\n")
 
-                    # define the generation configuration
-                    test_generation_config = GenerationConfig(
-                        max_new_tokens=MAX_OUTPUT_LENGTHS[base_model.lower()],
-                        temperature=args.temperature + 1e-7,
-                        top_k=0.0,
-                        top_p=args.top_p,
-                        do_sample=True,
-                        num_return_sequences=1,
-                    )
-                    print(f"{test_generation_config=}")
-
-                    # load dataset
-                    dataset = build_sass_dataset(ckpt_path, base_model, 'left')
-
-                    # evaluate the model
-                    eval_results = evaluate_model(
-                        model,
-                        dataset["test"],
-                        tokenizer,
-                        test_generation_config,
-                        batch_size=args.batch_size,
-                        model_type='clm',
-                        verbose=args.verbose
-                    )
-
-                    # save evaluation results to csv
-                    file_path = os.path.join(save_dir, f"{ckpt_path.replace('/', '|')}.csv")
-                    with open(file_path, mode="w", encoding="utf-8") as file:
-                        writer = csv.DictWriter(file, fieldnames=eval_results[0].keys())
-                        writer.writeheader()
-                        writer.writerows(eval_results)
-
-                    # calculate average and standard deviation of scores
-                    avg_scores = {
-                        f"avg_{metric}": np.mean([x[metric] for x in eval_results])
-                        for metric in eval_results[0].keys()
-                        if metric not in ["generated_text"]
-                    }
-                    std_scores = {
-                        f"std_{metric}": np.std([x[metric] for x in eval_results])
-                        for metric in eval_results[0].keys()
-                        if metric not in ["generated_text"]
-                    }
-
-                    # save the overview in jsonl format
-                    with open(overview_path, mode="a", encoding="utf-8") as f:
-                        json.dump(
-                            {"run_path": ckpt_path}
-                            | {"ckpt_path": ckpt_path}
-                            | avg_scores
-                            | std_scores,
-                            f,
-                        )
-                        f.write("\n")
-
-                    # print out results
-                    print("*" * 90)
-                    print(f"performance for {ckpt_path} at temperature {args.temperature}:")
-                    print(f"average scores: {avg_scores}")
-                    print(f"standard deviation of scores: {std_scores}")
-                    print("*" * 90)
+                # print out results
+                print("*" * 90)
+                print(f"performance for {checkpoint_dir} at temperature {args.temperature}:")
+                print(f"average scores: {avg_scores}")
+                print(f"standard deviation of scores: {std_scores}")
+                print("*" * 90)
