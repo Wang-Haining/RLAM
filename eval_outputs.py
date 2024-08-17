@@ -198,7 +198,9 @@ if __name__ == "__main__":
         base_model = os.path.basename(checkpoint_dir).split('_')[0]
 
         # iterate over each checkpoint within the folder
+        # if checkpoint_dir.split('/')[-1].startswith("step_"):
         ari = float(checkpoint_dir.split("_ari_")[-1])
+        print(f'Eval ari is {ari}')
         if args.lower_ari_bound <= ari <= args.upper_ari_bound:
             # load the corresponding tokenizer and model
             tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
