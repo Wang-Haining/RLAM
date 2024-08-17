@@ -15,6 +15,6 @@ module load Python/3.10.8-GCCcore-12.2.0
 module load CUDA/12.2.0
 
 . .venv/bin/activate
-python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef1e-1__42__1723692435
-python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef5e-2__42__1723772226
-python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b__42__1723517976
+python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef1e-1__42__1723692435 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
+python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef5e-2__42__1723772226 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
+python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b__42__1723517976 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/

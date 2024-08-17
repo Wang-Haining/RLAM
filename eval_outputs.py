@@ -148,6 +148,8 @@ if __name__ == "__main__":
         description="evaluate sft and policy model outputs for multiple checkpoints"
     )
     parser.add_argument(
+        "--sft_ckpt", type=str, help="To init a proper tokenizer")
+    parser.add_argument(
         "--ckpt_path", type=str, required=True, help="path containing folders of specific checkpoints to evaluate"
     )
     parser.add_argument(
