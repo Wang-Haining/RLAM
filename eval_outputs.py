@@ -152,6 +152,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ckpt_path", type=str, required=True, help="path containing folders of specific checkpoints to evaluate"
     )
+    parser.add_argument("--base_model", type=str, default='gemma-2b', required=True)
     parser.add_argument(
         "--batch_size", type=int, default=20, help="batch size for inference"
     )
@@ -197,7 +198,6 @@ if __name__ == "__main__":
 
     for checkpoint_dir in checkpoint_dirs:
         print(f"evaluating checkpoint in directory: {checkpoint_dir}")
-        base_model = os.path.basename(checkpoint_dir).split('_')[0]
 
         # iterate over each checkpoint within the folder
         # if checkpoint_dir.split('/')[-1].startswith("step_"):
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
             # define the generation configuration
             test_generation_config = GenerationConfig(
-                max_new_tokens=MAX_OUTPUT_LENGTHS[base_model.lower()],
+                max_new_tokens=MAX_OUTPUT_LENGTHS[args.base_model.lower()],
                 temperature=args.temperature + 1e-7,
                 top_k=0.0,
                 top_p=args.top_p,
@@ -223,7 +223,7 @@ if __name__ == "__main__":
             print(f"{test_generation_config=}")
 
             # load dataset
-            dataset = build_sass_dataset(args.sft_ckpt, base_model, 'left')
+            dataset = build_sass_dataset(args.sft_ckpt, args.base_model, 'left')
 
             # evaluate the model
             eval_results = evaluate_model(
