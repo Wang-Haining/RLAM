@@ -657,9 +657,13 @@ def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, s
     if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
         # prepare model for saving
         if accelerator.is_main_process:
-            tokenizer.save_pretrained(output_path)
+            tokenizer.save_pretrained(save_path)
             unwrapped = accelerator.unwrap_model(model).policy
-            unwrapped.save_pretrained(save_path, save_function=accelerator.save)
+            unwrapped.save_pretrained(save_path,
+                                      save_function=accelerator.save,
+                                      state_dict=accelerator.get_state_dict(unwrapped),
+                                      safe_serialization=False,
+                                      )
         # update saved models list
         saved_models.append({
             'path': save_path,
@@ -1180,12 +1184,12 @@ if __name__ == "__main__":
                         save_model(accelerator, tokenizer, model,
                                    args.output_dir, args.run_name, avg_ari, update,
                                    args.save_total_limit)
-                        print(f"Early stopping at step {update} with ARI {avg_ari}")
+                        accelerator.print(f"Early stopping at step {update} with ARI {avg_ari}")
                         exit()
 
         # save model
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
             avg_ari = round(np.mean(eval_storage["ari"]), 2)
-            if accelerator.is_main_process:
-                save_model(accelerator, tokenizer, model, args.output_dir,
-                           args.run_name, avg_ari, update, args.save_total_limit)
+            save_model(accelerator, tokenizer, model, args.output_dir,
+                       args.run_name, avg_ari, update, args.save_total_limit)
+            accelerator.print(f"Checkpoint at step {update} with ARI {avg_ari} is saved")
