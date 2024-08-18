@@ -188,12 +188,16 @@ if __name__ == "__main__":
             overview = [json.loads(line) for line in f]
     else:
         overview = []
-    evaluated_runs = {entry["run_path"] for entry in overview}
+    evaluated_runs = {entry["ckpt_path"] for entry in overview}
 
     # iterate through each checkpoint folder
     checkpoint_dirs = [os.path.join(args.ckpt_path, d) for d in os.listdir(args.ckpt_path) if os.path.isdir(os.path.join(args.ckpt_path, d))]
 
     for checkpoint_dir in checkpoint_dirs:
+        # skip if already evaluated
+        if checkpoint_dir in evaluated_runs:
+            print(f"Skipping already evaluated checkpoint: {checkpoint_dir}")
+            continue
         print(f"evaluating checkpoint in directory: {checkpoint_dir}")
         ari = float(checkpoint_dir.split("_ari_")[-1])
         print(f'Eval ari is {ari}')
