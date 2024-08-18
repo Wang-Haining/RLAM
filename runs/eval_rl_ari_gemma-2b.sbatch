@@ -1,11 +1,11 @@
 #!/bin/sh
 #SBATCH --job-name=eval_rl_ari_gemma-2b
 ##SBATCH --account=group-jasonclark
-#SBATCH --partition=gpuunsafe
-#SBATCH --gres=gpu:a40:1
+#SBATCH --partition=nextgen-gpu
+#SBATCH --gres=gpu:h100:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
-#SBATCH --time=0-02:00:00
+#SBATCH --time=0-06:00:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-user=haining.wang@montana.edu
