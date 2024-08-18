@@ -706,7 +706,8 @@ if __name__ == "__main__":
                                                     "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
-    for split in ["validation"]:  # todo: no test for now
+    # for split in ["validation"]:  # todo: no test for now
+    for split in ["test"]:  # fixme: for debugging
         eval_dataset = dataset[split]
         eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
@@ -1185,5 +1186,6 @@ if __name__ == "__main__":
         # save model
         if args.output_dir and args.num_train_epochs > 0 and update % args.save_steps == 0:
             avg_ari = round(np.mean(eval_storage["ari"]), 2)
-            save_model(accelerator, tokenizer, model, args.output_dir, args.run_name,
-                                avg_ari, update, args.save_total_limit)
+            if accelerator.is_main_process:
+                save_model(accelerator, tokenizer, model, args.output_dir,
+                           args.run_name, avg_ari, update, args.save_total_limit)
