@@ -157,9 +157,6 @@ if __name__ == "__main__":
         "--batch_size", type=int, default=20, help="batch size for inference"
     )
     parser.add_argument(
-        "--top_p", type=float, default=1.0, help="sampling top_p"
-    )
-    parser.add_argument(
         "--temperature", type=float, default=0.01, help="sampling temperature"
     )
     parser.add_argument(
@@ -198,9 +195,6 @@ if __name__ == "__main__":
 
     for checkpoint_dir in checkpoint_dirs:
         print(f"evaluating checkpoint in directory: {checkpoint_dir}")
-
-        # iterate over each checkpoint within the folder
-        # if checkpoint_dir.split('/')[-1].startswith("step_"):
         ari = float(checkpoint_dir.split("_ari_")[-1])
         print(f'Eval ari is {ari}')
         if args.lower_ari_bound <= ari <= args.upper_ari_bound:
@@ -216,7 +210,7 @@ if __name__ == "__main__":
                 max_new_tokens=MAX_OUTPUT_LENGTHS[args.base_model.lower()],
                 temperature=args.temperature + 1e-7,
                 top_k=0.0,
-                top_p=args.top_p,
+                top_p=1.0,
                 do_sample=True,
                 num_return_sequences=1,
             )
@@ -258,8 +252,7 @@ if __name__ == "__main__":
             # save the overview in jsonl format
             with open(overview_path, mode="a", encoding="utf-8") as f:
                 json.dump(
-                    {"run_path": checkpoint_dir}
-                    | {"ckpt_path": checkpoint_dir}
+                    {"ckpt_path": checkpoint_dir}
                     | avg_scores
                     | std_scores,
                     f,
