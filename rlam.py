@@ -646,41 +646,49 @@ def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, s
     save_path = os.path.join(output_path, f"step_{step}_ari_{ari}")
     metadata_path = os.path.join(output_path, "metadata.npz")
 
-    # load existing metadata if available
-    if os.path.exists(metadata_path):
-        metadata = np.load(metadata_path, allow_pickle=True)
-        saved_models = list(metadata['saved_models'])
-    else:
-        saved_models = []
+    # ensure all processes wait before proceeding to save
+    accelerator.wait_for_everyone()
 
-    # save new model if conditions are met
-    if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
-        # prepare model for saving
-        if accelerator.is_main_process:
+    # save only on the main process
+    if accelerator.is_main_process:
+        # load existing metadata if available
+        if os.path.exists(metadata_path):
+            metadata = np.load(metadata_path, allow_pickle=True)
+            saved_models = list(metadata['saved_models'])
+        else:
+            saved_models = []
+
+        # check if the model should be saved based on the ARI score
+        if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
+            # prepare model and tokenizer for saving
+            os.makedirs(save_path, exist_ok=True)
             tokenizer.save_pretrained(save_path)
             unwrapped = accelerator.unwrap_model(model).policy
             unwrapped.save_pretrained(save_path,
                                       save_function=accelerator.save,
                                       state_dict=accelerator.get_state_dict(unwrapped),
-                                      safe_serialization=False,
-                                      )
-        # update saved models list
-        saved_models.append({
-            'path': save_path,
-            'ari': ari,
-            'step': step
-        })
-        saved_models.sort(key=lambda x: x['ari'])
+                                      safe_serialization=False)
 
-        # remove the worst model if limit exceeded
-        if len(saved_models) > save_total_limit:
-            worst_model = saved_models.pop()
-            if os.path.exists(worst_model['path']):
-                shutil.rmtree(worst_model['path'])
+            # update saved models list
+            saved_models.append({
+                'path': save_path,
+                'ari': ari,
+                'step': step
+            })
+            saved_models.sort(key=lambda x: x['ari'])
 
-        # save updated metadata
-        if accelerator.is_main_process:
+            # remove the worst model if limit exceeded
+            if len(saved_models) > save_total_limit:
+                worst_model = saved_models.pop()
+                if os.path.exists(worst_model['path']):
+                    shutil.rmtree(worst_model['path'])
+
+            # save updated metadata
             np.savez(metadata_path, saved_models=saved_models)
+            accelerator.print(f"Model saved at {save_path} with ARI {ari} at step {step}")
+    # ensure all processes wait until the model saving is completed
+    accelerator.wait_for_everyone()
+
 
 
 if __name__ == "__main__":
