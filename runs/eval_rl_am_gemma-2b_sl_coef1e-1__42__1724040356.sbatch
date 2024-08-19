@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=eval_rl_am_gemma-2b_sl_coef1e-1__42__1723998993
+#SBATCH --job-name=eval_rl_am_gemma-2b_sl_coef1e-1__42__1724040356
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=nextgen-gpu
 #SBATCH --gres=gpu:h100:1
@@ -16,4 +16,4 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 
-python -m eval_outputs --upper_ari_bound 16.0  --lower_ari_bound 8.0 --batch_size 2 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef1e-1__42__1724023484 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
+python -m eval_outputs --upper_ari_bound 16.0  --lower_ari_bound 8.0 --batch_size 2 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef1e-1__42__1724040356 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
