@@ -389,17 +389,27 @@ class ScalarModel(PreTrainedModel):
         return reward
 
 
+# class PolicyAndValueWrapper(nn.Module):
+#     def __init__(self, policy, value_model) -> None:
+#         super().__init__()
+#         self.policy = policy
+#         self.value_model = value_model
+#         self.lm_backbone = value_model.lm_backbone
+#
+#     def forward(self, **kwargs):
+#         output = self.lm_backbone(**kwargs)
+#         logits = self.value_model.scalar_head(output.hidden_states[-1])
+#         return self.policy(**kwargs), logits
+
+
 class PolicyAndValueWrapper(nn.Module):
     def __init__(self, policy, value_model) -> None:
         super().__init__()
         self.policy = policy
         self.value_model = value_model
-        self.lm_backbone = value_model.lm_backbone
 
     def forward(self, **kwargs):
-        output = self.lm_backbone(**kwargs)
-        logits = self.value_model.scalar_head(output.hidden_states[-1])
-        return self.policy(**kwargs), logits
+        return self.policy(**kwargs), self.value_model(**kwargs)
 
 
 def get_reward(model, query_responses, tokenizer, context_length):
