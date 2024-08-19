@@ -665,6 +665,7 @@ def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, s
             tokenizer.save_pretrained(save_path)
             unwrapped = accelerator.unwrap_model(model).policy
             unwrapped.save_pretrained(save_path,
+                                      is_main_process=accelerator.is_main_process,
                                       save_function=accelerator.save,
                                       state_dict=accelerator.get_state_dict(unwrapped),
                                       safe_serialization=False)
@@ -686,9 +687,6 @@ def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, s
             # save updated metadata
             np.savez(metadata_path, saved_models=saved_models)
             accelerator.print(f"Model saved at {save_path} with ARI {ari} at step {step}")
-    # ensure all processes wait until the model saving is completed
-    accelerator.wait_for_everyone()
-
 
 
 if __name__ == "__main__":
