@@ -16,4 +16,4 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 
-python -m eval_outputs --upper_ari_bound 16.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef3e-2__42__1723517976 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
+python -m eval_outputs --upper_ari_bound 15.0  --lower_ari_bound 8.0 --batch_size 40 --temperature 0.01 --verbose --ckpt_path ckpts/rl_am_gemma-2b_sl_coef3e-2__42__1723517976 --sft_ckpt ckpts/sft_gemma-2b/checkpoint-1680/
