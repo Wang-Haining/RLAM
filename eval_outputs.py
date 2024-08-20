@@ -151,7 +151,7 @@ def evaluate_model(
         for i in tqdm(range(0, len(dataset), batch_size)):
             data = dataset[i: i + batch_size]
             # evaluate policy generated response
-            queries = data["query_token"]
+            queries = torch.tensor(data["query_token"]).to(device)
             context_length = queries.shape[1]
             query_responses, _ = generate(
                 model,
