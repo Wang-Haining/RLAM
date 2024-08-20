@@ -42,7 +42,7 @@ total_tokens = sum(token_freq.values())
 mt = MosesTokenizer(lang="en")
 # voa word book, section a-z, science programs, and organs of the body (1517 in total)
 # from https://simple.wikipedia.org/wiki/wikipedia:voa_special_english_word_book
-# scraped on may 15, 2024
+# scraped on May 15, 2024
 voa1500 = json.load(open(VOA1500, "r", encoding="utf-8"))
 
 
@@ -116,8 +116,9 @@ def evaluate_model(
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i: i + batch_size]
             # tokenize the ['query'] column for batch processing
-            input_ids = tokenizer(batch_samples["query"], return_tensors='pt',
-                                  padding=True, truncation=True).input_ids.to(device)
+            # input_ids = tokenizer(batch_samples["query"], return_tensors='pt',
+            #                       padding=True, truncation=True).input_ids.to(device)
+            input_ids = batch_samples["query_token"].to(device)
 
             # generate new tokens
             generated_tokens = model.generate(
