@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
         print(f"Evaluating checkpoint in directory: {checkpoint_dir}")
         # load the corresponding tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
         model = AutoModelForCausalLM.from_pretrained(
             checkpoint_dir, torch_dtype=torch.bfloat16
         )
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         print(f"{test_generation_config=}")
 
         # load dataset
-        dataset = build_sass_dataset(args.checkpoint_dir, args.base_model, 'left')
+        dataset = build_sass_dataset(checkpoint_dir, args.base_model, 'left')
 
         # evaluate the model
         eval_results = evaluate_model(
