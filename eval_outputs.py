@@ -106,6 +106,42 @@ def calculate_metrics(
     return metrics_dict
 
 
+def generate(lm_backbone, queries, tokenizer, generation_config):
+    """generate in a way that does not affect padding tokens"""
+    context_length = queries.shape[1]
+    attention_mask = queries != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(queries, ~attention_mask, 0)
+    output = lm_backbone.generate(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        generation_config=generation_config,
+        return_dict_in_generate=True,
+        # output_scores=True
+    )
+    # logits = torch.stack(output.scores, 1)
+    return torch.cat((queries, output.sequences[:, context_length:]), dim=1)
+
+
+def first_true_indices(bools, dtype=torch.long):
+    """
+    Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of
+    integers giving the position of the first True in each "row".
+
+    Returns the length of the rows (bools.size(-1)) if no element is True in a given row.
+    """
+    row_len = bools.size(-1)
+    zero_or_index = row_len * (~bools).type(dtype) + torch.arange(row_len, dtype=dtype, device=bools.device)
+    return torch.min(zero_or_index, dim=-1).values
+
+
+def truncate_response(args, tokenizer, responses):
+    trunc_idxs = first_true_indices(responses == args.truncate_token_id).unsqueeze(-1)
+    new_size = [1] * (len(responses.size()) - 1) + [responses.shape[1]]
+    idxs = torch.arange(responses.shape[1], device=responses.device).view(*new_size)
+    postprocessed_responses = torch.masked_fill(responses, idxs > trunc_idxs, tokenizer.pad_token_id)
+    return postprocessed_responses
+
+
 def evaluate_model(
         model, dataset, tokenizer, generation_config, batch_size, verbose=False
 ) -> List[Dict]:
@@ -113,37 +149,74 @@ def evaluate_model(
     model.eval()
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
-            batch_samples = dataset[i: i + batch_size]
-            encoded_inputs = tokenizer(
-                [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']],
-                truncation=True,
-                max_length=544,
-                padding='longest',
-                return_tensors="pt"
+            data = dataset[i: i + batch_size]
+            # evaluate policy generated response
+            queries = data["query_token"]
+            context_length = queries.shape[1]
+            query_responses, _ = generate(
+                model,
+                queries,
+                tokenizer,
+                generation_config,
             )
-            input_ids = encoded_inputs['input_ids'].to(device)
-            # generate new tokens
-            generated_tokens = model.generate(
-                input_ids=input_ids, generation_config=generation_config
-            )
-
-            # slice the generated tokens to get only the new tokens
-            new_tokens = generated_tokens[:, input_ids.shape[1]:]
-            generated_texts = tokenizer.batch_decode(new_tokens,
+            responses = query_responses[:, context_length:]
+            postprocessed_responses = truncate_response(args, tokenizer, responses)
+            generated_texts = tokenizer.batch_decode(postprocessed_responses,
                                                      skip_special_tokens=True)
 
             for j, generated_text in enumerate(generated_texts):
                 # remove repeated generation after "\nSimplified version"
-                generated_text = generated_text.split('\nSimplified version')[0].strip()
+                # generated_text = generated_text.split('\nSimplified version')[0].strip()
                 result = calculate_metrics(
                     generated_text,
-                    batch_samples["response"][j],
-                    batch_samples["source"][j],
+                    data["response"][j],
+                    data["source"][j],
                 )
                 if verbose:
                     print(f'{generated_text=}')
                 results.append(result | {"generated_text": generated_text})
+
     return results
+
+
+# def evaluate_model(
+#         model, dataset, tokenizer, generation_config, batch_size, verbose=False
+# ) -> List[Dict]:
+#     results = []
+#     model.eval()
+#     with torch.no_grad():
+#         for i in tqdm(range(0, len(dataset), batch_size)):
+#             batch_samples = dataset[i: i + batch_size]
+#             encoded_inputs = tokenizer(
+#                 [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']],
+#                 truncation=True,
+#                 max_length=544,
+#                 padding='longest',
+#                 return_tensors="pt"
+#             )
+#             input_ids = encoded_inputs['input_ids'].to(device)
+#             # generate new tokens
+#             generated_tokens = model.generate(
+#                 input_ids=input_ids, generation_config=generation_config
+#             )
+#
+#             # slice the generated tokens to get only the new tokens
+#             new_tokens = generated_tokens[:, input_ids.shape[1]:]
+#             generated_texts = tokenizer.batch_decode(new_tokens,
+#                                                      skip_special_tokens=True)
+#
+#             for j, generated_text in enumerate(generated_texts):
+#                 # remove repeated generation after "\nSimplified version"
+#                 generated_text = generated_text.split('\nSimplified version')[0].strip()
+#                 result = calculate_metrics(
+#                     generated_text,
+#                     batch_samples["response"][j],
+#                     batch_samples["source"][j],
+#                 )
+#                 if verbose:
+#                     print(f'{generated_text=}')
+#                 results.append(result | {"generated_text": generated_text})
+#     return results
 
 
 if __name__ == "__main__":
