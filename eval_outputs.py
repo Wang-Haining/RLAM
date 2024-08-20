@@ -19,13 +19,13 @@ from nltk.tokenize import sent_tokenize
 from sacrebleu.metrics import BLEU
 from sacremoses import MosesTokenizer
 from tqdm import tqdm
-from transformers import (AutoModelForCausalLM, AutoTokenizer, GenerationConfig)
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
-from utils import (GEMMA_2B, GEMMA_7B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
-                   SEED, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
-                   build_sass_dataset, compute_ari, compute_flesch_kincaid,
-                   compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies, TASK_PREFIX, RESPONSE_TEMP)
+from utils import (GEMMA_2B, GEMMA_7B, MAX_OUTPUT_LENGTHS, SEED, VOA1500,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
+                   compute_ari, compute_flesch_kincaid, compute_sent_len,
+                   compute_token_accessibility, read_token_frequencies,
+                   TASK_PREFIX, RESPONSE_TEMP)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,9 +116,7 @@ def generate(lm_backbone, queries, tokenizer, generation_config):
         attention_mask=attention_mask,
         generation_config=generation_config,
         return_dict_in_generate=True,
-        # output_scores=True
     )
-    # logits = torch.stack(output.scores, 1)
     return torch.cat((queries, output.sequences[:, context_length:]), dim=1)
 
 
@@ -142,7 +140,7 @@ def truncate_response(tokenizer, responses):
     return postprocessed_responses
 
 
-def evaluate_model(
+def evaluate_rl_model(
         model, dataset, tokenizer, generation_config, batch_size, verbose=False
 ) -> List[Dict]:
     results = []
@@ -165,8 +163,6 @@ def evaluate_model(
                                                      skip_special_tokens=True)
 
             for j, generated_text in enumerate(generated_texts):
-                # remove repeated generation after "\nSimplified version"
-                # generated_text = generated_text.split('\nSimplified version')[0].strip()
                 result = calculate_metrics(
                     generated_text,
                     data["response"][j],
@@ -179,44 +175,36 @@ def evaluate_model(
     return results
 
 
-# def evaluate_model(
-#         model, dataset, tokenizer, generation_config, batch_size, verbose=False
-# ) -> List[Dict]:
-#     results = []
-#     model.eval()
-#     with torch.no_grad():
-#         for i in tqdm(range(0, len(dataset), batch_size)):
-#             batch_samples = dataset[i: i + batch_size]
-#             encoded_inputs = tokenizer(
-#                 [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']],
-#                 truncation=True,
-#                 max_length=544,
-#                 padding='longest',
-#                 return_tensors="pt"
-#             )
-#             input_ids = encoded_inputs['input_ids'].to(device)
-#             # generate new tokens
-#             generated_tokens = model.generate(
-#                 input_ids=input_ids, generation_config=generation_config
-#             )
-#
-#             # slice the generated tokens to get only the new tokens
-#             new_tokens = generated_tokens[:, input_ids.shape[1]:]
-#             generated_texts = tokenizer.batch_decode(new_tokens,
-#                                                      skip_special_tokens=True)
-#
-#             for j, generated_text in enumerate(generated_texts):
-#                 # remove repeated generation after "\nSimplified version"
-#                 generated_text = generated_text.split('\nSimplified version')[0].strip()
-#                 result = calculate_metrics(
-#                     generated_text,
-#                     batch_samples["response"][j],
-#                     batch_samples["source"][j],
-#                 )
-#                 if verbose:
-#                     print(f'{generated_text=}')
-#                 results.append(result | {"generated_text": generated_text})
-#     return results
+def evaluate_sft_model(
+        model, dataset, tokenizer, generation_config, batch_size, verbose=False
+) -> List[Dict]:
+    results = []
+    model.eval()
+    with torch.no_grad():
+        for i in tqdm(range(0, len(dataset), batch_size)):
+            batch_samples = dataset[i: i + batch_size]
+            # it is good to retokenize the ['query'] column for batch processing
+            input_ids = torch.tensor(batch_samples["query_token"]).to(device)
+            generated_tokens = model.generate(
+                input_ids=input_ids, generation_config=generation_config
+            )
+            # only newly generated text are returned
+            generated_texts = tokenizer.batch_decode(
+                generated_tokens[:, input_ids.shape[1]:],
+                skip_special_tokens=True,
+            )
+
+            for j, generated_text in enumerate(generated_texts):
+                generated_text = generated_text.strip()
+                result = calculate_metrics(
+                    generated_text,
+                    batch_samples["response"][j],
+                    batch_samples["source"][j],
+                )
+                if verbose:
+                    print(f'{generated_text=}')
+                results.append(result | {"generated_text": generated_text})
+    return results
 
 
 if __name__ == "__main__":
@@ -225,31 +213,34 @@ if __name__ == "__main__":
         description="evaluate sft and policy model outputs for multiple checkpoints"
     )
     parser.add_argument(
-        "--ckpt_path", type=str, required=True, help="path containing folders of specific checkpoints to evaluate"
+        "--ckpt_path", type=str, required=True,
+        help="path containing folders of specific checkpoints to evaluate"
     )
     parser.add_argument("--base_model", type=str, default='gemma-2b')
     parser.add_argument(
-        "--batch_size", type=int, default=20, help="batch size for inference"
+        "--batch_size", type=int, default=20,
+        help="batch size for inference"
     )
     parser.add_argument(
-        "--temperature", type=float, default=0.01, help="sampling temperature"
+        "--temperature", type=float, default=0.01,
+        help="sampling temperature"
     )
     parser.add_argument(
         "--upper_ari_bound",
         type=float,
         default=15.0,
-        help="the upper bound of evaluation ari for a checkpoint to be considered in the evaluation",
+        help="the upper bound of evaluation ari for a checkpoint to be considered",
     )
     parser.add_argument(
         "--lower_ari_bound",
         type=float,
         default=8.0,
-        help="the lower bound of evaluation ari for a checkpoint to be considered in the evaluation",
+        help="the lower bound of evaluation ari for a checkpoint to be considered",
     )
     parser.add_argument(
         "--verbose",
         action='store_true',
-        help="flag to print generated texts during evaluation. defaults to false.",
+        help="flag to print generated texts during evaluation",
     )
     args = parser.parse_args()
     torch.manual_seed(SEED)
@@ -266,7 +257,9 @@ if __name__ == "__main__":
     evaluated_runs = {entry["ckpt_path"] for entry in overview}
 
     # iterate through each checkpoint folder
-    checkpoint_dirs = [os.path.join(args.ckpt_path, d) for d in os.listdir(args.ckpt_path) if os.path.isdir(os.path.join(args.ckpt_path, d))]
+    checkpoint_dirs = [os.path.join(args.ckpt_path, d) for d in
+                       os.listdir(args.ckpt_path) if
+                       os.path.isdir(os.path.join(args.ckpt_path, d))]
 
     for checkpoint_dir in checkpoint_dirs:
         ari = float(checkpoint_dir.split("_ari_")[-1])
@@ -283,7 +276,8 @@ if __name__ == "__main__":
 
         print(f"Evaluating checkpoint in directory: {checkpoint_dir}")
         # load the corresponding tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained('google/gemma-2b', padding_side='left')  # fixme: load from ckpt
+        # fixme: tokenizer may be added a new truncate token for other models
+        tokenizer = AutoTokenizer.from_pretrained(GEMMA_2B, padding_side='left')
         model = AutoModelForCausalLM.from_pretrained(
             checkpoint_dir, torch_dtype=torch.bfloat16
         )
@@ -303,14 +297,24 @@ if __name__ == "__main__":
         dataset = build_sass_dataset(checkpoint_dir, args.base_model, 'left')
 
         # evaluate the model
-        eval_results = evaluate_model(
-            model,
-            dataset["test"],
-            tokenizer,
-            test_generation_config,
-            batch_size=args.batch_size,
-            verbose=args.verbose
-        )
+        if checkpoint_dir.split('/')[-1].lower().startswith('sft_'):
+            eval_results = evaluate_sft_model(
+                model,
+                dataset["test"],
+                tokenizer,
+                test_generation_config,
+                batch_size=args.batch_size,
+                verbose=args.verbose
+            )
+        elif checkpoint_dir.split('/')[-1].lower().startswith('rl_'):
+            eval_results = evaluate_rl_model(
+                model,
+                dataset["test"],
+                tokenizer,
+                test_generation_config,
+                batch_size=args.batch_size,
+                verbose=args.verbose
+            )
 
         # save evaluation results to csv
         file_path = os.path.join(save_dir, f"{checkpoint_dir.replace('/', '|')}.csv")
