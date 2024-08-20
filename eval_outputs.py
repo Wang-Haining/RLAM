@@ -115,20 +115,24 @@ def evaluate_model(
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i: i + batch_size]
-            # it is good to retokenize the ['query'] column for batch processing
-            input_ids = torch.tensor(batch_samples["query_token"]).to(device)
+            # tokenize the ['query'] column for batch processing
+            input_ids = tokenizer(batch_samples["query"], return_tensors='pt',
+                                  padding=True, truncation=True).input_ids.to(device)
+
+            # generate new tokens
             generated_tokens = model.generate(
                 input_ids=input_ids, generation_config=generation_config
             )
-            # only newly generated text are returned
+
             if model_type == 'clm':
-                generated_texts = tokenizer.batch_decode(
-                    generated_tokens[:, input_ids.shape[1]:],
-                    skip_special_tokens=True,
-                )
+                # slice the generated tokens to get only the new tokens
+                new_tokens = generated_tokens[:, input_ids.shape[1]:]
+                generated_texts = tokenizer.batch_decode(new_tokens,
+                                                         skip_special_tokens=True)
             elif model_type == 'seq2seq':
                 generated_texts = tokenizer.batch_decode(generated_tokens,
                                                          skip_special_tokens=True)
+
             for j, generated_text in enumerate(generated_texts):
                 generated_text = generated_text.strip()
                 result = calculate_metrics(
