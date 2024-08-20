@@ -24,8 +24,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 from utils import (GEMMA_2B, GEMMA_7B, MAX_OUTPUT_LENGTHS, SEED, VOA1500,
                    WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
                    compute_ari, compute_flesch_kincaid, compute_sent_len,
-                   compute_token_accessibility, read_token_frequencies,
-                   TASK_PREFIX, RESPONSE_TEMP)
+                   compute_token_accessibility, read_token_frequencies)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
