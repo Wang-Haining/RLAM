@@ -296,7 +296,7 @@ if __name__ == "__main__":
         dataset = build_sass_dataset(GEMMA_2B, args.base_model, 'left')
 
         # evaluate the model
-        if checkpoint_dir.split('/')[-1].lower().startswith('sft_'):
+        if checkpoint_dir.split('/')[-2].lower().startswith('sft_'):
             eval_results = evaluate_sft_model(
                 model,
                 dataset["test"],
@@ -305,7 +305,7 @@ if __name__ == "__main__":
                 batch_size=args.batch_size,
                 verbose=args.verbose
             )
-        elif checkpoint_dir.split('/')[-1].lower().startswith('rl_'):
+        elif checkpoint_dir.split('/')[-2].lower().startswith('rl_'):
             eval_results = evaluate_rl_model(
                 model,
                 dataset["test"],
@@ -314,6 +314,8 @@ if __name__ == "__main__":
                 batch_size=args.batch_size,
                 verbose=args.verbose
             )
+        else:
+            raise RuntimeError(f"This should not happen. Check your {checkpoint_dir}.}")
 
         # save evaluation results to csv
         file_path = os.path.join(save_dir, f"{checkpoint_dir.replace('/', '|')}.csv")
