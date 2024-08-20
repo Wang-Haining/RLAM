@@ -115,14 +115,14 @@ def evaluate_model(
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i: i + batch_size]
-            inputs = [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']]
-            input_ids = tokenizer(
-                inputs,
+            encoded_inputs = tokenizer(
+                [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']],
                 truncation=True,
-                max_length=544,  # fixme: for gemma-2
+                max_length=544,  # Adjust according to your model's needs
                 padding='max_length',
                 return_tensors="pt"
-            ).to(device)
+            )
+            input_ids = encoded_inputs['input_ids'].to(device)
             # generate new tokens
             generated_tokens = model.generate(
                 input_ids=input_ids, generation_config=generation_config
