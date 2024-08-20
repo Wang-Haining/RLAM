@@ -25,7 +25,7 @@ from utils import (GEMMA_2B, GEMMA_7B, MAX_OUTPUT_LENGTHS, OLMO_1B, PHI2_3B,
                    SEED, VOA1500, WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV,
                    build_sass_dataset, compute_ari, compute_flesch_kincaid,
                    compute_sent_len, compute_token_accessibility,
-                   read_token_frequencies)
+                   read_token_frequencies, TASK_PREFIX, RESPONSE_TEMP)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,11 +115,14 @@ def evaluate_model(
     with torch.no_grad():
         for i in tqdm(range(0, len(dataset), batch_size)):
             batch_samples = dataset[i: i + batch_size]
-            # tokenize the ['query'] column for batch processing
-            # input_ids = tokenizer(batch_samples["query"], return_tensors='pt',
-            #                       padding=True, truncation=True).input_ids.to(device)
-            input_ids = torch.tensor(batch_samples["query_token"]).to(device)
-
+            batch_samples = [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']]
+            input_ids = tokenizer.encode(
+                batch_samples,
+                truncation=True,
+                max_length=544,  # fixme: for gemma-2
+                padding='max_length',
+                return_tensors="pt"
+            ).to(device)
             # generate new tokens
             generated_tokens = model.generate(
                 input_ids=input_ids, generation_config=generation_config
@@ -211,7 +214,7 @@ if __name__ == "__main__":
 
         print(f"Evaluating checkpoint in directory: {checkpoint_dir}")
         # load the corresponding tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, padding_side='left')
         model = AutoModelForCausalLM.from_pretrained(
             checkpoint_dir, torch_dtype=torch.bfloat16
         )
