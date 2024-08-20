@@ -293,7 +293,7 @@ if __name__ == "__main__":
         print(f"{test_generation_config=}")
 
         # load dataset
-        dataset = build_sass_dataset(checkpoint_dir, args.base_model, 'left')
+        dataset = build_sass_dataset(GEMMA_2B, args.base_model, 'left')
 
         # evaluate the model
         if checkpoint_dir.split('/')[-1].lower().startswith('sft_'):
