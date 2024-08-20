@@ -118,7 +118,7 @@ def evaluate_model(
             # tokenize the ['query'] column for batch processing
             # input_ids = tokenizer(batch_samples["query"], return_tensors='pt',
             #                       padding=True, truncation=True).input_ids.to(device)
-            input_ids = batch_samples["query_token"].to(device)
+            input_ids = torch.tensor(batch_samples["query_token"]).to(device)
 
             # generate new tokens
             generated_tokens = model.generate(
