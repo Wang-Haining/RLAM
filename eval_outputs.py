@@ -107,8 +107,7 @@ def calculate_metrics(
 
 
 def evaluate_model(
-        model, dataset, tokenizer, generation_config, batch_size, model_type='clm',
-        verbose=False
+        model, dataset, tokenizer, generation_config, batch_size, verbose=False
 ) -> List[Dict]:
     results = []
     model.eval()
@@ -118,8 +117,8 @@ def evaluate_model(
             encoded_inputs = tokenizer(
                 [TASK_PREFIX + s + RESPONSE_TEMP for s in batch_samples['source']],
                 truncation=True,
-                max_length=544,  # Adjust according to your model's needs
-                padding='max_length',
+                max_length=544,
+                padding='longest',
                 return_tensors="pt"
             )
             input_ids = encoded_inputs['input_ids'].to(device)
@@ -128,14 +127,10 @@ def evaluate_model(
                 input_ids=input_ids, generation_config=generation_config
             )
 
-            if model_type == 'clm':
-                # slice the generated tokens to get only the new tokens
-                new_tokens = generated_tokens[:, input_ids.shape[1]:]
-                generated_texts = tokenizer.batch_decode(new_tokens,
-                                                         skip_special_tokens=True)
-            elif model_type == 'seq2seq':
-                generated_texts = tokenizer.batch_decode(generated_tokens,
-                                                         skip_special_tokens=True)
+            # slice the generated tokens to get only the new tokens
+            new_tokens = generated_tokens[:, input_ids.shape[1]:]
+            generated_texts = tokenizer.batch_decode(new_tokens,
+                                                     skip_special_tokens=True)
 
             for j, generated_text in enumerate(generated_texts):
                 generated_text = generated_text.strip()
@@ -240,7 +235,6 @@ if __name__ == "__main__":
             tokenizer,
             test_generation_config,
             batch_size=args.batch_size,
-            model_type='clm',
             verbose=args.verbose
         )
 
