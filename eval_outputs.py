@@ -315,7 +315,7 @@ if __name__ == "__main__":
                 verbose=args.verbose
             )
         else:
-            raise RuntimeError(f"This should not happen. Check your {checkpoint_dir}.}")
+            raise RuntimeError(f"This should not happen. Check your {checkpoint_dir}.")
 
         # save evaluation results to csv
         file_path = os.path.join(save_dir, f"{checkpoint_dir.replace('/', '|')}.csv")
