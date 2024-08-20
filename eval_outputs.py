@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         print(f"Evaluating checkpoint in directory: {checkpoint_dir}")
         # load the corresponding tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(args.base_model, padding_side='left')  # fixme: load from ckpt
+        tokenizer = AutoTokenizer.from_pretrained('google/gemma-2b', padding_side='left')  # fixme: load from ckpt
         model = AutoModelForCausalLM.from_pretrained(
             checkpoint_dir, torch_dtype=torch.bfloat16
         )
