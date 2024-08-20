@@ -133,7 +133,8 @@ def evaluate_model(
                                                      skip_special_tokens=True)
 
             for j, generated_text in enumerate(generated_texts):
-                generated_text = generated_text.strip()
+                # remove repeated generation after "\nSimplified version"
+                generated_text = generated_text.split('\nSimplified version')[0].strip()
                 result = calculate_metrics(
                     generated_text,
                     batch_samples["response"][j],
