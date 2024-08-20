@@ -153,7 +153,7 @@ def evaluate_model(
             # evaluate policy generated response
             queries = torch.tensor(data["query_token"]).to(device)
             context_length = queries.shape[1]
-            query_responses, _ = generate(
+            query_responses = generate(
                 model,
                 queries,
                 tokenizer,
