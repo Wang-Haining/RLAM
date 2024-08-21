@@ -75,24 +75,24 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 #     return token_shifts, ppo_text
 
 def analyze_token_distribution_shift(
-        sft_model: AutoModelForCausalLM,
-        tokenizer: AutoTokenizer,
-        query: str,
-        ppo_text: str,
-        verbose: bool = True
+    sft_model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    query: str,
+    ppo_text: str,
+    verbose: bool = True
 ):
     """
-    Analyze the token distribution shift between SFT and PPO models using a single forward pass.
+    analyze the token distribution shift between sft and ppo models using a single forward pass
 
-    Args:
-        sft_model: The SFT model.
-        tokenizer: The tokenizer.
-        query: The input query text.
-        ppo_text: The generated text from the PPO model.
-        verbose: Whether to print the results during the analysis.
+    args:
+        sft_model: the sft model
+        tokenizer: the tokenizer
+        query: the input query text
+        ppo_text: the generated text from the ppo model
+        verbose: whether to print the results during the analysis
 
-    Returns:
-        A list of tuples containing token ID, SFT rank, PPO rank, and shift category.
+    returns:
+        a list of tuples containing token id, sft rank, ppo rank, and shift category
     """
     # encode the query and ppo_text
     input_ids = tokenizer(query, return_tensors="pt")["input_ids"]
@@ -118,13 +118,19 @@ def analyze_token_distribution_shift(
         current_position = input_ids.shape[1] + t
 
         # compute the softmax probabilities for the masked position
-        sft_probs = torch.softmax(sft_logits[0, current_position, :],
-                                  dim=-1).cpu().numpy().flatten()
+        sft_probs = torch.softmax(sft_logits[0, current_position, :], dim=-1).cpu().numpy().flatten()
 
         ppo_token_id = ppo_tokens[t].item()
 
-        # get the rank of the ppo_token in the SFT model's prediction
+        # get the rank of the ppo_token in the sft model's prediction
         sft_rank = np.argsort(-sft_probs).tolist().index(ppo_token_id)
+
+        # debugging prints to check alignment and correctness
+        if verbose:
+            print(f"processing token at position {current_position}:")
+            print(f"logits: {sft_logits[0, current_position, :].cpu().numpy().flatten()[:10]}...")  # first 10 logits
+            print(f"softmax probabilities: {sft_probs[:10]}...")  # first 10 probabilities
+            print(f"token: {tokenizer.decode([ppo_token_id])}, sft rank: {sft_rank}")
 
         shift_category = (
             "unshifted"
@@ -134,11 +140,8 @@ def analyze_token_distribution_shift(
 
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
 
-        if verbose:
-            token = tokenizer.decode([ppo_token_id])
-            print(f"Token: {token}, SFT Rank: {sft_rank}, Category: {shift_category}")
-
     return token_shifts, ppo_text
+
 
 
 if __name__ == '__main__':
