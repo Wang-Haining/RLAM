@@ -18,6 +18,7 @@ from utils import GEMMA_2B, build_sass_dataset
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+
 def analyze_token_distribution_shift(
     sft_model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
@@ -66,7 +67,7 @@ def analyze_token_distribution_shift(
     # iterate over each token in ppo_tokens
     for t in range(ppo_tokens.shape[0]):
         # compute the softmax probabilities for the generated token positions
-        sft_probs = torch.softmax(sft_logits[0, query_tokens.shape[1] + t, :],
+        sft_probs = torch.softmax(sft_logits[0, query_tokens.shape[1] + t -1, :],
                                   dim=-1).cpu().numpy().flatten()
 
         ppo_token_id = ppo_tokens[t].item()
