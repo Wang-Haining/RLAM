@@ -1350,8 +1350,7 @@ if __name__ == "__main__":
                                                     "query", 'response', 'source'])  # query_token: (bs, 2xx) left padded
     dataloader = DataLoader(dataset['train'], batch_size=args.local_batch_size, shuffle=True)
     eval_dataloaders = {}
-    for split in ["validation"]:  # todo: no test for now
-    # for split in ["test"]:  # fixme: for debugging
+    for split in ["validation"]:
         eval_dataset = dataset[split]
         eval_dataloaders[split] = DataLoader(eval_dataset, batch_size=args.local_eval_batch_size)
 
