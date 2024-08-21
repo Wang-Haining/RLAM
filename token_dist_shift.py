@@ -25,6 +25,7 @@ def analyze_token_distribution_shift(
     tokenizer: AutoTokenizer,
     query: str,
     ppo_text: str,
+    verbose: bool = True
 ):
     """
     Analyze the token distribution shift between SFT and PPO models.
@@ -34,6 +35,7 @@ def analyze_token_distribution_shift(
         tokenizer: The tokenizer.
         query: The input query text.
         ppo_text: The generated text from the PPO model.
+        verbose: Whether to print the results during the analysis.
 
     Returns:
         A list of tuples containing token ID, SFT rank, PPO rank, and shift category.
@@ -63,6 +65,12 @@ def analyze_token_distribution_shift(
         )
 
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
+
+        if verbose:
+            token = tokenizer.decode([ppo_token_id])
+            print(
+                f"Token: {token}, SFT Rank: {sft_rank}, Category: {shift_category}"
+            )
 
     return token_shifts, ppo_text
 
