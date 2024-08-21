@@ -83,7 +83,7 @@ def analyze_token_distribution_shift(
     verbose: bool = True
 ):
     """
-    Analyze the token distribution shift between sft and ppo models using a single
+    analyze the token distribution shift between sft and ppo models using a single
     forward pass
 
     args:
@@ -116,10 +116,8 @@ def analyze_token_distribution_shift(
 
     # iterate over each token in ppo_tokens
     for t in range(ppo_tokens.shape[0]):
-        current_position = query_tokens.shape[1] + t
-
         # compute the softmax probabilities for the generated token positions
-        sft_probs = torch.softmax(sft_logits[0, current_position, :], dim=-1).cpu().numpy().flatten()
+        sft_probs = torch.softmax(sft_logits[0, query_tokens.shape[1] + t, :], dim=-1).cpu().numpy().flatten()
 
         ppo_token_id = ppo_tokens[t].item()
 
@@ -132,7 +130,7 @@ def analyze_token_distribution_shift(
 
         # debugging prints to check alignment and correctness
         if verbose:
-            print(f"processing token at position {current_position}:")
+            print(f"processing token at position {query_tokens.shape[1] + t}:")
             print(f"top 5 predicted tokens: {top_tokens_decoded}")
             print(f"token: {tokenizer.decode([ppo_token_id])}, sft rank: {sft_rank}")
 
@@ -145,6 +143,7 @@ def analyze_token_distribution_shift(
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
 
     return token_shifts, ppo_text
+
 
 
 if __name__ == '__main__':
