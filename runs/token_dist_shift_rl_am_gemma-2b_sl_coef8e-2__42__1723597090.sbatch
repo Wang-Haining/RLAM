@@ -17,4 +17,4 @@ module load CUDA/12.2.0
 . .venv/bin/activate
 python -m token_dist_shift \
 --csv_file "eval_results_temp_0.01/ckpts|rl_am_gemma-2b_sl_coef8e-2__42__1723597090|step_2300_ari_12.65.csv" \
---output_json "eval_results_temp_0.01/tds_ckpts|rl_am_gemma-2b_sl_coef8e-2__42__1723597090|step_2300_ari_12.65.csv"
+--output_json "eval_results_temp_0.01/tds_ckpts|rl_am_gemma-2b_sl_coef8e-2__42__1723597090|step_2300_ari_12.65.json"
