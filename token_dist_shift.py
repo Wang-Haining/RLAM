@@ -99,8 +99,8 @@ if __name__ == '__main__':
         )
 
         # print the results for each query
-        print(f"Query: {query}")
-        print(f"Generated Text: {generated_text}\n")
+        print(f"Query:\n{query}")
+        print(f"Generated Text:\n{generated_text}\n")
         for token_id, sft_rank, shift_category in token_shifts:
             token = tokenizer.decode([token_id])
             print(
