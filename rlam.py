@@ -389,17 +389,647 @@ class ScalarModel(PreTrainedModel):
         return reward
 
 
-# class PolicyAndValueWrapper(nn.Module):
-#     def __init__(self, policy, value_model) -> None:
-#         super().__init__()
-#         self.policy = policy
-#         self.value_model = value_model
-#         self.lm_backbone = value_model.lm_backbone
-#
-#     def forward(self, **kwargs):
-#         output = self.lm_backbone(**kwargs)
-#         logits = self.value_model.scalar_head(output.hidden_states[-1])
-#         return self.policy(**kwargs), logits
+class PolicyAndValueWrapper(nn.Module):
+    def __init__(self, policy, value_model) -> None:
+        super().__init__()
+        self.policy = policy
+        self.value_model = value_model
+        self.lm_backbone = value_model.lm_backbone
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        logits = self.value_model.scalar_head(output.hidden_states[-1])
+        return self.policy(**kwargs), logits
+
+
+def get_reward(model, query_responses, tokenizer, context_length):
+    attention_mask = query_responses != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    output = model.lm_backbone(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        return_dict=True,
+        output_hidden_states=True,
+    )
+    sequence_lengths = first_true_indices(query_responses[:, context_length:] == tokenizer.pad_token_id) - 1 + context_length
+    reward_logits = model.scalar_head(output.hidden_states[-1])
+    return (
+        reward_logits,
+        reward_logits[torch.arange(reward_logits.size(0), device=reward_logits.device), sequence_lengths].squeeze(-1),
+        sequence_lengths,
+    )
+
+
+def generate(lm_backbone, queries, tokenizer, generation_config):
+    """generate in a way that does not affect padding tokens"""
+    context_length = queries.shape[1]
+    attention_mask = queries != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(queries, ~attention_mask, 0)
+    output = lm_backbone.generate(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        generation_config=generation_config,
+        return_dict_in_generate=True,
+        output_scores=True
+    )
+    logits = torch.stack(output.scores, 1)
+    return torch.cat((queries, output.sequences[:, context_length:]), dim=1), logits
+
+
+def exact_div(a, b):
+    q = a // b
+    if a != q * b:
+        raise ValueError(f"Inexact division: {a} / {b} = {a / b}")
+    return q
+
+
+def disable_dropout(model: torch.nn.Module):
+    """Disable dropout in a model."""
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.p = 0
+
+
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.normal_(layer.weight, std=std)
+    torch.nn.init.constant_(layer.bias, val=bias_const)
+    return layer
+
+
+def masked_mean(values, mask, axis=None):
+    """Compute mean of tensor with masked values."""
+    if axis is not None:
+        return (values * mask).sum(axis=axis) / mask.sum(axis=axis)
+    else:
+        return (values * mask).sum() / mask.sum()
+
+
+def masked_var(values, mask, unbiased=True):
+    """Compute variance of tensor with masked values."""
+    mean = masked_mean(values, mask)
+    centered_values = values - mean
+    variance = masked_mean(centered_values**2, mask)
+    if unbiased:
+        mask_sum = mask.sum()
+        if mask_sum == 0:
+            raise ValueError(
+                "The sum of the mask is zero, which can happen when `mini_batch_size=1`;"
+                "try increase the `mini_batch_size` or `gradient_accumulation_steps`"
+            )
+        # note that if mask_sum == 1, then there is a division by zero issue
+        # to avoid it you just need to use a larger minibatch_size
+        bessel_correction = mask_sum / (mask_sum - 1)
+        variance = variance * bessel_correction
+    return variance
+
+
+def masked_whiten(values, mask, shift_mean=True):
+    """Whiten values with masked values."""
+    mean, var = masked_mean(values, mask), masked_var(values, mask, False)
+    whitened = (values - mean) * torch.rsqrt(var + 1e-8)
+    if not shift_mean:
+        whitened += mean
+    return whitened
+
+
+def first_true_indices(bools, dtype=torch.long):
+    """
+    Takes an N-dimensional bool tensor and returns an (N-1)-dimensional tensor of
+    integers giving the position of the first True in each "row".
+
+    Returns the length of the rows (bools.size(-1)) if no element is True in a given row.
+    """
+    row_len = bools.size(-1)
+    zero_or_index = row_len * (~bools).type(dtype) + torch.arange(row_len, dtype=dtype, device=bools.device)
+    return torch.min(zero_or_index, dim=-1).values
+
+
+def truncate_response(args, tokenizer, responses):
+    trunc_idxs = first_true_indices(responses == args.truncate_token_id).unsqueeze(-1)
+    new_size = [1] * (len(responses.size()) - 1) + [responses.shape[1]]
+    idxs = torch.arange(responses.shape[1], device=responses.device).view(*new_size)
+    postprocessed_responses = torch.masked_fill(responses, idxs > trunc_idxs, tokenizer.pad_token_id)
+    return postprocessed_responses
+
+
+def forward(model, query_responses, tokenizer):
+    attention_mask = query_responses != tokenizer.pad_token_id
+    input_ids = torch.masked_fill(query_responses, ~attention_mask, 0)
+    return model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        return_dict=True,
+        output_hidden_states=True,
+    )
+
+
+def evaluate_model(
+        sl_coef: float,
+        wa_coef: float,
+        sd_coef: float,
+        swa_std_coef: float,
+        policy: torch.nn.Module,
+        tokenizer: PreTrainedTokenizerBase,
+        dataloader: DataLoader,
+        generation_config: GenerationConfig,
+        num_samples: int
+) -> Tuple[Dict[str, List], pd.DataFrame]:
+    """
+    Evaluates the policy model using various metrics on a subset of the dataset.
+
+    Args:
+        sl_coef: Scaling factor for sentence length score.
+        wa_coef: Scaling factor for word accessibility score.
+        sd_coef: Scaling factor for sentence count delta score.
+        swa_std_coef: Scaling factor for average word accessibility per sentence.
+        policy: The policy model to be evaluated.
+        tokenizer: Tokenizer used for encoding/decoding.
+        dataloader: DataLoader providing the evaluation dataset.
+        generation_config: Configuration for text generation.
+        num_samples: Number of samples to evaluate on.
+
+    Returns:
+        Evaluation metrics and DataFrame of results.
+    """
+    eval_storage = defaultdict(list)
+    bleu = BLEU()
+
+    with torch.no_grad():
+        for i, data in tqdm(enumerate(dataloader)):
+            # evaluate reference response (i.e., human-written significance statement)
+            reference_scores = compute_am_score_wrapper(data['response'],
+                                                         [len(sent_tokenize(r)) for r in data['response']])
+            reference_sl_scores = reference_scores['sl_score']
+            reference_wa_scores = reference_scores['wa_score']
+            reference_sd_scores = reference_scores['sd_score']
+            reference_swa_std_scores = reference_scores['swa_std_score']
+            reference_total_scores = sl_coef * reference_sl_scores + \
+                                     wa_coef * reference_wa_scores + \
+                                     sd_coef * reference_sd_scores + \
+                                     swa_std_coef * reference_swa_std_scores
+
+            # evaluate policy generated response
+            queries = data["query_token"]
+            context_length = queries.shape[1]
+            query_responses, _ = generate(
+                policy,
+                queries,
+                tokenizer,
+                generation_config,
+            )
+            responses = query_responses[:, context_length:]
+            postprocessed_responses = truncate_response(args, tokenizer, responses)
+            generated_texts = tokenizer.batch_decode(postprocessed_responses,
+                                                     skip_special_tokens=True)
+
+            # calculate metrics
+            am_scores = compute_am_score_wrapper(generated_texts,
+                                                   [len(sent_tokenize(s)) for s in data['response']])
+            sl_scores = am_scores['sl_score']
+            wa_scores = am_scores['wa_score']
+            sd_scores = am_scores['sd_score']
+            swa_std_scores = am_scores['swa_std_score']
+            total_scores = sl_coef * sl_scores + wa_coef * wa_scores \
+                           + sd_coef * sd_scores + swa_std_coef * swa_std_scores
+            ari_scores = []
+            bleu_scores = []
+            num_sents = []
+
+            for g, r in zip(generated_texts, data['source']):
+                ari_scores.append(compute_ari(g))
+                # BLEU to the original abstract (cf. significance statement)
+                bleu_scores.append(bleu.corpus_score([g], [[r]]).score)
+                num_sents.append(len(sent_tokenize(g)))
+
+            eval_storage["queries"].extend(data['query'])  # str
+            eval_storage["generated_texts"].extend(generated_texts)  # str
+            eval_storage["total_scores"].append(total_scores.cpu().numpy().tolist())
+            eval_storage["reference_responses"].extend(data['response'])  # str
+            eval_storage["reference_scores"].append(
+                reference_total_scores.cpu().numpy().tolist())
+            eval_storage['ari'].extend(ari_scores)
+            eval_storage['bleu'].extend(bleu_scores)
+            eval_storage['sent_len'].extend(sl_scores.cpu().numpy().tolist())
+            eval_storage['word_accessibility'].extend(wa_scores.cpu().numpy().tolist())
+            eval_storage['sent_delta'].extend(sd_scores.cpu().numpy().tolist())
+            eval_storage['sent_count'].extend(num_sents)
+            eval_storage['sent_wa_std'].extend(swa_std_scores.cpu().numpy().tolist())
+
+            if i >= num_samples:
+                break
+
+    eval_total_scores = [item for sublist in eval_storage["total_scores"] for item in
+                         sublist]
+    eval_reference_total_scores = [item for sublist in eval_storage["reference_scores"]
+                                   for item in sublist]
+    eval_df = pd.DataFrame(
+        {
+            "queries": gather_object(eval_storage["queries"]),
+            "generated_texts": gather_object(eval_storage["generated_texts"]),
+            "total_scores": gather_object(eval_total_scores),
+            "reference_responses": gather_object(eval_storage["reference_responses"]),
+            "reference_total_scores": gather_object(eval_reference_total_scores),
+            "ari": gather_object(eval_storage['ari']),
+            "bleu": gather_object(eval_storage['bleu']),
+            "sent_len": gather_object(eval_storage['sent_len']),
+            "word_accessibility": gather_object(eval_storage['word_accessibility']),
+            "sent_delta": gather_object(eval_storage['sent_delta']),
+            "sent_wa_std": gather_object(eval_storage['sent_wa_std']),
+            "sent_count": gather_object(eval_storage['sent_count'])
+        }
+    )
+    return eval_storage, eval_df
+
+
+"""
+This script implements a Proximal Policy Optimization (PPO) training loop for rewriting
+scholarly abstracts into more accessible versions.
+
+References:
+- https://arxiv.org/abs/1707.06347
+- https://github.com/vwxyzjn/summarize_from_feedback_details/blob/main/summarize_from_feedback_details/ppo.py
+
+"""
+
+import heapq
+import os
+import pickle
+import random
+import shutil
+import time
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from types import SimpleNamespace
+from typing import Dict, List, Literal, Optional, Tuple
+
+import nltk
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import tyro
+import wandb
+from accelerate import Accelerator
+from accelerate.state import AcceleratorState
+from accelerate.utils import broadcast, gather_object
+from nltk.tokenize import sent_tokenize
+from rich.console import Console
+from rich.pretty import pprint
+from sacrebleu.metrics import BLEU
+from sacremoses import MosesTokenizer
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+from transformers import (AutoConfig, AutoModel, AutoModelForCausalLM,
+                          AutoTokenizer, GenerationConfig, PretrainedConfig,
+                          PreTrainedModel, PreTrainedTokenizerBase)
+
+from utils import (INVALID_LOGPROB, PROJECT_NAME, SEED, SEP_TOKENS,
+                   WORD_ACCESSIBILITY_MODEL, WORD_FREQ_CSV, build_sass_dataset,
+                   compute_ari, compute_sent_len, compute_token_accessibility,
+                   read_token_frequencies)
+
+torch.set_printoptions(precision=3, sci_mode=False)
+nltk.download('punkt')
+
+
+
+@dataclass
+class RlamHParams:
+    noptepochs: int = 4
+    """Optimization iterations per batch of samples"""
+    vf_coef: float = 0.1
+    """Scaling factor for value loss"""
+    cliprange: float = 0.2
+    """PPO policy gradient clipping range"""
+    cliprange_value: float = 0.2
+    """Clip value estimation for stability"""
+    gamma: float = 1
+    """Gamma for GAE"""
+    lam: float = 0.95
+    """Lambda for GAE"""
+    reward: Literal['ari', 'am'] = 'am'
+    """Either guide optimization with the uncombined accessibility measures (am) or 
+    the Automated Readability Index (ari)"""
+    # reward related
+    sl_coef: float = 0.0
+    "Scaling factor for sentence length reward"
+    wa_coef: float = 2.5
+    "Scaling factor for word accessibility reward (will vary for an optimal value)"
+    sd_coef: float = 2.0
+    """Scaling factor for the difference in sentence count (i.e., sentence delta) 
+    between significance statements and rollouts."""
+    swa_std_coef: float = 20.0  # fixme
+    """Scaling factor for the standard deviation of word accessibility among 
+    generations."""
+    kl_coef: float = 0.2
+    """KL penalty coefficient"""
+    kl_coef_upper_bound: float = 0.8
+    """KL penalty coefficient"""
+    kl_coef_lower_bound: float = 0.2
+    """KL penalty coefficient"""
+    target_kl: Optional[float] = None
+    """Target KL value for adaptive KL control, e.g., 4.0, set with `k_beta`, 
+    see https://arxiv.org/abs/1909.08593"""
+    k_beta: Optional[float] = None
+    """Log-space proportional controller gain, e.g., 0.1, set with `target_kl`, 
+    see https://arxiv.org/abs/1909.08593"""
+    whiten_rewards: bool = False
+    """Normalize rewards before advantages estimation"""
+
+
+@dataclass
+class Args:
+    # common args
+    project_name: str = PROJECT_NAME
+    """The name of this experiment"""
+    job_name: Optional[str] = None
+    """The job name of this run; will be used with a seed number and timestamp as a 
+    folder under `output_dir` saving checkpoints"""
+    seed: int = SEED
+    """Seed of the experiment"""
+    deepspeed: bool = False
+    """Whether to use deepspeed to train the model"""
+    offload: bool = False
+    """Whether to offload ref policy model to CPU"""
+    print_sample_output_freq: int = 10
+    """How often to print sample output"""
+    run_eval: bool = True
+    """Whether to run evaluation"""
+
+    # optimizer (adamw) args
+    eps: float = 1e-5
+    """The epsilon value for adamw"""
+    lr: float = 3e-6
+    """The learning rate for adamw"""
+
+    # various batch sizes
+    world_size: Optional[int] = None
+    """The number of processes (GPUs) to use"""
+    num_train_epochs: int = 1
+    """Number of epochs to train"""
+    num_updates: Optional[int] = None
+    """The number of updates to train"""
+    gradient_accumulation_steps: int = 1
+    """The number of gradient accumulation steps"""
+    local_micro_batch_size: Optional[int] = 1
+    """The micro batch size per GPU (HF's `per_device_train_batch_size`)"""
+    total_episodes: Optional[int] = 1000000
+    """The total number of episodes in the dataset"""
+    micro_batch_size: Optional[int] = None
+    """The micro batch size across devices (HF's `per_device_train_batch_size` * `world_size`)"""
+    local_batch_size: Optional[int] = None
+    """The batch size per GPU (HF's `per_device_train_batch_size` * `gradient_accumulation_steps`)"""
+    batch_size: Optional[int] = None
+    """The batch size across devices (HF's `per_device_train_batch_size` * `world_size` * `gradient_accumulation_steps`)"""
+    nminibatches: int = 1
+    """Number of minibatches to split a batch into"""
+    local_mini_batch_size: Optional[int] = None
+    """the mini batch size per GPU"""
+    mini_batch_size: Optional[int] = None
+    """The mini batch size across GPUs"""
+    local_eval_batch_size: int = 1
+    """Per rank eval batch size"""
+    local_rollout_forward_batch_size: int = 1
+    """Per rank no grad forward pass in the rollout phase"""
+
+    # other args
+    base_model: str = 'google/gemma-2b'
+    """The name of the pretrained model to use"""
+    response_length: int = 256
+    """The length of the response"""
+    truncate_token: Literal["eos"] = "eos"
+    """The truncate token"""
+    truncate_token_id: Optional[int] = None
+    """The truncation token id: 1 for gemma, 50279 for olmo, 50256 for gpt2/phi2, and
+     128001 for llama3"""
+    temperature: float = 0.7
+    """The sampling temperature"""
+    penalty_reward_value: float = -1.0
+    """The reward value for responses that do not contain `truncate_token_id`"""
+    non_eos_penalty: bool = False
+    """Whether to penalize responses that do not contain `truncate_token_id`"""
+    sft_model_path: str = ''
+    """The path to the sft model"""
+
+    # logging and evaluation intervals (directly inherited from TrainingArguments)
+    logging_steps: int = 2
+    save_steps: int = 10
+    eval_steps: int = 10
+    num_eval_samples: int = 64
+    save_total_limit: Optional[int] = 3
+    output_dir: str = 'ckpts'
+    """The parent folder of saved checkpoints"""
+    early_stop: bool = True
+    """Stop early if no ARI improvements after 10 updates or ARI lower than 8.0"""
+    early_stop_min_ari: float = 8.0
+    early_stop_patience: int = 30
+    rlam: RlamHParams = field(default_factory=RlamHParams)
+    """Default values will be used to create a RlamHParams"""
+
+
+def parse_args() -> tuple[Args, Accelerator]:
+    args = tyro.cli(Args)
+    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
+    args.world_size = accelerator.num_processes
+    args.local_batch_size = args.local_micro_batch_size * args.gradient_accumulation_steps * args.nminibatches
+    args.micro_batch_size = int(args.local_micro_batch_size * args.world_size)
+    args.batch_size = int(args.local_batch_size * args.world_size)
+    args.mini_batch_size = exact_div(args.batch_size, args.nminibatches)
+    args.local_mini_batch_size = exact_div(args.local_batch_size, args.nminibatches)
+    if args.rlam.whiten_rewards:
+        assert (
+            args.local_mini_batch_size >= 8
+        ), f"Per-rank minibatch size {args.local_mini_batch_size} is insufficient for whitening"
+    # `per_rank_rollout_batch_size` is our `args.local_batch_size`
+    # `per_rank_minibatch_size` is our `args.local_mini_batch_size`
+    args.num_updates = args.total_episodes // args.batch_size
+    time_tensor = torch.tensor(int(time.time()), device=accelerator.device)
+    time_int = broadcast(time_tensor, 0).item()  # avoid different timestamps across processes
+    args.run_name = f"{args.job_name}__{args.seed}__{time_int}"
+    return args, accelerator
+
+
+class EarlyStopping:
+    """
+    Implements early stopping to terminate training when performance metrics stop
+    improving after several updates or lower than a thread.
+
+    Args:
+        patience: Number of epochs to wait for improvement before stopping.
+        min_ari: Minimum acceptable ARI score for early stopping.
+    """
+    def __init__(self, patience: int = 10, min_ari: float = 8.0):
+        self.patience = patience
+        self.min_ari = min_ari
+        self.best_ari = float('inf')
+        self.counter = 0
+
+    def should_stop(self, current_ari: float) -> bool:
+        if current_ari <= self.min_ari:
+            return True
+        if current_ari <= self.best_ari:
+            self.best_ari = current_ari
+            self.counter = 0
+        else:
+            self.counter += 1
+        return self.counter >= self.patience
+
+
+def compute_ari_score(responses: List[str]) -> Dict[str, torch.Tensor]:
+    """
+    Score a batch of responses using the Automated Readability Index (ARI).
+
+    Parameters:
+        responses: A list of response strings to process.
+
+    Returns:
+        A dict containing a list of tensors:
+        - ARI scores.
+    """
+    ari_scores = [compute_ari(response) for response in responses]
+    ari_scores_tensor = torch.stack(
+        [-1.0 * torch.tensor(score, dtype=torch.float32) for score in ari_scores])
+
+    return {"ari_score": ari_scores_tensor}
+
+
+def compute_am_score(responses: List[str],
+                     response_num_sents: List[int],
+                     top_100k_tokens,
+                     wa_model,
+                     total_tokens,
+                     token_freq) -> Dict[str, torch.Tensor]:
+    """
+    Score a batch of responses:
+    - Avg sentence length: Computed over all sentences in a response. (Note, because we
+        want average to be shorter, we need to negate sentence length in order to
+        maximize the score.)
+    - Avg word accessibility: Defined as the negative logarithm of the token frequency
+        per billion, based on its occurrences in the English Wikipedia corpus.
+    - Sentence delta: Difference of sentence count between generated texts with their
+        corresponding significance statements.
+    - Standard deviation among average sentence-level word accessibility: An accessible
+        text should not only be readable on average but also be consistent in
+        accessibility among sentences. This should be useful in reducing small trailing
+        phrases that deflate accessibility (e.g., "All rights reserved." or
+        "(show all)").
+
+    During pilot running, models cheat by spitting out only one eos token. So we
+    penalize both word accessibility and sentence length with reasonably large negative
+    feedback in such situations.
+
+    Note, we intentionally preclude the calculation of EOS tokens as their inclusion
+    will lead to underestimated word accessibility and inflated sentence length.
+
+    Parameters:
+        responses: A list of response strings to process.
+        response_num_sents: A list of target number of sentences (number of sentences in
+            the corresponding significance statement).
+        top_100k_tokens: Set of the top 100k tokens based on frequency.
+        wa_model: The model used to estimate word accessibility.
+        total_tokens: Total number of tokens in the reference corpus.
+        token_freq: Dictionary of token frequencies.
+
+    Returns:
+        A dict containing three lists of tensors:
+        - Negative sentence length score.
+        - Raw word accessibility score.
+        - Raw sentence delta rewards.
+    """
+    sent_len_rewards = []
+    sentence_delta_rewards = []
+    word_accessibility_rewards = []
+    avg_sent_word_accessibility_std_rewards = []
+
+    mt = MosesTokenizer(lang='en')
+    for i, response in enumerate(responses):
+        avg_sent_word_accessibility_lists = []
+        # penalize too short generations
+        if len(response.strip()) <= 50:
+            sent_len_rewards.append(28.0)
+            word_accessibility_rewards.append(10.5)
+            sentence_delta_rewards.append(abs(1 - response_num_sents[i]))
+            avg_sent_word_accessibility_std_rewards.append(1.0)
+        else:
+            sent_len_list = []
+            word_accessibility_list = []
+            sents = sent_tokenize(response)
+            sentence_delta_rewards.append(abs(len(sents) - response_num_sents[i]))
+            for sent in sents:
+                # get each sentence's average token accessibility
+                sent_word_accessibility_list = []
+                # prevent noise from artificial eos tokens
+                for t in SEP_TOKENS:
+                    if sent.strip().endswith(t) or sent.strip().startswith(t):
+                        sent = sent.replace(t, "").strip()
+                sent_len_list.append(compute_sent_len(sent))
+                for token in mt.tokenize(sent, escape=False):
+                    sent_word_accessibility_list.append(
+                        compute_token_accessibility(token,
+                                                    top_100k_tokens,
+                                                    wa_model,
+                                                    total_tokens,
+                                                    token_freq))
+                word_accessibility_list.extend(sent_word_accessibility_list)
+                avg_sent_word_accessibility_lists.append(np.mean(sent_word_accessibility_list))
+
+            avg_sent_word_accessibility_std_rewards.append(np.std(avg_sent_word_accessibility_lists))
+            sent_len_rewards.append(np.mean(sent_len_list))
+            word_accessibility_rewards.append(np.mean(word_accessibility_list))
+
+    sent_len_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sent_len_rewards])
+    # subtract 10 from average word accessibility to reduce variance
+    word_accessibility_rewards = torch.stack([torch.tensor(r, dtype=torch.float32) for r in word_accessibility_rewards])
+    word_accessibility_rewards = torch.clamp(word_accessibility_rewards - 10.0, min=0.0)
+    sentence_delta_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in sentence_delta_rewards])
+    # only penalize those have swa_std >= 0.65
+    avg_sent_word_accessibility_std_rewards = [r if r > 0.65 else 0 for r in avg_sent_word_accessibility_std_rewards]
+    avg_sent_word_accessibility_std_rewards = torch.stack([-1.0 * torch.tensor(r, dtype=torch.float32) for r in avg_sent_word_accessibility_std_rewards])
+    return {"sl_score": sent_len_rewards,
+            "wa_score": word_accessibility_rewards,
+            "sd_score": sentence_delta_rewards,
+            "swa_std_score": avg_sent_word_accessibility_std_rewards}
+
+
+class ScalarModelConfig(PretrainedConfig):
+    def __init__(
+        self,
+        base_model: str,
+        base_config: PretrainedConfig = None,
+        bias: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.base_model = base_model
+        if base_config is None:
+            base_config = AutoConfig.from_pretrained(base_model)
+        self.base_config = base_config
+        self.hidden_size = base_config.hidden_size
+        self.bias = bias
+
+
+class ScalarModel(PreTrainedModel):
+    config_class = ScalarModelConfig
+    def __init__(self, config: ScalarModelConfig):
+        super().__init__(config)
+        self.config = config
+        self.lm_backbone = AutoModel.from_pretrained(
+            config.base_model,
+            config=self.config.base_config,
+            trust_remote_code=True,
+        )
+        self.scalar_head = layer_init(
+            nn.Linear(self.config.hidden_size, 1),
+            std=1 / np.sqrt(self.config.hidden_size + 1),
+        )
+
+    def forward(self, **kwargs):
+        output = self.lm_backbone(**kwargs)
+        reward = self.scalar_head(output.hidden_states[-1]) - self.config.bias
+        return reward
 
 
 class PolicyAndValueWrapper(nn.Module):
@@ -407,9 +1037,12 @@ class PolicyAndValueWrapper(nn.Module):
         super().__init__()
         self.policy = policy
         self.value_model = value_model
+        self.lm_backbone = value_model.lm_backbone
 
     def forward(self, **kwargs):
-        return self.policy(**kwargs), self.value_model(**kwargs)
+        output = self.lm_backbone(**kwargs)
+        logits = self.value_model.scalar_head(output.hidden_states[-1])
+        return self.policy(**kwargs), logits
 
 
 def get_reward(model, query_responses, tokenizer, context_length):
@@ -656,45 +1289,36 @@ def save_model(accelerator, tokenizer, model, output_dir, run_name, ari, step, s
     save_path = os.path.join(output_path, f"step_{step}_ari_{ari}")
     metadata_path = os.path.join(output_path, "metadata.npz")
 
-    # ensure all processes wait before proceeding to save
-    accelerator.wait_for_everyone()
+    # load existing metadata if available
+    if os.path.exists(metadata_path):
+        metadata = np.load(metadata_path, allow_pickle=True)
+        saved_models = list(metadata['saved_models'])
+    else:
+        saved_models = []
 
-    # save only on the main process
-    if accelerator.is_main_process:
-        # load existing metadata if available
-        if os.path.exists(metadata_path):
-            metadata = np.load(metadata_path, allow_pickle=True)
-            saved_models = list(metadata['saved_models'])
-        else:
-            saved_models = []
-
-        # check if the model should be saved based on the ARI score
-        if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
-            # prepare model and tokenizer for saving
-            os.makedirs(save_path, exist_ok=True)
-            tokenizer.save_pretrained(save_path)
+    # save new model if conditions are met
+    if len(saved_models) < save_total_limit or ari < max(m['ari'] for m in saved_models):
+        # prepare model for saving
+        if accelerator.is_main_process:
+            tokenizer.save_pretrained(output_path)
             unwrapped = accelerator.unwrap_model(model).policy
-            unwrapped.save_pretrained(save_path,
-                                      is_main_process=accelerator.is_main_process,
-                                      save_function=accelerator.save,
-                                      state_dict=accelerator.get_state_dict(unwrapped),
-                                      safe_serialization=False)
+            unwrapped.save_pretrained(save_path, save_function=accelerator.save)
+        # update saved models list
+        saved_models.append({
+            'path': save_path,
+            'ari': ari,
+            'step': step
+        })
+        saved_models.sort(key=lambda x: x['ari'])
 
-            # update saved models list
-            saved_models.append({
-                'path': save_path,
-                'ari': ari,
-                'step': step
-            })
-            saved_models.sort(key=lambda x: x['ari'])
+        # remove the worst model if limit exceeded
+        if len(saved_models) > save_total_limit:
+            worst_model = saved_models.pop()
+            if os.path.exists(worst_model['path']):
+                shutil.rmtree(worst_model['path'])
 
-            # remove the worst model if limit exceeded
-            if len(saved_models) > save_total_limit:
-                worst_model = saved_models.pop()
-                if os.path.exists(worst_model['path']):
-                    shutil.rmtree(worst_model['path'])
-
-            # save updated metadata
+        # save updated metadata
+        if accelerator.is_main_process:
             np.savez(metadata_path, saved_models=saved_models)
             accelerator.print(f"Model saved at {save_path} with ARI {ari} at step {step}")
 
@@ -1154,9 +1778,6 @@ if __name__ == "__main__":
                     wandb.log({f"eval/{eval_split}_query_responses": wandb.Table(
                                       dataframe=eval_df)}, step=update)
                     accelerator.print(f'Logging at step {update} successful.')
-                    # # heuristics to tell if we need to stop
-                    # avg_ari = round(np.mean(eval_storage["ari"]), 2)
-                    # calculate averages
                     avg_ari = np.mean(eval_storage['ari'])
                     avg_total_score = np.mean(eval_storage['total_scores'])
                     avg_bleu = np.mean(eval_storage['bleu'])
