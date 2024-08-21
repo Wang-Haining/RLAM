@@ -46,7 +46,7 @@ def analyze_token_distribution_shift(
     ppo_tokens = tokenizer(ppo_text, return_tensors="pt")["input_ids"][0]
 
     token_shifts = []
-    for t in tqdm(range(query_length, len(ppo_tokens))):
+    for t in tqdm(range(1, len(ppo_tokens) + 1)):
         context_tokens = torch.cat([input_ids, ppo_tokens[:t].unsqueeze(0)], dim=1)
 
         with torch.no_grad():
@@ -54,7 +54,7 @@ def analyze_token_distribution_shift(
 
         sft_probs = torch.softmax(sft_logits[:, -1, :], dim=-1).cpu().numpy().flatten()
 
-        ppo_token_id = ppo_tokens[t].item()
+        ppo_token_id = ppo_tokens[t - 1].item()
 
         sft_rank = np.argsort(-sft_probs).tolist().index(ppo_token_id)
 
