@@ -25,21 +25,24 @@ def analyze_token_distribution_shift(
     tokenizer: AutoTokenizer,
     query: str,
     ppo_text: str,
+    output_csv: str = None,
     verbose: bool = True
 ):
     """
     analyze the token distribution shift between sft and ppo models using a single
-    forward pass
+    forward pass, and store results in a csv
 
     args:
         sft_model: the sft model
         tokenizer: the tokenizer
         query: the input query text
         ppo_text: the generated text from the ppo model
+        output_csv: path to the output csv file
         verbose: whether to print the results during the analysis
 
     returns:
-        a list of tuples containing token id, sft rank, ppo rank, and shift category
+        a tuple of two lists containing token id, sft rank, ppo rank, shift category,
+        and decoded texts
     """
     # encode the query and ppo_text
     query_tokens = tokenizer(query, return_tensors="pt")["input_ids"]
@@ -52,12 +55,19 @@ def analyze_token_distribution_shift(
     attention_mask = torch.ones_like(context_tokens)
 
     token_shifts = []
+    decoded_sft_text = []
 
     with torch.no_grad():
         # get logits for all positions in one forward pass
         sft_logits = sft_model(context_tokens.to(sft_model.device),
                                attention_mask=attention_mask.to(
                                    sft_model.device)).logits
+
+        # decode the greedy output from the sft logits
+        sft_generated_ids = sft_logits.argmax(dim=-1)
+        sft_generated_text = tokenizer.decode(sft_generated_ids[0, query_tokens.shape[1]:],
+                                              skip_special_tokens=True)
+        decoded_sft_text.append(sft_generated_text)
 
     # iterate over each token in ppo_tokens
     for t in range(ppo_tokens.shape[0]):
@@ -71,7 +81,7 @@ def analyze_token_distribution_shift(
         sft_rank = np.argsort(-sft_probs).tolist().index(ppo_token_id)
 
         # get top 5 most likely tokens predicted by the sft model
-        top_tokens = np.argsort(-sft_probs)[:5]
+        top_tokens = np.argsort(-sft_probs)[:10]
         top_tokens_decoded = tokenizer.decode(top_tokens).split()
 
         # debugging prints to check alignment and correctness
@@ -86,9 +96,21 @@ def analyze_token_distribution_shift(
             else "marginal" if 1 <= sft_rank <= 2 else "shifted"
         )
 
-        token_shifts.append((ppo_token_id, sft_rank, shift_category))
+        token_shifts.append({
+            "token_id": ppo_token_id,
+            "sft_rank": sft_rank,
+            "shift_category": shift_category,
+            "token": tokenizer.decode([ppo_token_id]),
+            "top_predicted_tokens": top_tokens_decoded
+        })
 
-    return token_shifts, ppo_text
+    # save results to csv
+    df = pd.DataFrame(token_shifts)
+    df["ppo_text"] = ppo_text
+    df["sft_generated_text"] = decoded_sft_text[0]
+    df.to_csv(output_csv, index=False)
+
+    return token_shifts, sft_generated_text
 
 
 if __name__ == '__main__':
@@ -99,6 +121,8 @@ if __name__ == '__main__':
                         help="The path to the sft model")
     parser.add_argument("--csv_file", type=str, required=True,
                         help="CSV file containing RLAM model generations")
+    parser.add_argument("--output_csv", type=str, required=True,
+                        help="Output CSV file")
     args = parser.parse_args()
 
     # load the dataset and generations from the CSV file
@@ -119,7 +143,8 @@ if __name__ == '__main__':
         ppo_text = row['generated_text']
 
         token_shifts, generated_text = analyze_token_distribution_shift(
-            sft_model, tokenizer, query, ppo_text
+            sft_model, tokenizer, query, ppo_text,
+            output_csv=args.output_csv,
         )
 
         # print the results for each query
