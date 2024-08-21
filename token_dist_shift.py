@@ -97,15 +97,11 @@ def analyze_token_distribution_shift(
         a list of tuples containing token id, sft rank, ppo rank, and shift category
     """
     # encode the query and ppo_text
-    input_ids = tokenizer(query, return_tensors="pt")["input_ids"]
-    ppo_tokens = tokenizer(ppo_text, return_tensors="pt")["input_ids"][0]
+    query_tokens = tokenizer(query, return_tensors="pt")["input_ids"]
+    context_tokens = tokenizer(query + ppo_text, return_tensors="pt")["input_ids"]
 
-    # remove <bos> token if it exists in ppo_tokens
-    if ppo_tokens[0].item() == tokenizer.bos_token_id:
-        ppo_tokens = ppo_tokens[1:]
-
-    # combine the query and ppo_tokens
-    context_tokens = torch.cat([input_ids, ppo_tokens.unsqueeze(0)], dim=1)
+    # extract ppo_tokens by subtracting query_tokens length from context_tokens
+    ppo_tokens = context_tokens[:, query_tokens.shape[1]:].squeeze()
 
     # prepare a mask for each position
     attention_mask = torch.ones_like(context_tokens)
@@ -120,9 +116,9 @@ def analyze_token_distribution_shift(
 
     # iterate over each token in ppo_tokens
     for t in range(ppo_tokens.shape[0]):
-        current_position = input_ids.shape[1] + t
+        current_position = query_tokens.shape[1] + t
 
-        # compute the softmax probabilities for the masked position
+        # compute the softmax probabilities for the generated token positions
         sft_probs = torch.softmax(sft_logits[0, current_position, :], dim=-1).cpu().numpy().flatten()
 
         ppo_token_id = ppo_tokens[t].item()
@@ -149,8 +145,6 @@ def analyze_token_distribution_shift(
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
 
     return token_shifts, ppo_text
-
-
 
 
 if __name__ == '__main__':
