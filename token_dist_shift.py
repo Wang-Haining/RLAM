@@ -82,7 +82,8 @@ def analyze_token_distribution_shift(
     verbose: bool = True
 ):
     """
-    analyze the token distribution shift between sft and ppo models using a single forward pass
+    Analyze the token distribution shift between sft and ppo models using a single
+    forward pass
 
     args:
         sft_model: the sft model
@@ -97,6 +98,10 @@ def analyze_token_distribution_shift(
     # encode the query and ppo_text
     input_ids = tokenizer(query, return_tensors="pt")["input_ids"]
     ppo_tokens = tokenizer(ppo_text, return_tensors="pt")["input_ids"][0]
+
+    # remove <bos> token if it exists in ppo_tokens
+    if ppo_tokens[0].item() == tokenizer.bos_token_id:
+        ppo_tokens = ppo_tokens[1:]
 
     # combine the query and ppo_tokens
     context_tokens = torch.cat([input_ids, ppo_tokens.unsqueeze(0)], dim=1)
