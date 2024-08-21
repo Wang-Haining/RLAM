@@ -72,8 +72,8 @@ def analyze_token_distribution_shift(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Token Distribution Shift Analysis "
                                                  "with RLAM Model Generations")
-    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--sft_model_path", type=str, required=True,
+                        default="ckpts/sft_gemma-2b/checkpoint-1680",
                         help="The path to the sft model")
     parser.add_argument("--csv_file", type=str, required=True,
                         help="CSV file containing RLAM model generations")
