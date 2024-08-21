@@ -19,61 +19,6 @@ from utils import GEMMA_2B, build_sass_dataset
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-#
-# def analyze_token_distribution_shift(
-#     sft_model: AutoModelForCausalLM,
-#     tokenizer: AutoTokenizer,
-#     query: str,
-#     ppo_text: str,
-#     verbose: bool = True
-# ):
-#     """
-#     Analyze the token distribution shift between SFT and PPO models.
-#
-#     Args:
-#         sft_model: The SFT model.
-#         tokenizer: The tokenizer.
-#         query: The input query text.
-#         ppo_text: The generated text from the PPO model.
-#         verbose: Whether to print the results during the analysis.
-#
-#     Returns:
-#         A list of tuples containing token ID, SFT rank, PPO rank, and shift category.
-#     """
-#     input_ids = tokenizer(query, return_tensors="pt")["input_ids"]
-#     query_length = input_ids.shape[1]
-#
-#     ppo_tokens = tokenizer(ppo_text, return_tensors="pt")["input_ids"][0]
-#
-#     token_shifts = []
-#     for t in tqdm(range(1, len(ppo_tokens) + 1)):
-#         context_tokens = torch.cat([input_ids, ppo_tokens[:t].unsqueeze(0)], dim=1)
-#
-#         with torch.no_grad():
-#             sft_logits = sft_model(context_tokens.to(sft_model.device)).logits
-#
-#         sft_probs = torch.softmax(sft_logits[:, -1, :], dim=-1).cpu().numpy().flatten()
-#
-#         ppo_token_id = ppo_tokens[t - 1].item()
-#
-#         sft_rank = np.argsort(-sft_probs).tolist().index(ppo_token_id)
-#
-#         shift_category = (
-#             "unshifted"
-#             if sft_rank == 0
-#             else "marginal" if 1 <= sft_rank <= 2 else "shifted"
-#         )
-#
-#         token_shifts.append((ppo_token_id, sft_rank, shift_category))
-#
-#         if verbose:
-#             token = tokenizer.decode([ppo_token_id])
-#             print(
-#                 f"Token: {token}, SFT Rank: {sft_rank}, Category: {shift_category}"
-#             )
-#
-#     return token_shifts, ppo_text
-
 
 def analyze_token_distribution_shift(
     sft_model: AutoModelForCausalLM,
@@ -117,7 +62,7 @@ def analyze_token_distribution_shift(
     # iterate over each token in ppo_tokens
     for t in range(ppo_tokens.shape[0]):
         # compute the softmax probabilities for the generated token positions
-        sft_probs = torch.softmax(sft_logits[0, query_tokens.shape[1] + t, :], dim=-1).cpu().numpy().flatten()
+        sft_probs = torch.softmax(sft_logits[0, query_tokens.shape[1] + t -1, :], dim=-1).cpu().numpy().flatten()
 
         ppo_token_id = ppo_tokens[t].item()
 
@@ -143,7 +88,6 @@ def analyze_token_distribution_shift(
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
 
     return token_shifts, ppo_text
-
 
 
 if __name__ == '__main__':
