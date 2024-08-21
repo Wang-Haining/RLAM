@@ -150,8 +150,10 @@ if __name__ == '__main__':
         # print the results for each query
         print(f"Query:\n{query}")
         print(f"Generated Text:\n{generated_text}\n")
-        for token_id, sft_rank, shift_category in token_shifts:
-            token = tokenizer.decode([token_id])
+        for token_shift in token_shifts:
+            token = token_shift["token"]
+            sft_rank = token_shift["sft_rank"]
+            shift_category = token_shift["shift_category"]
             print(
                 f"Token: {token}, SFT Rank: {sft_rank}, Category: {shift_category}"
             )
