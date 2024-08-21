@@ -45,7 +45,7 @@ def analyze_token_distribution_shift(
 
     token_shifts = []
     for t in tqdm(range(query_length, len(ppo_tokens))):
-        context_tokens = input_ids + ppo_tokens[:t]
+        context_tokens = torch.cat([input_ids, ppo_tokens[:t].unsqueeze(0)], dim=1)
 
         with torch.no_grad():
             sft_logits = sft_model(context_tokens.to(sft_model.device)).logits
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     test_set = build_sass_dataset(args.sft_model_path, GEMMA_2B)['test']
 
     # load the sft model
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     tokenizer = AutoTokenizer.from_pretrained(GEMMA_2B)
     sft_model = AutoModelForCausalLM.from_pretrained(
