@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     # load the dataset and generations from the CSV file
     df = pd.read_csv(args.csv_file)
-    dataset = build_sass_dataset(args.sft_model_path, GEMMA_2B)
+    test_set = build_sass_dataset(args.sft_model_path, GEMMA_2B)['test']
 
     # load the sft model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     # iterate over the dataset rows to analyze token distribution shifts
     for index, row in df.iterrows():
-        query = dataset['query'][index]
+        query = test_set['query'][index]
         ppo_text = row['generated_text']
 
         token_shifts, generated_text = analyze_token_distribution_shift(
