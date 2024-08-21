@@ -45,12 +45,10 @@ def analyze_token_distribution_shift(
 
     token_shifts = []
     for t in tqdm(range(query_length, len(ppo_tokens))):
-        context_tokens = ppo_tokens[:t]
-        context_text = tokenizer.decode(context_tokens, skip_special_tokens=True)
-        context_ids_sft = tokenizer(context_text, return_tensors="pt")["input_ids"]
+        context_tokens = input_ids + ppo_tokens[:t]
 
         with torch.no_grad():
-            sft_logits = sft_model(context_ids_sft.to(sft_model.device)).logits
+            sft_logits = sft_model(context_tokens.to(sft_model.device)).logits
 
         sft_probs = torch.softmax(sft_logits[:, -1, :], dim=-1).cpu().numpy().flatten()
 
