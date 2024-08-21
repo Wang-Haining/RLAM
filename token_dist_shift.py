@@ -74,6 +74,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 #
 #     return token_shifts, ppo_text
 
+
 def analyze_token_distribution_shift(
     sft_model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
@@ -105,7 +106,6 @@ def analyze_token_distribution_shift(
 
     # combine the query and ppo_tokens
     context_tokens = torch.cat([input_ids, ppo_tokens.unsqueeze(0)], dim=1)
-    context_length = context_tokens.shape[1]
 
     # prepare a mask for each position
     attention_mask = torch.ones_like(context_tokens)
@@ -130,11 +130,14 @@ def analyze_token_distribution_shift(
         # get the rank of the ppo_token in the sft model's prediction
         sft_rank = np.argsort(-sft_probs).tolist().index(ppo_token_id)
 
+        # get top 5 most likely tokens predicted by the sft model
+        top_tokens = np.argsort(-sft_probs)[:5]
+        top_tokens_decoded = tokenizer.decode(top_tokens).split()
+
         # debugging prints to check alignment and correctness
         if verbose:
             print(f"processing token at position {current_position}:")
-            print(f"logits: {sft_logits[0, current_position, :].cpu().numpy().flatten()[:10]}...")  # first 10 logits
-            print(f"softmax probabilities: {sft_probs[:10]}...")  # first 10 probabilities
+            print(f"top 5 predicted tokens: {top_tokens_decoded}")
             print(f"token: {tokenizer.decode([ppo_token_id])}, sft rank: {sft_rank}")
 
         shift_category = (
@@ -146,6 +149,7 @@ def analyze_token_distribution_shift(
         token_shifts.append((ppo_token_id, sft_rank, shift_category))
 
     return token_shifts, ppo_text
+
 
 
 
