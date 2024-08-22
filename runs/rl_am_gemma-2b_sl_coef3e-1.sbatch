@@ -43,7 +43,7 @@ rlam.py \
 --local_micro_batch_size 4 \
 --local_eval_batch_size 4 \
 --non_eos_penalty \
---penalty_reward_value 4.0 \
+--penalty_reward_value 2.0 \
 --rlam.kl_coef 0.2 \
 --rlam.kl_coef_upper_bound 0.25 \
 --rlam.kl_coef_lower_bound 0.15 \
