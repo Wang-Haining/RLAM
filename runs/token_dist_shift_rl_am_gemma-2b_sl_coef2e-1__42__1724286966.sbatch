@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=token_dist_shift_rl_am_gemma-2b_sl_coef5e-2__42__1723772226
+#SBATCH --job-name=token_dist_shift_rl_am_gemma-2b_sl_coef1e-1__42__1723692435
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
@@ -16,5 +16,5 @@ module load CUDA/12.2.0
 
 . .venv/bin/activate
 python -m token_dist_shift \
---csv_file "eval_results_temp_0.01/ckpts|rl_am_gemma-2b_sl_coef5e-2__42__1723772226|step_1550_ari_13.4.csv" \
---output_json "eval_results_temp_0.01/tds_ckpts|rl_am_gemma-2b_sl_coef5e-2__42__1723772226|step_1550_ari_13.4.json"
+--csv_file "eval_results_temp_0.01/ckpts|rl_am_gemma-2b_sl_coef2e-1__42__1724286966|step_1700_ari_12.17.csv" \
+--output_json "eval_results_temp_0.01/tds_ckpts|rl_am_gemma-2b_sl_coef2e-1__42__1724286966|step_1700_ari_12.17.json"
