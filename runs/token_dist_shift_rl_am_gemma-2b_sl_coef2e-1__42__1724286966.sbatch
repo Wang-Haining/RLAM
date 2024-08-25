@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=token_dist_shift_rl_am_gemma-2b_sl_coef1e-1__42__1723692435
+#SBATCH --job-name=token_dist_shift_rl_am_gemma-2b_sl_coef2e-1__42__1724286966
 ##SBATCH --account=group-jasonclark
 #SBATCH --partition=gpuunsafe
 #SBATCH --gres=gpu:a40:1
