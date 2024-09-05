@@ -44,6 +44,21 @@ and Word Accessibility Model.
 
 Refer to the 'runs' folder for training and evaluation scripts used to initiate runs on Slurm.
 
+## Generations
+
+For the generations reported in the *Findings* section, we used outputs from the following checkpoints.
+Additionally, we annotated the quality of the first ten samples with respect to language quality, faithfulness, and 
+completeness.
+
+| Model | $\\beta_{SL}}$ | $\\beta_{WA}$ | URL                                                                                                                                                                                                                        |
+| ----- | --------------------- | -------------------- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| RLARI | \-                    | \-                   | [rl_ari_gemma-2b__42__1723771398%7Cstep_400_ari_12.18.csv](https://github.com/Wang-Haining/RLAM/blob/main/eval_results_temp_0.01/ckpts%7Crl_ari_gemma-2b__42__1723771398%7Cstep_400_ari_12.18.csv)                                                                                 |
+| RLAM  | 0.05                  | 4                    | [rl_am_gemma-2b_sl_coef5e-2__42__1723772226%7Cstep_1550_ari_13.4.csv](https://github.com/Wang-Haining/RLAM/blob/main/eval_results_temp_0.01/ckpts%7Crl_am_gemma-2b_sl_coef5e-2__42__1723772226%7Cstep_1550_ari_13.4.csv)   |
+| RLAM  | 0.08                  | 4                    | [rl_am_gemma-2b_sl_coef8e-2__42__1723597090%7Cstep_1250_ari_13.64.csv](https://github.com/Wang-Haining/RLAM/blob/main/eval_results_temp_0.01/ckpts%7Crl_am_gemma-2b_sl_coef8e-2__42__1723597090%7Cstep_1250_ari_13.64.csv) |
+| RLAM  | 0.1                   | 4                    | [rl_am_gemma-2b_sl_coef1e-1__42__1723692435%7Cstep_1350_ari_13.28.csv](https://github.com/Wang-Haining/RLAM/blob/main/eval_results_temp_0.01/ckpts%7Crl_am_gemma-2b_sl_coef1e-1__42__1723692435%7Cstep_1350_ari_13.28.csv) |
+| RLAM  | 0.2                   | 4                    | [rl_am_gemma-2b_sl_coef2e-1__42__1724286966%7Cstep_1700_ari_12.17.csv](https://github.com/Wang-Haining/RLAM/blob/main/eval_results_temp_0.01/ckpts%7Crl_am_gemma-2b_sl_coef2e-1__42__1724286966%7Cstep_1700_ari_12.17.csv) |
+
+
 ## Contact
 hw56@indiana.edu
 
