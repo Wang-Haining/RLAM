@@ -67,11 +67,12 @@ hw56@indiana.edu
 
 ## Reference
 ```latex
-@article{wang2024science,
-      title={Science Out of Its Ivory Tower: Improving Accessibility with Reinforcement Learning}, 
-      author={Haining Wang and Jason Clark and Hannah McKelvey and Leila Sterman and Zheng Gao and Zuoyu Tian and Sandra Kübler and Xiaozhong Liu},
-      year={2024},
-      journal={arXiv preprint arXiv:2410.17088},
-      url={https://arxiv.org/abs/2410.17088}, 
+@article{wang2025science,
+  title={Science out of its Ivory Tower: improving accessibility with reinforcement learning},
+  author={Wang, Haining and Clark, Jason and McKelvey, Hannah and Sterman, Leila and Gao, Zheng and Tian, Zuoyu and K{\"u}bler, Sandra and Liu, Xiaozhong},
+  journal={Scientometrics},
+  pages={1--25},
+  year={2025},
+  publisher={Springer}
 }
 ```
