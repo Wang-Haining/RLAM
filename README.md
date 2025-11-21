@@ -68,11 +68,14 @@ hw56@indiana.edu
 ## Reference
 ```latex
 @article{wang2025science,
-  title={Science out of its Ivory Tower: improving accessibility with reinforcement learning},
+  title={Science out of its Ivory Tower: Improving Accessibility with Reinforcement Learning},
   author={Wang, Haining and Clark, Jason and McKelvey, Hannah and Sterman, Leila and Gao, Zheng and Tian, Zuoyu and K{\"u}bler, Sandra and Liu, Xiaozhong},
   journal={Scientometrics},
-  pages={1--25},
+  volume={130},
+  number={8},
+  pages={4519--4543},
   year={2025},
-  publisher={Springer}
+  publisher={Springer},
+  doi={10.1007/s11192-025-05386-z}
 }
 ```
